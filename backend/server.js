@@ -32,7 +32,7 @@ app.use('/api/attendances', attendanceRoute);
 app.use('/api/purchase-orders', purchaseOrderRoute);
 app.use('/api/audit-logs', auditLogRoute);
 
-app.get('/', (res) => {
+app.get('/', (req, res) => {
   res.send('Backend Smart Warehouse jalan!');
 });
 
