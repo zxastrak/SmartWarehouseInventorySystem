@@ -27,6 +27,12 @@ const purchaseOrderModel = {
         }
     },
 
+    getById: async (id) => {
+        const sql = 'SELECT * FROM purchase_orders WHERE id = ?';
+        const [rows] = await db.query(sql, [id]);
+        return rows;
+    },
+
     getAll: async () => {
         const sql = 'SELECT * FROM purchase_orders ORDER BY created_at DESC';
         const [rows] = await db.query(sql);

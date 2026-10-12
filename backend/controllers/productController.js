@@ -1,4 +1,5 @@
 const productModel = require('../models/productModel');
+const logAudit = require('../utils/audit');
 
 const productController = {
   create: async (req, res) => {
@@ -15,6 +16,13 @@ const productController = {
         unit: unit || 'pcs',
         price: price || 0,
         location_id,
+      });
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'PRODUCT_CREATED',
+        table_affected: 'products',
+        record_id: result.insertId,
       });
 
       res.status(201).json({ message: 'Produk berhasil dibuat', productId: result.insertId });
@@ -78,6 +86,14 @@ const productController = {
       }
 
       await productModel.update(id, { name, sku, category_id, supplier_id, stock_quantity, unit, price, location_id });
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'PRODUCT_UPDATED',
+        table_affected: 'products',
+        record_id: Number(id),
+      });
+
       res.status(200).json({ message: 'Produk berhasil diupdate' });
     } catch (err) {
       if (err.code === 'ER_DUP_ENTRY') {
@@ -97,6 +113,14 @@ const productController = {
       }
 
       await productModel.remove(id);
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'PRODUCT_DELETED',
+        table_affected: 'products',
+        record_id: Number(id),
+      });
+
       res.status(200).json({ message: 'Produk berhasil dihapus' });
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });

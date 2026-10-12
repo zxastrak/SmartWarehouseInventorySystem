@@ -19,6 +19,12 @@ const attendanceModel = {
         return rows;
     },
 
+    getLastByUserId: async (user_id) => {
+        const sql = 'SELECT * FROM attendance_logs WHERE user_id = ? ORDER BY scan_time DESC, id DESC LIMIT 1';
+        const [rows] = await db.query(sql, [user_id]);
+        return rows;
+    },
+
     getAll: async () => {
         const sql = 'SELECT * FROM attendance_logs ORDER BY scan_time DESC';
         const [rows] = await db.query(sql);

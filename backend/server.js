@@ -10,6 +10,9 @@ const productRoute = require('./routes/productRoute');
 const stockTransactionRoute = require('./routes/stockTransactionRoute');
 const taskRoute = require('./routes/taskRoute');
 const shiftRoute = require('./routes/shiftRoute');
+const attendanceRoute = require('./routes/attendanceRoute');
+const purchaseOrderRoute = require('./routes/purchaseOrderRoute');
+const auditLogRoute = require('./routes/auditLogRoute');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -25,9 +28,11 @@ app.use('/api/products', productRoute);
 app.use('/api/stock-transactions', stockTransactionRoute);
 app.use('/api/tasks', taskRoute);
 app.use('/api/shifts', shiftRoute);
+app.use('/api/attendances', attendanceRoute);
+app.use('/api/purchase-orders', purchaseOrderRoute);
+app.use('/api/audit-logs', auditLogRoute);
 
-
-app.get('/', (req, res) => {
+app.get('/', (res) => {
   res.send('Backend Smart Warehouse jalan!');
 });
 
