@@ -1,0 +1,52 @@
+.completed-content { position: relative; }
+.completed-download { position: absolute; right: 0; top: -82px; min-width: 210px; padding: 12px; }
+.completed-information { padding: 18px 22px 24px; }
+.completed-heading { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-bottom: 14px; }
+.completed-content h2 { margin: 0; font-size: 21px; }
+.completed-heading .inbound-status { text-align: center; min-width: 126px; }
+.completed-information dl { display: grid; grid-template-columns: .8fr 1.15fr 1fr; gap: 24px; margin: 0; max-width: 760px; }
+.completed-information dt { font-size: 11px; color: #737b6c; margin-bottom: 8px; }
+.completed-information dd { margin: 0; font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+.completed-grid { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr); gap: 28px; margin: 25px 8px 0; }
+.completed-items, .completed-summary { padding: 22px; min-width: 0; min-height: 430px; }
+.completed-table-wrap { overflow-x: auto; margin-top: 18px; }
+.completed-table-wrap table { border-collapse: collapse; width: 100%; min-width: 590px; font-size: 11px; }
+.completed-table-wrap th { background: #f3f5ef; font-weight: 400; color: #737b6c; text-align: left; padding: 14px; }
+.completed-table-wrap thead th:first-child { border-radius: 7px 0 0 7px; }
+.completed-table-wrap thead th:last-child { border-radius: 0 7px 7px 0; }
+.completed-table-wrap td { padding: 22px 14px; border-bottom: 1px solid #e1e6de; vertical-align: top; }
+.completed-table-wrap td:first-child { width: 36%; }
+.completed-table-wrap th:not(:first-child), .completed-table-wrap td:not(:first-child) { text-align: center; }
+.completed-table-wrap small { display: block; color: #737b6c; margin-top: 7px; }
+.completed-table-wrap tfoot th, .completed-table-wrap tfoot td { background: white; border: 0; padding-top: 30px; font-size: 14px; color: #191d17; font-weight: 700; }
+.completed-table-wrap tfoot .positive-text { color: #5c732b; }
+.completed-summary h2 { margin-bottom: 24px; }
+.completed-increase, .completed-issues { border-radius: 10px; padding: 18px 16px; }
+.completed-increase { background: #eef3e9; }
+.completed-issues { background: #f8f9f5; margin-top: 10px; }
+.completed-increase span, .completed-issues span { display: block; color: #737b6c; font-size: 11px; margin-bottom: 3px; }
+.completed-increase strong, .completed-issues strong { font-size: 26px; }
+.completed-increase strong { color: #5c732b; }
+.completed-issues.has-issues { background: #fdecec; color: #8a5a5b; }
+.completed-summary section { padding: 22px 0 0; }
+.completed-summary section + section { border-top: 1px solid #e1e6de; margin-top: 18px; }
+.completed-summary h3 { font-size: 14px; margin: 0 0 10px; }
+.completed-summary p { font-size: 11px; color: #737b6c; line-height: 1.6; margin: 6px 0 0; overflow-wrap: anywhere; }
+.completed-summary section:first-of-type > p { font-size: 13px; color: #191d17; }
+.completed-success { display: flex; gap: 14px; background: #eef3e9; border-radius: 10px; margin: 26px 8px 0; padding: 18px; color: #5c732b; font-size: 14px; }
+.completed-success > span { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #5c732b; color: white; flex-shrink: 0; }
+.completed-success p { color: #737b6c; font-size: 11px; margin: 7px 0; line-height: 1.6; }
+.completed-success button { font-size: 11px !important; font-weight: 400 !important; }
+.completed-back { margin: 24px 8px 14px; font-size: 14px !important; }
+.completed-unavailable { padding: 24px; margin-top: 24px; }
+.completed-unavailable p { color: #737b6c; line-height: 1.6; }
+@media (max-width: 1200px) {
+  .completed-grid { grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); gap: 18px; margin-left: 0; margin-right: 0; }
+}
+@media (max-width: 800px) {
+  .completed-download { position: static; display: block; margin: 0 0 20px auto; max-width: 100%; }
+  .completed-information dl { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .completed-grid { grid-template-columns: minmax(0, 1fr); }
+  .completed-items, .completed-summary { min-height: auto; padding: 20px 16px; }
+  .completed-success { margin-left: 0; margin-right: 0; }
+}

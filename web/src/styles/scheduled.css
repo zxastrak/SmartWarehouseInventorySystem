@@ -1,0 +1,72 @@
+.scheduled-content { position: relative; }
+.scheduled-edit { position: absolute; right: 0; top: -70px; color: #191d17; font-weight: 700; }
+.scheduled-information { padding: 20px 22px 32px; }
+.scheduled-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }
+.scheduled-content h2 { font-size: 21px; margin: 0; }
+.scheduled-heading .inbound-status { min-width: 130px; text-align: center; }
+.scheduled-information dl { display: grid; grid-template-columns: 1fr 1.1fr 1.6fr .8fr .8fr 1.25fr; gap: 22px; margin: 0; }
+.scheduled-information dt, .scheduled-dialog dt { font-size: 11px; color: #737b6c; margin-bottom: 8px; }
+.scheduled-information dd, .scheduled-dialog dd { font-size: 14px; font-weight: 700; margin: 0; overflow-wrap: anywhere; }
+.scheduled-grid { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); gap: 22px; margin-top: 24px; }
+.scheduled-items, .scheduled-timeline { min-width: 0; padding: 20px 22px; min-height: 460px; }
+.scheduled-items > p { font-size: 11px; color: #737b6c; margin: 8px 0 22px; }
+.scheduled-table-wrap { overflow-x: auto; }
+.scheduled-table-wrap table { width: 100%; border-collapse: collapse; min-width: 510px; font-size: 11px; }
+.scheduled-table-wrap th { background: #f3f5ef; color: #737b6c; font-weight: 400; padding: 14px; text-align: left; }
+.scheduled-table-wrap th:first-child { border-radius: 7px 0 0 7px; }
+.scheduled-table-wrap th:last-child { border-radius: 0 7px 7px 0; }
+.scheduled-table-wrap td { padding: 21px 14px; border-bottom: 1px solid #e1e6de; }
+.scheduled-table-wrap tbody tr:last-child td { border-bottom: 0; }
+.scheduled-table-wrap th:nth-child(n+3), .scheduled-table-wrap td:nth-child(n+3) { text-align: center; }
+.scheduled-table-wrap small { display: block; color: #737b6c; margin-top: 6px; }
+.scheduled-expand { background: transparent; border: 0; padding: 0; color: #191d17; font-size: 11px !important; font-weight: 700 !important; text-align: left; }
+.scheduled-collapse { margin: 12px 14px; }
+.scheduled-timeline { display: flex; flex-direction: column; }
+.scheduled-timeline ol { list-style: none; margin: 30px 0 24px; padding: 0 15px; flex: 1; }
+.scheduled-timeline li { display: flex; gap: 20px; position: relative; min-height: 82px; }
+.scheduled-timeline li:last-child { min-height: 40px; }
+.scheduled-timeline li:not(:last-child)::after { content: ''; position: absolute; left: 10px; top: 24px; bottom: -1px; width: 3px; background: #e1e6de; }
+.scheduled-timeline li > span { width: 23px; height: 23px; border: 1px solid #b8c2b1; border-radius: 50%; background: white; flex-shrink: 0; z-index: 1; }
+.scheduled-timeline .scheduled-event-complete > span { background: #5c732b; border-color: #5c732b; }
+.scheduled-timeline strong { font-size: 14px; }
+.scheduled-timeline li p { font-size: 11px; color: #737b6c; margin: 7px 0 0; line-height: 1.5; }
+.scheduled-timeline > button { width: 100%; }
+.scheduled-next { background: #eef3e9; border-radius: 10px; padding: 16px 22px; margin-top: 26px; color: #5c732b; font-size: 14px; }
+.scheduled-next p { color: #737b6c; font-size: 11px; margin: 7px 0 0; line-height: 1.5; }
+.scheduled-back { margin: 32px 0 14px; font-size: 13px !important; }
+.scheduled-dialog { width: min(710px, calc(100vw - 32px)); padding: 52px 34px 30px; border: 0; border-radius: 18px; color: #191d17; max-height: calc(100dvh - 32px); overflow-y: auto; }
+.scheduled-dialog::backdrop { background: #26302077; }
+.scheduled-close { position: absolute; top: 18px; right: 22px; background: transparent; border: 0; font-size: 26px !important; color: #191d17; padding: 0 4px; }
+.scheduled-arrival-icon { display: grid; place-items: center; width: 96px; height: 96px; border-radius: 50%; background: #eef3e9; color: #5c732b; font-size: 56px; line-height: 1; margin: 0 auto 8px; }
+.scheduled-dialog h2 { font-size: 28px; text-align: center; margin: 0 0 12px; letter-spacing: -.6px; }
+.scheduled-dialog-description { text-align: center; color: #737b6c; font-size: 13px; line-height: 1.6; margin: 0; }
+.scheduled-dialog-summary { background: #f8f9f5; border-radius: 10px; padding: 20px 18px; margin-top: 28px; }
+.scheduled-dialog-summary dl { display: grid; grid-template-columns: 1fr 1.1fr .75fr; gap: 16px; margin: 0; }
+.scheduled-dialog-summary p { color: #737b6c; font-size: 11px; line-height: 1.6; margin: 20px 0 0; }
+.scheduled-dialog-actions { display: flex; gap: 32px; margin-top: 32px; }
+.scheduled-dialog-actions > button { flex: 1; min-width: 0; height: 53px; }
+.scheduled-modal-footer { display: block; text-align: center; color: #737b6c; font-size: 11px !important; margin: 24px auto 0; line-height: 1.6; }
+button.scheduled-modal-footer { color: #5c732b; }
+.scheduled-confirmed { border: 1px solid #e1e6de; border-radius: 18px; text-align: center; font-size: 14px; font-weight: 700; margin-top: 32px; padding: 17px; }
+.scheduled-edit-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 26px; }
+.scheduled-edit-fields label { font-size: 12px; font-weight: 700; }
+.scheduled-edit-fields input, .scheduled-edit-fields select { width: 100%; min-width: 0; display: block; height: 44px; border: 1px solid #dfe4d9; border-radius: 8px; background: white; color: #191d17; padding: 8px 10px; margin-top: 8px; font: inherit; }
+.scheduled-edit-fields input:focus, .scheduled-edit-fields select:focus { outline: 2px solid #b4cfaf; outline-offset: 1px; }
+@media (max-width: 1200px) {
+  .scheduled-information dl { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 22px; }
+  .scheduled-grid { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; }
+}
+@media (max-width: 800px) {
+  .scheduled-edit { position: static; display: block; margin: 0 0 18px auto; }
+  .scheduled-information { padding: 20px; }
+  .scheduled-information dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 14px; }
+  .scheduled-information dd { font-size: 12px; }
+  .scheduled-heading .inbound-status { min-width: 90px; }
+  .scheduled-grid { grid-template-columns: minmax(0, 1fr); }
+  .scheduled-items, .scheduled-timeline { min-height: auto; padding: 20px 16px; }
+  .scheduled-dialog { padding: 44px 20px 24px; }
+  .scheduled-dialog h2 { font-size: 24px; }
+  .scheduled-dialog-summary dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scheduled-dialog-actions { gap: 12px; }
+  .scheduled-edit-fields { grid-template-columns: minmax(0, 1fr); }
+}
