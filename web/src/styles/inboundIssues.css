@@ -1,0 +1,70 @@
+.issue-content { position: relative; }
+.issue-contact { position: absolute; right: 0; top: -82px; min-width: 150px; }
+.issue-content h2 { font-size: 21px; margin: 0; }
+.issue-information { padding: 18px 22px 24px; }
+.issue-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 14px; }
+.issue-heading .inbound-status { min-width: 118px; text-align: center; }
+.issue-information dl { display: grid; grid-template-columns: 1fr 1.4fr 1fr .7fr; gap: 24px; max-width: 840px; margin: 0; }
+.issue-information dt, .issue-dialog dt { color: #737b6c; font-size: 11px; margin-bottom: 8px; }
+.issue-information dd, .issue-dialog dd { font-size: 14px; font-weight: 700; margin: 0; overflow-wrap: anywhere; }
+.issue-grid { display: grid; grid-template-columns: minmax(0,1.8fr) minmax(0,1fr); gap: 22px; margin-top: 24px; }
+.issue-reported, .issue-impact { padding: 20px 22px; min-width: 0; }
+.issue-description { display: flex; gap: 12px; border-radius: 10px; padding: 18px; background: #fdecec; color: #8a5a5b; margin-top: 24px; font-size: 14px; }
+.issue-description > span { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: #8a5a5b; color: white; flex-shrink: 0; }
+.issue-description small { display: block; font-size: 11px; color: #737b6c; margin-top: 8px; }
+.issue-description p { margin: 10px 0; color: #191d17; font-size: 13px; line-height: 1.5; }
+.issue-resolutions { border: 0; margin: 25px 0 20px; padding: 0; min-width: 0; }
+.issue-resolutions legend { font-size: 14px; font-weight: 700; margin-bottom: 14px; }
+.issue-resolutions > div { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 22px; }
+.issue-choice { display: flex; align-items: center; gap: 12px; border: 1px solid #e1e6de; border-radius: 10px; padding: 16px 14px; cursor: pointer; }
+.issue-choice.selected-choice { border-color: #5c732b; background: #eef3e9; }
+.issue-choice input { accent-color: #5c732b; margin: 0; width: 17px; height: 17px; flex-shrink: 0; }
+.issue-choice strong { display: block; font-size: 14px; }
+.issue-choice small { display: block; color: #737b6c; font-size: 11px; line-height: 1.5; margin-top: 5px; }
+.issue-notes { font-size: 14px; font-weight: 700; display: block; }
+.issue-notes textarea, .issue-message { display: block; width: 100%; border: 1px solid #e1e6de; border-radius: 10px; background: white; color: #191d17; padding: 12px 14px; margin-top: 12px; font: inherit; font-weight: 400; resize: vertical; }
+.issue-notes textarea { min-height: 58px; font-size: 13px; }
+.issue-notes textarea:focus { outline: 2px solid #b4cfaf; outline-offset: 1px; }
+.issue-evidence { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; margin: 22px 0 26px; }
+.issue-evidence > div, .issue-evidence > a { min-height: 130px; border-radius: 10px; background: #e9ece5; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #737b6c; font-size: 11px; text-align: center; padding: 12px; }
+.issue-evidence small { font-size: 10px; margin-top: 8px; }
+.issue-impact h3 { font-size: 14px; margin: 22px 0 14px; }
+.issue-impact-values { background: #f8f9f5; border-radius: 10px; padding: 14px 16px; }
+.issue-impact-values p { display: flex; justify-content: space-between; gap: 14px; margin: 0; font-size: 11px; color: #737b6c; }
+.issue-impact-values p + p { margin-top: 20px; }
+.issue-impact-values strong { color: #5c732b; font-size: 14px; }
+.issue-impact-values p + p strong { color: #8a5a5b; }
+.issue-notify { display: flex; align-items: start; gap: 10px; font-size: 13px; line-height: 1.5; }
+.issue-notify input { accent-color: #5c732b; margin: 2px 0 0; }
+.issue-help { font-size: 10px; color: #737b6c; line-height: 1.5; margin: 10px 0 0; }
+.issue-impact > button { width: 100%; margin-top: 22px; }
+.issue-next { background: #eef3e9; color: #5c732b; padding: 16px 22px; border-radius: 10px; margin-top: 24px; font-size: 14px; }
+.issue-next p { font-size: 11px; color: #737b6c; margin: 7px 0 0; line-height: 1.6; }
+.issue-back { margin: 18px 0 14px; font-size: 13px !important; }
+.issue-unavailable { margin-top: 24px; padding: 24px; }
+.issue-unavailable p { color: #737b6c; line-height: 1.6; }
+.issue-dialog { width: min(670px,calc(100vw - 32px)); border: 0; border-radius: 18px; padding: 48px 34px 28px; color: #191d17; max-height: calc(100dvh - 32px); overflow-y: auto; }
+.issue-dialog::backdrop { background: #26302077; }
+.issue-close { position: absolute; right: 20px; top: 18px; border: 0; background: transparent; padding: 0 4px; font-size: 26px !important; color: #191d17; }
+.issue-success-icon { width: 96px; height: 96px; background: #eef3e9; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 6px; }
+.issue-success-icon span { width: 64px; height: 64px; border-radius: 50%; background: #5c732b; color: white; display: grid; place-items: center; font-size: 32px; }
+.issue-dialog h2 { font-size: 28px; text-align: center; margin: 0 0 12px; }
+.issue-dialog-description { color: #737b6c; font-size: 13px; text-align: center; line-height: 1.6; margin: 0; }
+.issue-dialog-summary { background: #f8f9f5; border-radius: 10px; padding: 18px; margin-top: 28px; }
+.issue-dialog-summary dl { display: grid; grid-template-columns: .9fr 1.4fr; gap: 20px; margin: 0; }
+.issue-dialog-summary p { color: #737b6c; font-size: 11px; margin: 18px 0 0; line-height: 1.6; }
+.issue-dialog-actions { display: flex; gap: 28px; margin-top: 28px; }
+.issue-dialog-actions button { flex: 1; min-width: 0; height: 53px; }
+.issue-dialog-footer { color: #737b6c; font-size: 10px; text-align: center; margin: 24px 0 0; }
+.issue-message { min-height: 210px; font-size: 13px; line-height: 1.6; margin-top: 24px; }
+@media (max-width: 1200px) { .issue-grid { grid-template-columns: minmax(0,1.6fr) minmax(0,1fr); } .issue-resolutions > div { gap: 12px; } }
+@media (max-width: 800px) {
+  .issue-contact { position: static; display: block; margin: 0 0 20px auto; }
+  .issue-information dl { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px 14px; }
+  .issue-grid { grid-template-columns: minmax(0,1fr); }
+  .issue-reported, .issue-impact { padding: 20px 16px; }
+  .issue-resolutions > div { grid-template-columns: minmax(0,1fr); }
+  .issue-dialog { padding: 44px 20px 24px; }
+  .issue-dialog-summary dl { grid-template-columns: minmax(0,1fr); }
+  .issue-dialog-actions { gap: 12px; }
+}
