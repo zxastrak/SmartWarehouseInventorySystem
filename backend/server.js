@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 require('./config/db');
+
 const authRoute = require('./routes/authRoute');
 const categoryRoute = require('./routes/categoryRoute');
 const locationRoute = require('./routes/locationRoute');
@@ -13,6 +14,7 @@ const shiftRoute = require('./routes/shiftRoute');
 const attendanceRoute = require('./routes/attendanceRoute');
 const purchaseOrderRoute = require('./routes/purchaseOrderRoute');
 const auditLogRoute = require('./routes/auditLogRoute');
+const userRoute = require('./routes/userRoute');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -31,6 +33,7 @@ app.use('/api/shifts', shiftRoute);
 app.use('/api/attendances', attendanceRoute);
 app.use('/api/purchase-orders', purchaseOrderRoute);
 app.use('/api/audit-logs', auditLogRoute);
+app.use('/api/users', userRoute);
 
 app.get('/', (res) => {
   res.send('Backend Smart Warehouse jalan!');

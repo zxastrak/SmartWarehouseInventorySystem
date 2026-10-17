@@ -1,8 +1,8 @@
 const shiftModel = require('../models/shiftModel');
 const userModel = require('../models/userModel');
+const logAudit = require('../utils/audit');
 
 const shiftController = {
-  // Manager atur jadwal shift staf
   create: async (req, res) => {
     try {
       const { user_id, shift_date, start_time, end_time } = req.body;
@@ -17,6 +17,14 @@ const shiftController = {
       }
 
       const result = await shiftModel.create({ user_id, shift_date, start_time, end_time });
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'SHIFT_CREATED',
+        table_affected: 'shifts',
+        record_id: result.insertId,
+      });
+
       res.status(201).json({ message: 'Shift berhasil dibuat', shiftId: result.insertId });
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
@@ -44,10 +52,9 @@ const shiftController = {
     }
   },
 
-  // Staf lihat jadwal shift-nya sendiri
   getMine: async (req, res) => {
     try {
-      const sql_date = req.query.date; // opsional: /api/shifts/me?date=2026-09-30
+      const sql_date = req.query.date;
       if (sql_date) {
         const shift = await shiftModel.getByUserAndDate(req.user.id, sql_date);
         return res.status(200).json(shift);
@@ -71,6 +78,14 @@ const shiftController = {
       }
 
       await shiftModel.update(id, { user_id, shift_date, start_time, end_time });
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'SHIFT_UPDATED',
+        table_affected: 'shifts',
+        record_id: Number(id),
+      });
+
       res.status(200).json({ message: 'Shift berhasil diupdate' });
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
@@ -85,6 +100,14 @@ const shiftController = {
         return res.status(404).json({ message: 'Shift tidak ditemukan' });
       }
       await shiftModel.remove(id);
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'SHIFT_DELETED',
+        table_affected: 'shifts',
+        record_id: Number(id),
+      });
+
       res.status(200).json({ message: 'Shift berhasil dihapus' });
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
