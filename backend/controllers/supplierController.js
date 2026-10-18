@@ -1,4 +1,5 @@
 const supplierModel = require('../models/supplierModel');
+const logAudit = require('../utils/audit');
 
 const supplierController = {
   create: async (req, res) => {
@@ -10,6 +11,14 @@ const supplierController = {
       }
 
       const result = await supplierModel.create({ name, contact_person, phone, address });
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'SUPPLIER_CREATED',
+        table_affected: 'suppliers',
+        record_id: result.insertId,
+      });
+
       res.status(201).json({ message: 'Supplier berhasil dibuat', supplierId: result.insertId });
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
@@ -51,6 +60,14 @@ const supplierController = {
       }
 
       await supplierModel.update(id, { name, contact_person, phone, address });
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'SUPPLIER_UPDATED',
+        table_affected: 'suppliers',
+        record_id: Number(id),
+      });
+
       res.status(200).json({ message: 'Supplier berhasil diupdate' });
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
@@ -67,8 +84,19 @@ const supplierController = {
       }
 
       await supplierModel.remove(id);
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'SUPPLIER_DELETED',
+        table_affected: 'suppliers',
+        record_id: Number(id),
+      });
+
       res.status(200).json({ message: 'Supplier berhasil dihapus' });
     } catch (err) {
+      if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+        return res.status(409).json({ message: 'Supplier tidak bisa dihapus karena masih dipakai oleh produk atau purchase order' });
+      }
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
     }
   },

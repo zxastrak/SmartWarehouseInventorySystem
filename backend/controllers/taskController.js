@@ -1,10 +1,10 @@
 const taskModel = require('../models/taskModel');
 const userModel = require('../models/userModel');
+const logAudit = require('../utils/audit');
 
 const VALID_STATUS = ['pending', 'in_progress', 'done'];
 
 const taskController = {
-  // General view: semua yang login bisa lihat semua task
   getAll: async (req, res) => {
     try {
       const tasks = await taskModel.getAll();
@@ -39,7 +39,6 @@ const taskController = {
     }
   },
 
-  // Manager bikin task
   create: async (req, res) => {
     try {
       const { title, description, location_id, related_product_id, current_assignee_id } = req.body;
@@ -63,6 +62,13 @@ const taskController = {
         created_by,
       });
 
+      await logAudit({
+        user_id: created_by,
+        action: 'TASK_CREATED',
+        table_affected: 'tasks',
+        record_id: result.taskId,
+      });
+
       res.status(201).json({ message: 'Task berhasil dibuat', taskId: result.taskId });
     } catch (err) {
       if (err.code === 'ER_NO_REFERENCED_ROW_2') {
@@ -72,11 +78,10 @@ const taskController = {
     }
   },
 
-  // Backup PIC: Manager ngalihin ke staf mana pun, Staf ambil alih buat dirinya sendiri
   reassign: async (req, res) => {
     try {
       const { id } = req.params;
-      const { new_assignee_id, reason } = req.body;
+      const { new_assignee_id, reason } = req.body || {};
 
       const task = await taskModel.getById(id);
       if (task.length === 0) {
@@ -90,7 +95,7 @@ const taskController = {
       let finalReason;
 
       if (req.user.role === 'staf') {
-        targetId = req.user.id; // staf hanya boleh ambil alih untuk dirinya sendiri
+        targetId = req.user.id;
         finalReason = reason || 'backup_takeover';
       } else {
         if (!new_assignee_id) {
@@ -110,13 +115,20 @@ const taskController = {
       }
 
       await taskModel.reassign(id, targetId, finalReason);
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'TASK_REASSIGNED',
+        table_affected: 'tasks',
+        record_id: Number(id),
+      });
+
       res.status(200).json({ message: 'PIC berhasil dialihkan', newAssignee: targetId });
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
     }
   },
 
-  // Hanya PIC saat ini (atau Manager) yang boleh ubah status
   updateStatus: async (req, res) => {
     try {
       const { id } = req.params;
@@ -136,6 +148,14 @@ const taskController = {
       }
 
       await taskModel.updateStatus(id, status);
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'TASK_STATUS_UPDATED',
+        table_affected: 'tasks',
+        record_id: Number(id),
+      });
+
       res.status(200).json({ message: 'Status task berhasil diupdate' });
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });

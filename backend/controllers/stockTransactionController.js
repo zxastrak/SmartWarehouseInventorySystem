@@ -1,11 +1,11 @@
 const stockTransactionModel = require('../models/stockTransactionModel');
+const logAudit = require('../utils/audit');
 
 const stockTransactionController = {
-  // Staf catat SKU IN / SKU OUT
   create: async (req, res) => {
     try {
       const { product_id, type, quantity, notes } = req.body;
-      const user_id = req.user.id; // dari JWT, bukan dari body
+      const user_id = req.user.id;
 
       if (!product_id || !type || quantity === undefined) {
         return res.status(400).json({ message: 'product_id, type, dan quantity wajib diisi' });
@@ -21,6 +21,13 @@ const stockTransactionController = {
 
       const result = await stockTransactionModel.processStockMovement({
         product_id, user_id, type, quantity, notes,
+      });
+
+      await logAudit({
+        user_id,
+        action: type === 'in' ? 'STOCK_IN' : 'STOCK_OUT',
+        table_affected: 'stock_transactions',
+        record_id: result.transactionId,
       });
 
       res.status(201).json({
@@ -39,7 +46,6 @@ const stockTransactionController = {
     }
   },
 
-  // Manager: lihat semua transaksi
   getAll: async (req, res) => {
     try {
       const transactions = await stockTransactionModel.getAll();
@@ -49,7 +55,6 @@ const stockTransactionController = {
     }
   },
 
-  // Riwayat transaksi milik user yang lagi login (fitur "Riwayat Transaksi Harian Staf")
   getMine: async (req, res) => {
     try {
       const transactions = await stockTransactionModel.getByUserId(req.user.id);
@@ -59,7 +64,6 @@ const stockTransactionController = {
     }
   },
 
-  // Riwayat pergerakan satu produk
   getByProduct: async (req, res) => {
     try {
       const { product_id } = req.params;

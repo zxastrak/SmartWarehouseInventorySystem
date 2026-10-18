@@ -1,4 +1,5 @@
 const purchaseOrderModel = require('../models/purchaseOrderModel');
+const logAudit = require('../utils/audit');
 
 const purchaseOrderController = {
   create: async (req, res) => {
@@ -28,6 +29,13 @@ const purchaseOrderController = {
         items: items.map((i) => ({ product_id: i.product_id, quantity: i.quantity, price: i.price })),
       });
 
+      await logAudit({
+        user_id: created_by,
+        action: 'PO_CREATED',
+        table_affected: 'purchase_orders',
+        record_id: result.poId,
+      });
+
       res.status(201).json({ message: 'Purchase Order berhasil dibuat', poId: result.poId });
     } catch (err) {
       if (err.code === 'ER_NO_REFERENCED_ROW_2') {
@@ -46,7 +54,6 @@ const purchaseOrderController = {
     }
   },
 
-  // Detail 1 PO beserta item-itemnya
   getById: async (req, res) => {
     try {
       const { id } = req.params;
@@ -80,6 +87,14 @@ const purchaseOrderController = {
       }
 
       await purchaseOrderModel.updateStatus(id, status);
+
+      await logAudit({
+        user_id: req.user.id,
+        action: status === 'completed' ? 'PO_COMPLETED' : 'PO_CANCELLED',
+        table_affected: 'purchase_orders',
+        record_id: Number(id),
+      });
+
       res.status(200).json({ message: 'Status Purchase Order berhasil diupdate' });
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });

@@ -1,4 +1,5 @@
 const locationModel = require('../models/locationModel');
+const logAudit = require('../utils/audit');
 
 const locationController = {
   create: async (req, res) => {
@@ -10,8 +11,19 @@ const locationController = {
       }
 
       const result = await locationModel.create({ location_code, zone });
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'LOCATION_CREATED',
+        table_affected: 'locations',
+        record_id: result.insertId,
+      });
+
       res.status(201).json({ message: 'Lokasi berhasil dibuat', locationId: result.insertId });
     } catch (err) {
+      if (err.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ message: 'Kode lokasi sudah terdaftar' });
+      }
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
     }
   },
@@ -51,8 +63,19 @@ const locationController = {
       }
 
       await locationModel.update(id, { location_code, zone });
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'LOCATION_UPDATED',
+        table_affected: 'locations',
+        record_id: Number(id),
+      });
+
       res.status(200).json({ message: 'Lokasi berhasil diupdate' });
     } catch (err) {
+      if (err.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ message: 'Kode lokasi sudah terdaftar' });
+      }
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
     }
   },
@@ -67,8 +90,19 @@ const locationController = {
       }
 
       await locationModel.remove(id);
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'LOCATION_DELETED',
+        table_affected: 'locations',
+        record_id: Number(id),
+      });
+
       res.status(200).json({ message: 'Lokasi berhasil dihapus' });
     } catch (err) {
+      if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+        return res.status(409).json({ message: 'Lokasi tidak bisa dihapus karena masih dipakai oleh produk atau task' });
+      }
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
     }
   },
