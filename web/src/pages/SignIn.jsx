@@ -99,7 +99,7 @@ export default function SignIn({ onCreateAccount, initialEmail = '', onSignIn, o
           </aside>
           <p className="signin-legal">By continuing, you agree to the Terms of Service and Privacy Policy.</p>
           </>}
-          {authFailed && <p className="recovery-demo">Frontend demo — use naura@gmail.com / Susuno123! to preview the dashboard.</p>}
+          {authFailed && <p className="recovery-demo">Frontend demo — use the current manager credentials. Refresh restores naura@gmail.com / Susuno123!.</p>}
         </div>
       </section>
     </main>

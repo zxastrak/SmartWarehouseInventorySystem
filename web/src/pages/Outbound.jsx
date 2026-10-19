@@ -1,44 +1,134 @@
-import React,{useEffect,useRef,useState} from 'react';
-import DashboardSidebar from '../components/DashboardSidebar.jsx';
-import WarehouseHeader from '../components/WarehouseHeader.jsx';
-import CreateOutbound from '../components/CreateOutbound.jsx';
-import OutboundFulfillment from '../components/OutboundFulfillment.jsx';
-import CompletedOutbound from '../components/CompletedOutbound.jsx';
-import OutboundIssueReview from '../components/OutboundIssueReview.jsx';
-import ScheduledOutbound from '../components/ScheduledOutbound.jsx';
-import {downloadDispatchNote} from '../utils/outboundFulfillment.js';
-import {outboundStatuses,outboundTypes,outboundDate} from '../data/outbound.js';
-import {downloadOutboundList} from '../utils/outbound.js';
-import '../styles/dashboard.css';
-import '../styles/inventory.css';
-import '../styles/inbound.css';
-import '../styles/outbound.css';
-const titles=['Create Outbound','Add Items','Review Outbound'];
-const descriptions=['Create a customer shipment, warehouse transfer, or internal request.','Select products and quantities for this outbound request.','Check the request before creating the scheduled outbound order.'];
-const actions={Picking:'Continue',Packing:'Continue',Scheduled:'Start','Ready to Ship':'Ship',Shipped:'Details',Issue:'Review'};
-export default function Outbound({manager,warehouse,shipments,inventory,onCreate,onStartPicking,drafts,onSaveDraft,onAdvance,onShip,onReportIssue,onResolveIssue,onViewMovements,onNavigate,onSignOut}) {
-  const [creating,setCreating]=useState(false),[stage,setStage]=useState(0),[query,setQuery]=useState(''),[status,setStatus]=useState('All Statuses'),[type,setType]=useState('All Types'),[range,setRange]=useState('all'),[sort,setSort]=useState('default'),[page,setPage]=useState(1),[navOpen,setNavOpen]=useState(false),[notice,setNotice]=useState(''),[created,setCreated]=useState(null),[detailId,setDetailId]=useState(null);
-  const [flowId,setFlowId]=useState(null),[issueId,setIssueId]=useState(null);
-  const issueShipment=shipments.find(row=>row.id===issueId);
-  const flowShipment=shipments.find(row=>row.id===flowId);
-  const successRef=useRef(null),detailRef=useRef(null),warehouseName=warehouse?.warehouseName||'Main Warehouse';
-  const detail=shipments.find(row=>row.id===detailId),latestDate=shipments.map(row=>row.date).sort().at(-1);
-  const filtered=shipments.filter(row=>`${row.id} ${row.reference} ${row.destination}`.toLowerCase().includes(query.toLowerCase())&&(status==='All Statuses'||row.status===status)&&(type==='All Types'||row.type===type)&&(range==='all'||range==='latest'&&row.date===latestDate||range==='september'&&row.date.startsWith('2026-09'))).sort((a,b)=>sort==='earliest'?`${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`):sort==='latest'?`${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`):sort==='destination'?a.destination.localeCompare(b.destination):0);
-  const pages=Math.max(1,Math.ceil(filtered.length/6)),activePage=Math.min(page,pages),visible=filtered.slice((activePage-1)*6,activePage*6);
-  useEffect(()=>setPage(1),[query,status,type,range,sort]);
-  useEffect(()=>{if(created)successRef.current?.showModal();},[created]);
-  useEffect(()=>{if(detail)detailRef.current?.showModal();},[detailId]);
-  function back(){setFlowId(null);setCreating(false);setStage(0);setQuery('');window.scrollTo(0,0);}
-  function navigate(label){const routes={Dashboard:'dashboard',Inventory:'inventory',Inbound:'inbound',Outbound:'outbound','AI Insight':'ai-insight','Purchase Orders':'purchase-orders',Reports:'reports','Audit Trail':'audit-trail'};if(label==='Outbound')back();else if(routes[label])onNavigate(routes[label]);else setNotice(`${label} will be connected after its design is implemented.`);}
-  function create(draft){const result=onCreate(draft);if(result.error)return result;back();setStatus('All Statuses');setType('All Types');setRange('all');setSort('default');setPage(1);setCreated(result.shipment);return result;}
-  function openShipment(row){if(row.status==='Issue'&&row.pickIssue){setIssueId(row.id);return;}if(row.status==='Shipped'&&row.dispatch){setFlowId(row.id);setCreating(false);setQuery('');window.scrollTo(0,0);return;}if(row.products?.length && !row.pickIssue && ['Scheduled','Picking','Packing','Ready to Ship','Shipped'].includes(row.status)){setFlowId(row.id);setCreating(false);setQuery('');window.scrollTo(0,0);}else setDetailId(row.id);}
-  function closeSuccess(){setCreated(null);}
-  function startPicking(){const result=onStartPicking(created.id);if(result.error){setNotice(result.error);return;}setFlowId(created.id);setCreated(null);}
-  return <div className="dashboard-layout"><DashboardSidebar activePage="Outbound" warehouseName={warehouseName} open={navOpen} onClose={()=>setNavOpen(false)} onNavigate={navigate} /><div className="dashboard-main"><WarehouseHeader manager={manager} search={query} onSearch={setQuery} onMenu={()=>setNavOpen(true)} onSignOut={onSignOut} onAlerts={()=>{back();setStatus('Issue');setNotice('Showing outbound issues.');}} /><main className="dashboard-content outbound-content"><div className="dashboard-intro" hidden={Boolean(flowShipment)}><div><p>{creating?['OUTBOUND / CREATE','OUTBOUND / CREATE / ADD ITEMS','OUTBOUND / CREATE / ADD ITEMS / REVIEW'][stage]:'WAREHOUSE OPERATIONS'}</p><h1>{creating?titles[stage]:'Outbound'}</h1><p className="inbound-description">{creating?descriptions[stage]:'Pick, pack, and ship outgoing inventory accurately and on time.'}</p></div><div className="dashboard-date"><p>{new Intl.DateTimeFormat('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:'Asia/Jakarta'}).format(new Date())}</p><p>{warehouseName}</p>{!creating&&<button className="inbound-primary inbound-create-button" onClick={()=>{setCreating(true);setStage(0);setQuery('');setNotice('');}}><span>+</span> Outbound</button>}</div></div>
-  {flowShipment?<><div className="fulfillment-date"><p>{new Intl.DateTimeFormat("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric",timeZone:"Asia/Jakarta"}).format(new Date())}</p><p>{warehouseName}</p></div>{flowShipment.status==='Shipped'&&flowShipment.dispatch?<CompletedOutbound key={flowShipment.id} shipment={flowShipment} onDetails={()=>setDetailId(flowShipment.id)} onBack={back}/>:flowShipment.status==='Scheduled'?<ScheduledOutbound key={flowShipment.id} shipment={flowShipment} inventory={inventory} onStart={()=>onStartPicking(flowShipment.id)} onBack={back} />:<OutboundFulfillment key={flowShipment.id} shipment={flowShipment} inventory={inventory} initialDraft={drafts[flowShipment.id]} onSave={draft=>onSaveDraft(flowShipment.id,draft)} onAdvance={draft=>onAdvance(flowShipment.id,draft)} onShip={draft=>onShip(flowShipment.id,draft)} onReportIssue={(issue,draft)=>onReportIssue(flowShipment.id,issue,draft)} onBack={back} onDetails={()=>setDetailId(flowShipment.id)} />}</>:creating?<CreateOutbound inventory={inventory} stage={stage} onStage={setStage} onCancel={back} onCreate={create} />:<><section className="inbound-metrics outbound-metrics" aria-label="Outbound summary">{[['Scheduled Today',10,'→','4 due before 12:00','green','shipments'],['Picking in Progress',6,'⌁','328 units being picked','rose','orders'],['Ready to Ship',4,'✓','Awaiting final confirmation','green','orders'],['Issues / On Hold',2,'!','Stock or verification issues','rose','orders']].map(([label,value,icon,caption,tone,unit])=><div className={`inbound-metric metric-${tone}`} key={label}><span className="inbound-metric-icon">{icon}</span><div><h2>{label}</h2><p><strong>{value}</strong> {unit}</p><small>{caption}</small></div></div>)}</section><section className="dashboard-card inbound-shipments-card"><h2>Outbound Shipments</h2><p>Customer orders, transfers, and internal requests assigned to this warehouse.</p><div className="inbound-list-filters"><input aria-label="Search outbound shipments" placeholder="⌕ Search outbound ID, order, or destination..." value={query} onChange={e=>setQuery(e.target.value)} /><select aria-label="Outbound status filter" value={status} onChange={e=>setStatus(e.target.value)}><option>All Statuses</option>{outboundStatuses.map(value=><option key={value}>{value}</option>)}</select><select aria-label="Outbound type filter" value={type} onChange={e=>setType(e.target.value)}><option>All Types</option>{outboundTypes.map(row=><option key={row.name}>{row.name}</option>)}</select><select aria-label="Outbound date range" value={range} onChange={e=>setRange(e.target.value)}><option value="all">Date Range</option><option value="latest">Latest ship date</option><option value="september">September 2026</option></select><select aria-label="Sort outbound shipments" value={sort} onChange={e=>setSort(e.target.value)}><option value="default">Sort by</option><option value="earliest">Earliest shipment</option><option value="latest">Latest shipment</option><option value="destination">Destination A–Z</option></select><button className="inbound-export-button" onClick={()=>{downloadOutboundList(filtered);setNotice(`${filtered.length} matching shipments exported as CSV.`);}}>Export List</button></div><div className="inbound-table-wrap inbound-list-table"><table><thead><tr>{['Outbound ID','Order / Request','Destination','Ship Date','Items','Units','Status','Assigned to','Action'].map(label=><th key={label}>{label}</th>)}</tr></thead><tbody>{visible.map(row=><tr key={row.id}><td><strong>{row.id}</strong></td><td>{row.reference}</td><td><strong>{row.destination}</strong></td><td>{outboundDate(row.date)} · {row.time}</td><td>{row.items}</td><td>{row.units}</td><td><span className={`outbound-status status-${row.status.toLowerCase().replaceAll(' ','-')}`}>{row.status}</span></td><td>{row.staff}</td><td><button className={`dashboard-link${row.status==='Issue'?' critical-text':''}`} aria-label={`${actions[row.status]} ${row.id}`} onClick={()=>openShipment(row)}>{actions[row.status]} ›</button></td></tr>)}{!visible.length&&<tr><td colSpan="9" className="inventory-empty">No outbound shipments match these filters.</td></tr>}</tbody></table></div><div className="inventory-pagination"><span>Showing {filtered.length?(activePage-1)*6+1:0}–{Math.min(activePage*6,filtered.length)} of {filtered.length} local shipments</span><div>{Array.from({length:pages},(_,index)=><button key={index} className={activePage===index+1?'active-page':''} aria-label={`Outbound page ${index+1}`} onClick={()=>setPage(index+1)}>{index+1}</button>)}<button disabled={activePage===pages} aria-label="Next outbound page" onClick={()=>setPage(activePage+1)}>›</button></div></div></section></>}
-  {notice&&<p role="status" className="form-notice">{notice}</p>}<p className="dashboard-demo">Frontend demo · Summary cards are design samples. Picking and packing do not deduct stock. Confirmed shipping deducts stock once; no reservation is implemented. Refresh resets local data.</p></main></div>
-  {issueShipment&&<OutboundIssueReview key={issueShipment.id} shipment={issueShipment} inventory={inventory} onResolve={values=>onResolveIssue(issueShipment.id,values)} onClose={result=>{setIssueId(null);if(result?.shipment){if(result.onHold)setNotice(`${result.shipment.id} remains on hold. Stock has not been deducted.`);else{setFlowId(result.shipment.id);setNotice(result.backorder?`Backorder ${result.backorder.id} created for ${result.backorder.units} units.`:'Issue resolved. Continue picking.');}}}} />}
-  {created&&<dialog ref={successRef} className="dashboard-dialog outbound-success" aria-labelledby="outbound-created-title" onCancel={closeSuccess}><div className="outbound-success-check">✓</div><h2 id="outbound-created-title">Outbound created</h2><dl className="outbound-summary-rows outbound-info"><div><dt>Outbound ID</dt><dd>{created.id}</dd></div><div><dt>Reference</dt><dd>{created.reference}</dd></div><div><dt>Status</dt><dd className="positive-text">Scheduled</dd></div></dl><button className="inbound-primary" onClick={closeSuccess}>View Outbound Overview</button><button className="inbound-secondary" onClick={startPicking}>Start Picking Now</button></dialog>}
-  {detail&&<dialog ref={detailRef} className="dashboard-dialog outbound-detail" aria-labelledby="outbound-detail-title" onCancel={()=>setDetailId(null)}><h2 id="outbound-detail-title">{detail.id} · {detail.status}</h2><dl className="outbound-summary-rows">{[['Type',detail.type],['Destination',detail.destination],['Reference',detail.reference],['Ship date',`${outboundDate(detail.date)} · ${detail.time}`],['Priority',detail.priority],['Assigned to',detail.staff],['Items / Units',`${detail.items} / ${detail.units}`]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{detail.products?<div className="inbound-table-wrap"><table><thead><tr><th>Product</th><th>Quantity</th></tr></thead><tbody>{detail.products.map(row=><tr key={row.sku}><td>{row.name}<small>{row.sku}</small></td><td>{row.quantity}</td></tr>)}</tbody></table></div>:<p className="outbound-muted">Item details are not provided for this sample shipment.</p>}{detail.notes&&<p>Notes: {detail.notes}</p>}{detail.pickIssue&&<div className="fulfillment-warning"><strong>{detail.pickIssue.type}</strong><p>{detail.pickIssue.notes}</p><p>Reported by {detail.pickIssue.user}. Shipment is on hold; stock has not been deducted.</p></div>}{detail.dispatch&&<><dl className="outbound-summary-rows"><div><dt>Carrier</dt><dd>{detail.dispatch.carrier}</dd></div><div><dt>Driver / Plate</dt><dd>{detail.dispatch.driver} · {detail.dispatch.plate}</dd></div><div><dt>Tracking</dt><dd>{detail.dispatch.tracking}{detail.dispatch.trackingIsDemo?' (demo)':''}</dd></div></dl>{detail.dispatch.stockChanges.length>0&&<div className="inbound-table-wrap"><table><thead><tr><th>Product</th><th>Box</th><th>Shipped</th><th>Stock before → after</th></tr></thead><tbody>{detail.dispatch.stockChanges.map(row=><tr key={row.sku}><td>{row.name}</td><td>{row.box}</td><td>{row.quantity}</td><td>{row.before} → {row.after}</td></tr>)}</tbody></table></div>}{detail.dispatch.isHistoricalSample&&<p className="outbound-muted">Historical sample: {detail.units} units shipped. Product details and stock snapshots are not provided. Carrier and tracking are design samples.</p>}<div className="inbound-form-actions"><button className="inbound-secondary" onClick={()=>downloadDispatchNote(detail)}>Download Dispatch Note</button>{!detail.dispatch.isHistoricalSample&&<button className="inbound-primary" onClick={()=>onViewMovements(detail.id)}>View stock movement</button>}</div></>}{detail.backorderId&&<p>Backorder: {detail.backorderId}</p>}{detail.parentOutboundId&&<p>Backorder for {detail.parentOutboundId} · Original reference {detail.originalReference}</p>}{detail.issueReviews?.length>0&&<section><h3>Issue review history</h3>{detail.issueReviews.map((review,index)=><p key={index}>{review.resolution} · {review.note} · {review.user}{review.alternateRack?` · ${review.originalRack} → ${review.alternateRack}`:''}{review.backorderId?` · ${review.backorderId}`:''}</p>)}</section>}<p className="outbound-muted">Details shown here are read-only.</p><div className="inbound-form-actions"><button className="inbound-secondary" onClick={()=>setDetailId(null)}>Close</button>{detail.status==='Scheduled'&&detail.products&&<button className="inbound-primary" onClick={()=>{const result=onStartPicking(detail.id);if(result.error)setNotice(result.error);else{setDetailId(null);setFlowId(detail.id);}}}>Start Picking Now</button>}</div></dialog>}
+import { typeOf } from "../utils/productTypes.js";
+import React, { useEffect, useRef, useState } from "react";
+import DashboardSidebar from "../components/DashboardSidebar.jsx";
+import WarehouseHeader from "../components/WarehouseHeader.jsx";
+import CreateOutbound from "../components/CreateOutbound.jsx";
+import OutboundFulfillment from "../components/OutboundFulfillment.jsx";
+import CompletedOutbound from "../components/CompletedOutbound.jsx";
+import OutboundIssueReview from "../components/OutboundIssueReview.jsx";
+import ScheduledOutbound from "../components/ScheduledOutbound.jsx";
+import { downloadDispatchNote } from "../utils/outboundFulfillment.js";
+import { outboundStatuses, outboundTypes, outboundDate } from "../data/outbound.js";
+import { downloadOutboundList } from "../utils/outbound.js";
+import "../styles/dashboard.css";
+import "../styles/inventory.css";
+import "../styles/inbound.css";
+import "../styles/outbound.css";
+const titles = ["Create Outbound", "Add Items", "Review Outbound"];
+const descriptions = ["Create a customer shipment, warehouse transfer, or internal request.", "Select products and quantities for this outbound request.", "Check the request before creating the scheduled outbound order."];
+const actions = { Picking: "Continue", Packing: "Continue", Scheduled: "Start", "Ready to Ship": "Ship", Shipped: "Details", Issue: "Review" };
+function Outbound({ manager, warehouse, shipments, inventory, onCreate, onStartPicking, drafts, onSaveDraft, onAdvance, onShip, onReportIssue, onResolveIssue, onViewMovements, onNavigate, onSignOut }) {
+  const [creating, setCreating] = useState(false), [stage, setStage] = useState(0), [query, setQuery] = useState(""), [status, setStatus] = useState("All Statuses"), [type, setType] = useState("All Types"), [range, setRange] = useState("all"), [sort, setSort] = useState("default"), [page, setPage] = useState(1), [navOpen, setNavOpen] = useState(false), [notice, setNotice] = useState(""), [created, setCreated] = useState(null), [detailId, setDetailId] = useState(null);
+  const [flowId, setFlowId] = useState(null), [issueId, setIssueId] = useState(null);
+  const issueShipment = shipments.find((row) => row.id === issueId);
+  const flowShipment = shipments.find((row) => row.id === flowId);
+  const successRef = useRef(null), detailRef = useRef(null), warehouseName = warehouse?.warehouseName || "Main Warehouse";
+  const detail = shipments.find((row) => row.id === detailId), latestDate = shipments.map((row) => row.date).sort().at(-1);
+  const filtered = shipments.filter((row) => `${row.id} ${row.reference} ${row.destination}`.toLowerCase().includes(query.toLowerCase()) && (status === "All Statuses" || row.status === status) && (type === "All Types" || row.type === type) && (range === "all" || range === "latest" && row.date === latestDate || range === "september" && row.date.startsWith("2026-09"))).sort((a, b) => sort === "earliest" ? `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`) : sort === "latest" ? `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`) : sort === "destination" ? a.destination.localeCompare(b.destination) : 0);
+  const pages = Math.max(1, Math.ceil(filtered.length / 6)), activePage = Math.min(page, pages), visible = filtered.slice((activePage - 1) * 6, activePage * 6);
+  useEffect(() => setPage(1), [query, status, type, range, sort]);
+  useEffect(() => {
+    if (created) successRef.current?.showModal();
+  }, [created]);
+  useEffect(() => {
+    if (detail) detailRef.current?.showModal();
+  }, [detailId]);
+  function back() {
+    setFlowId(null);
+    setCreating(false);
+    setStage(0);
+    setQuery("");
+    window.scrollTo(0, 0);
+  }
+  function navigate(label) {
+    if (label === "Staff Management" || label === "Settings") {
+      onNavigate(label === "Settings" ? "settings" : "staff-management");
+      return;
+    }
+    const routes = { Dashboard: "dashboard", Inventory: "inventory", Inbound: "inbound", Outbound: "outbound", "AI Insight": "ai-insight", "Purchase Orders": "purchase-orders", Reports: "reports", "Audit Trail": "audit-trail" };
+    if (label === "Outbound") back();
+    else if (routes[label]) onNavigate(routes[label]);
+    else setNotice(`${label} will be connected after its design is implemented.`);
+  }
+  function create(draft) {
+    const result = onCreate(draft);
+    if (result.error) return result;
+    back();
+    setStatus("All Statuses");
+    setType("All Types");
+    setRange("all");
+    setSort("default");
+    setPage(1);
+    setCreated(result.shipment);
+    return result;
+  }
+  function openShipment(row) {
+    if (row.status === "Issue" && row.pickIssue) {
+      setIssueId(row.id);
+      return;
+    }
+    if (row.status === "Shipped" && row.dispatch) {
+      setFlowId(row.id);
+      setCreating(false);
+      setQuery("");
+      window.scrollTo(0, 0);
+      return;
+    }
+    if (row.products?.length && !row.pickIssue && ["Scheduled", "Picking", "Packing", "Ready to Ship", "Shipped"].includes(row.status)) {
+      setFlowId(row.id);
+      setCreating(false);
+      setQuery("");
+      window.scrollTo(0, 0);
+    } else setDetailId(row.id);
+  }
+  function closeSuccess() {
+    setCreated(null);
+  }
+  function startPicking() {
+    const result = onStartPicking(created.id);
+    if (result.error) {
+      setNotice(result.error);
+      return;
+    }
+    setFlowId(created.id);
+    setCreated(null);
+  }
+  return <div className="dashboard-layout"><DashboardSidebar activePage="Outbound" warehouseName={warehouseName} open={navOpen} onClose={() => setNavOpen(false)} onNavigate={navigate} /><div className="dashboard-main"><WarehouseHeader onViewProfile={() => onNavigate("settings-profile")} manager={manager} search={query} onSearch={setQuery} onMenu={() => setNavOpen(true)} onSignOut={onSignOut} onAlerts={() => {
+    back();
+    setStatus("Issue");
+    setNotice("Showing outbound issues.");
+  }} /><main className="dashboard-content outbound-content"><div className="dashboard-intro" hidden={Boolean(flowShipment)}><div><p>{creating ? ["OUTBOUND / CREATE", "OUTBOUND / CREATE / ADD ITEMS", "OUTBOUND / CREATE / ADD ITEMS / REVIEW"][stage] : "WAREHOUSE OPERATIONS"}</p><h1>{creating ? titles[stage] : "Outbound"}</h1><p className="inbound-description">{creating ? descriptions[stage] : "Pick, pack, and ship outgoing inventory accurately and on time."}</p></div><div className="dashboard-date"><p>{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "Asia/Jakarta" }).format(/* @__PURE__ */ new Date())}</p><p>{warehouseName}</p>{!creating && <button className="inbound-primary inbound-create-button" onClick={() => {
+    setCreating(true);
+    setStage(0);
+    setQuery("");
+    setNotice("");
+  }}><span>+</span> Outbound</button>}</div></div>
+  {flowShipment ? <><div className="fulfillment-date"><p>{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "Asia/Jakarta" }).format(/* @__PURE__ */ new Date())}</p><p>{warehouseName}</p></div>{flowShipment.status === "Shipped" && flowShipment.dispatch ? <CompletedOutbound key={flowShipment.id} shipment={flowShipment} onDetails={() => setDetailId(flowShipment.id)} onBack={back} /> : flowShipment.status === "Scheduled" ? <ScheduledOutbound key={flowShipment.id} shipment={flowShipment} inventory={inventory} onStart={() => onStartPicking(flowShipment.id)} onBack={back} /> : <OutboundFulfillment key={flowShipment.id} shipment={flowShipment} inventory={inventory} initialDraft={drafts[flowShipment.id]} onSave={(draft) => onSaveDraft(flowShipment.id, draft)} onAdvance={(draft) => onAdvance(flowShipment.id, draft)} onShip={(draft) => onShip(flowShipment.id, draft)} onReportIssue={(issue, draft) => onReportIssue(flowShipment.id, issue, draft)} onBack={back} onDetails={() => setDetailId(flowShipment.id)} />}</> : creating ? <CreateOutbound inventory={inventory} stage={stage} onStage={setStage} onCancel={back} onCreate={create} /> : <><section className="inbound-metrics outbound-metrics" aria-label="Outbound summary">{[["Scheduled Today", 10, "\u2192", "4 due before 12:00", "green", "shipments"], ["Picking in Progress", 6, "\u2301", "328 units being picked", "rose", "orders"], ["Ready to Ship", 4, "\u2713", "Awaiting final confirmation", "green", "orders"], ["Issues / On Hold", 2, "!", "Stock or verification issues", "rose", "orders"]].map(([label, value, icon, caption, tone, unit]) => <div className={`inbound-metric metric-${tone}`} key={label}><span className="inbound-metric-icon">{icon}</span><div><h2>{label}</h2><p><strong>{value}</strong> {unit}</p><small>{caption}</small></div></div>)}</section><section className="dashboard-card inbound-shipments-card"><h2>Outbound Shipments</h2><p>Customer orders, transfers, and internal requests assigned to this warehouse.</p><div className="inbound-list-filters"><input aria-label="Search outbound shipments" placeholder="⌕ Search outbound ID, order, or destination..." value={query} onChange={(e) => setQuery(e.target.value)} /><select aria-label="Outbound status filter" value={status} onChange={(e) => setStatus(e.target.value)}><option>All Statuses</option>{outboundStatuses.map((value) => <option key={value}>{value}</option>)}</select><select aria-label="Outbound type filter" value={type} onChange={(e) => setType(e.target.value)}><option>All Types</option>{outboundTypes.map((row) => <option key={row.name}>{row.name}</option>)}</select><select aria-label="Outbound date range" value={range} onChange={(e) => setRange(e.target.value)}><option value="all">Date Range</option><option value="latest">Latest ship date</option><option value="september">September 2026</option></select><select aria-label="Sort outbound shipments" value={sort} onChange={(e) => setSort(e.target.value)}><option value="default">Sort by</option><option value="earliest">Earliest shipment</option><option value="latest">Latest shipment</option><option value="destination">Destination A–Z</option></select><button className="inbound-export-button" onClick={() => {
+    downloadOutboundList(filtered);
+    setNotice(`${filtered.length} matching shipments exported as CSV.`);
+  }}>Export List</button></div><div className="inbound-table-wrap inbound-list-table"><table><thead><tr>{["Outbound ID", "Order / Request", "Destination", "Ship Date", "Items", "Units", "Status", "Assigned to", "Action"].map((label) => <th key={label}>{label}</th>)}</tr></thead><tbody>{visible.map((row) => <tr key={row.id}><td><strong>{row.id}</strong></td><td>{row.reference}</td><td><strong>{row.destination}</strong></td><td>{outboundDate(row.date)} · {row.time}</td><td>{row.items}</td><td>{row.units}</td><td><span className={`outbound-status status-${row.status.toLowerCase().replaceAll(" ", "-")}`}>{row.status}</span></td><td>{row.staff}</td><td><button className={`dashboard-link${row.status === "Issue" ? " critical-text" : ""}`} aria-label={`${actions[row.status]} ${row.id}`} onClick={() => openShipment(row)}>{actions[row.status]} ›</button></td></tr>)}{!visible.length && <tr><td colSpan="9" className="inventory-empty">No outbound shipments match these filters.</td></tr>}</tbody></table></div><div className="inventory-pagination"><span>Showing {filtered.length ? (activePage - 1) * 6 + 1 : 0}–{Math.min(activePage * 6, filtered.length)} of {filtered.length} local shipments</span><div>{Array.from({ length: pages }, (_, index) => <button key={index} className={activePage === index + 1 ? "active-page" : ""} aria-label={`Outbound page ${index + 1}`} onClick={() => setPage(index + 1)}>{index + 1}</button>)}<button disabled={activePage === pages} aria-label="Next outbound page" onClick={() => setPage(activePage + 1)}>›</button></div></div></section></>}
+  {notice && <p role="status" className="form-notice">{notice}</p>}<p className="dashboard-demo">Frontend demo · Summary cards are design samples. Picking and packing do not deduct stock. Confirmed shipping deducts stock once; no reservation is implemented. Refresh resets local data.</p></main></div>
+  {issueShipment && <OutboundIssueReview key={issueShipment.id} shipment={issueShipment} inventory={inventory} onResolve={(values) => onResolveIssue(issueShipment.id, values)} onClose={(result) => {
+    setIssueId(null);
+    if (result?.shipment) {
+      if (result.onHold) setNotice(`${result.shipment.id} remains on hold. Stock has not been deducted.`);
+      else {
+        setFlowId(result.shipment.id);
+        setNotice(result.backorder ? `Backorder ${result.backorder.id} created for ${result.backorder.units} units.` : "Issue resolved. Continue picking.");
+      }
+    }
+  }} />}
+  {created && <dialog ref={successRef} className="dashboard-dialog outbound-success" aria-labelledby="outbound-created-title" onCancel={closeSuccess}><div className="outbound-success-check">✓</div><h2 id="outbound-created-title">Outbound created</h2><dl className="outbound-summary-rows outbound-info"><div><dt>Outbound ID</dt><dd>{created.id}</dd></div><div><dt>Reference</dt><dd>{created.reference}</dd></div><div><dt>Status</dt><dd className="positive-text">Scheduled</dd></div></dl><button className="inbound-primary" onClick={closeSuccess}>View Outbound Overview</button><button className="inbound-secondary" onClick={startPicking}>Start Picking Now</button></dialog>}
+  {detail && <dialog ref={detailRef} className="dashboard-dialog outbound-detail" aria-labelledby="outbound-detail-title" onCancel={() => setDetailId(null)}><h2 id="outbound-detail-title">{detail.id} · {detail.status}</h2><dl className="outbound-summary-rows">{[["Type", detail.type], ["Destination", detail.destination], ["Reference", detail.reference], ["Ship date", `${outboundDate(detail.date)} \xB7 ${detail.time}`], ["Priority", detail.priority], ["Assigned to", detail.staff], ["Items / Units", `${detail.items} / ${detail.units}`]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{detail.products ? <div className="inbound-table-wrap"><table><thead><tr><th>Product</th><th>Quantity</th></tr></thead><tbody>{detail.products.map((row) => <tr key={row.sku}><td>{row.name}<small>{row.sku} · Type: {typeOf(row)}</small></td><td>{row.quantity}</td></tr>)}</tbody></table></div> : <p className="outbound-muted">Item details are not provided for this sample shipment.</p>}{detail.notes && <p>Notes: {detail.notes}</p>}{detail.pickIssue && <div className="fulfillment-warning"><strong>{detail.pickIssue.type}</strong><p>{detail.pickIssue.notes}</p><p>Reported by {detail.pickIssue.user}. Shipment is on hold; stock has not been deducted.</p></div>}{detail.dispatch && <><dl className="outbound-summary-rows"><div><dt>Carrier</dt><dd>{detail.dispatch.carrier}</dd></div><div><dt>Driver / Plate</dt><dd>{detail.dispatch.driver} · {detail.dispatch.plate}</dd></div><div><dt>Tracking</dt><dd>{detail.dispatch.tracking}{detail.dispatch.trackingIsDemo ? " (demo)" : ""}</dd></div></dl>{detail.dispatch.stockChanges.length > 0 && <div className="inbound-table-wrap"><table><thead><tr><th>Product</th><th>Box</th><th>Shipped</th><th>Stock before → after</th></tr></thead><tbody>{detail.dispatch.stockChanges.map((row) => <tr key={row.sku}><td>{row.name}<small>Type: {typeOf(row)}</small></td><td>{row.box}</td><td>{row.quantity}</td><td>{row.before} → {row.after}</td></tr>)}</tbody></table></div>}{detail.dispatch.isHistoricalSample && <p className="outbound-muted">Historical sample: {detail.units} units shipped. Product details and stock snapshots are not provided. Carrier and tracking are design samples.</p>}<div className="inbound-form-actions"><button className="inbound-secondary" onClick={() => downloadDispatchNote(detail)}>Download Dispatch Note</button>{!detail.dispatch.isHistoricalSample && <button className="inbound-primary" onClick={() => onViewMovements(detail.id)}>View stock movement</button>}</div></>}{detail.backorderId && <p>Backorder: {detail.backorderId}</p>}{detail.parentOutboundId && <p>Backorder for {detail.parentOutboundId} · Original reference {detail.originalReference}</p>}{detail.issueReviews?.length > 0 && <section><h3>Issue review history</h3>{detail.issueReviews.map((review, index) => <p key={index}>{review.resolution} · {review.note} · {review.user}{review.alternateRack ? ` \xB7 ${review.originalRack} \u2192 ${review.alternateRack}` : ""}{review.backorderId ? ` \xB7 ${review.backorderId}` : ""}</p>)}</section>}<p className="outbound-muted">Details shown here are read-only.</p><div className="inbound-form-actions"><button className="inbound-secondary" onClick={() => setDetailId(null)}>Close</button>{detail.status === "Scheduled" && detail.products && <button className="inbound-primary" onClick={() => {
+    const result = onStartPicking(detail.id);
+    if (result.error) setNotice(result.error);
+    else {
+      setDetailId(null);
+      setFlowId(detail.id);
+    }
+  }}>Start Picking Now</button>}</div></dialog>}
   </div>;
 }
+export {
+  Outbound as default
+};

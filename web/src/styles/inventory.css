@@ -878,3 +878,7 @@
     min-height: 480px;
   }
 }
+
+/* Keep grouped stock quantities readable in compact cards. */
+.report-metrics .metric-card strong{font-size:clamp(18px,1.7vw,29px);overflow-wrap:anywhere;line-height:1.25}
+

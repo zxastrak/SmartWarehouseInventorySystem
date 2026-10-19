@@ -796,3 +796,5 @@
     width: calc(100% - 90px);
   }
 }
+
+.inbound-list-filters>input,.inbound-po-filters>input{min-width:0}

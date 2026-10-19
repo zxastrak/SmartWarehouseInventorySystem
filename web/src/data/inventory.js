@@ -14,11 +14,10 @@ const extras = ["Barcode Printer", "Packing Tape", "Steel Shelf", "Safety Vest",
 extras.forEach((name, index) => rows.push([name, `WH-${8e3 + index}`, ["Electronics", "PPE", "Equipment", "Storage", "Hardware", "Safety"][index % 6], index % 5 === 0 ? 0 : 50 + index * 8, 40, `E-${String(index + 1).padStart(2, "0")}`, "DemoSupply"]));
 rows.push(["Barcode Labels", "LB-1021", "Accessories", 210, 100, "B-06", "TechSupply"], ["Scanner Charging Dock", "CD-4102", "Electronics", 8, 30, "A-15", "TechSupply"]);
 rows.push(["Work Lamp Battery", "DEMO-BATTERY-01", "Electronics", 40, 50, "C-09", "BrightTools"]);
-// Opening demo stock includes the historical two Medical Supply Boxes already received.
 rows.push(["Medical Supply Box", "MD-BOX-01", "Safety", 2, 10, "D-01", "MediSupply"]);
-export const inventorySeed = rows.map(([name, sku, category, current, reorder, rack, supplier], index) => ({ name, sku, category, current, reorder, rack, supplier, warehouse: "Main Warehouse", barcode: index === 0 ? "85045678903" : String(85045678903 + index), updated: "2026-09-15T14:10" }));
-export const categories = ["Electronics", "PPE", "Equipment", "Storage", "Safety", "Hardware", "Accessories"];
-export function stockStatus(item) {
+const inventorySeed = rows.map(([name, sku, category, current, reorder, rack, supplier], index) => ({ name, sku, category, current, reorder, rack, supplier, warehouse: "Main Warehouse", barcode: index === 0 ? "85045678903" : String(85045678903 + index), updated: "2026-09-15T14:10" }));
+const categories = ["Electronics", "PPE", "Equipment", "Storage", "Safety", "Hardware", "Accessories"];
+function stockStatus(item) {
   if (item.current === 0) return "Out of Stock";
   if (item.current < Math.min(item.reorder, 15)) return "Critical";
   if (item.current < item.reorder) return "Low";
@@ -33,23 +32,32 @@ const movementRows = [
   ["2026-09-15T09:25", "Rack transfer", "TR-0061", 20, 0, "B-04 \u2192 A-12", "Naura", "Storage optimization"],
   ["2026-09-15T11:42", "Outbound shipped", "SO-1187", 20, -8, "A-12", "Naura", "Customer order"]
 ];
-export const movementSeed = movementRows.map(([date, type, reference, before, change, rack, user, reason], index) => ({ id: `movement-${index}`, sku: "WH-3382", date, type, reference, before, change, after: before + change, rack, user, reason, warehouse: "Main Warehouse" }));
+const movementSeed = movementRows.map(([date, type, reference, before, change, rack, user, reason], index) => ({ id: `movement-${index}`, sku: "WH-3382", date, type, reference, before, change, after: before + change, rack, user, reason, warehouse: "Main Warehouse" }));
 inventorySeed.slice(1).forEach((item, index) => {
-  const historic = Object.values(completedReceivingSeed).flatMap(shipment => shipment.receipt.stockChanges).find(row => row.sku === item.sku);
+  const historic = Object.values(completedReceivingSeed).flatMap((shipment) => shipment.receipt.stockChanges).find((row) => row.sku === item.sku);
   const opening = historic?.before ?? item.current;
   movementSeed.push({ id: `opening-${index}`, sku: item.sku, date: "2026-09-01T08:00", type: "Inbound received", reference: `OPEN-${index + 1}`, before: 0, change: opening, after: opening, rack: item.rack, user: "Naura", reason: "Demo opening receipt", warehouse: item.warehouse });
 });
-Object.entries(completedReceivingSeed).forEach(([id, shipment]) => shipment.receipt.stockChanges.forEach(row => {
-  movementSeed.push({id: `historic-${id}-${row.sku}`, sku: row.sku, date: shipment.receipt.completedAt, type: "Inbound received", reference: id, before: row.before, change: row.accepted, after: row.after, rack: row.allocations.map(item => item.rack).join(", "), user: shipment.receipt.user, reason: "Historical completed receiving (demo)", warehouse: "Main Warehouse"});
+Object.entries(completedReceivingSeed).forEach(([id, shipment]) => shipment.receipt.stockChanges.forEach((row) => {
+  movementSeed.push({ id: `historic-${id}-${row.sku}`, sku: row.sku, date: shipment.receipt.completedAt, type: "Inbound received", reference: id, before: row.before, change: row.accepted, after: row.after, rack: row.allocations.map((item) => item.rack).join(", "), user: shipment.receipt.user, reason: "Historical completed receiving (demo)", warehouse: "Main Warehouse" });
 }));
-export const movementTypes = ["Inbound received", "Outbound shipped", "Rack transfer", "Stock adjustment"];
-export const movementColumns = [
+const movementTypes = ["Inbound received", "Outbound shipped", "Rack transfer", "Stock adjustment"];
+const movementColumns = [
   ["date", "Date & time"],
   ["type", "Movement type"],
   ["reference", "Reference"],
+  ["category", "Product Type"],
   ["change", "Quantity"],
   ["rack", "Warehouse & rack"],
   ["user", "Created by"],
   ["reason", "Reason"],
   ["after", "Balance"]
 ];
+export {
+  categories,
+  inventorySeed,
+  movementColumns,
+  movementSeed,
+  movementTypes,
+  stockStatus
+};

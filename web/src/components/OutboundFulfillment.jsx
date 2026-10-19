@@ -1,41 +1,167 @@
-import React,{useRef,useState} from 'react';
-import {newFulfillmentDraft,fulfillmentTotals,validatePicked,validatePacked,validateShipping,downloadDispatchNote} from '../utils/outboundFulfillment.js';
-import CompletedOutbound from './CompletedOutbound.jsx';
-import {outboundDate} from '../data/outbound.js';
-import '../styles/outboundFulfillment.css';
-export default function OutboundFulfillment({shipment,inventory,initialDraft,onSave,onAdvance,onShip,onReportIssue,onBack,onDetails}){
- const [draft,setDraft]=useState(()=>initialDraft||newFulfillmentDraft(shipment)),[scan,setScan]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[confirm,setConfirm]=useState(false),[issueOpen,setIssueOpen]=useState(false),[issueType,setIssueType]=useState(''),[issueNotes,setIssueNotes]=useState('');
- const confirmRef=useRef(null),issueRef=useRef(null),scanRef=useRef(null),shippingLock=useRef(false);
- const stage=shipment.status==='Shipped'?'completed':draft.stage;
- const totals=fulfillmentTotals(shipment,draft),boxOptions=shipment.products.map((_,i)=>`Box ${i+1}`);
- const pickedError=validatePicked(shipment,draft,inventory),packedError=validatePacked(shipment,draft,inventory);
- function persist(next){setDraft(next);onSave({...next,savedAt:new Date().toISOString()});}
- function change(key,value){persist({...draft,[key]:value});setError('');setNotice('');}
- function save(){onSave({...draft,savedAt:new Date().toISOString()});setNotice('Draft saved for this session. Refresh resets demo data.');}
- function pick(sku,value){persist({...draft,picked:{...draft.picked,[sku]:value},verified:{...draft.verified,[sku]:false},secured:false,labels:false});setError('');}
- function scanOne(row){const picked=Number(draft.picked[row.sku]);const current=inventory.find(item=>item.sku===row.sku)?.current||0;if(!wholeInput(draft.picked[row.sku])||picked>=row.quantity||picked>=current){setError(`${row.name}: check picked quantity, required units, and available stock.`);return;}pick(row.sku,picked+1);setNotice(`${row.name}: 1 unit scanned.`);setScan('');scanRef.current?.focus();}
- function scanItem(){const text=scan.trim().toLowerCase();if(!text){setError('Enter a SKU, barcode, or rack label to scan.');return;}const matches=shipment.products.filter(row=>{const item=inventory.find(item=>item.sku===row.sku);return [row.sku,item?.barcode,row.rack].some(value=>value?.toLowerCase()===text);});if(matches.length!==1){setError(matches.length?'This rack contains several products. Scan a specific SKU or barcode.':'Code not found in this picking list.');return;}scanOne(matches[0]);}
- function advance(nextStage){const message=nextStage==='pack'?pickedError:packedError;if(message){setError(message);return;}const next={...draft,stage:nextStage};const result=onAdvance(next);if(result.error){setError(result.error);return;}setDraft(next);setError('');setNotice('');window.scrollTo(0,0);}
- function box(sku,value){persist({...draft,boxes:{...draft.boxes,[sku]:value},verified:{...draft.verified,[sku]:false},secured:false,labels:false});setError('');}
- function readyBack(){advanceBack('pack');}
- function advanceBack(nextStage){const result=onAdvance({...draft,stage:nextStage});if(result.error){setError(result.error);return;}setDraft({...draft,stage:nextStage});setError('');window.scrollTo(0,0);}
- function requestShip(){const message=packedError||validateShipping(draft);if(message){setError(message);return;}confirmRef.current?.showModal();}
- function ship(){if(shippingLock.current)return;shippingLock.current=true;const result=onShip(draft);if(result.error){setError(result.error);shippingLock.current=false;confirmRef.current?.close();return;}setDraft(result.draft);confirmRef.current?.close();window.scrollTo(0,0);}
- function report(){if(!issueType||!issueNotes.trim()){setError('Choose an issue type and describe the problem.');return;}const result=onReportIssue({type:issueType,notes:issueNotes.trim()},draft);if(result.error){setError(result.error);return;}issueRef.current?.close();onBack();}
- const routeGroups=Object.values([...shipment.products].sort((a,b)=>a.rack.localeCompare(b.rack)).reduce((groups,row)=>{const key=row.rack.split('-')[0];if(!groups[key])groups[key]={key,rows:[]};groups[key].rows.push(row);return groups;},{}));
- const title=stage==='pick'?'Pick Items':stage==='pack'?'Pack & Verify':stage==='ready'?'Ready to Ship':'Shipment Completed';
- const description=stage==='pick'?`Collect and scan ${totals.required} units for ${shipment.reference}.`:stage==='pack'?'Pack the picked items and verify each package before shipping.':stage==='ready'?'Confirm shipment details and dispatch the packed order.':'The outbound order has been dispatched successfully.';
- return <>
- <div className="fulfillment-heading"><div><p>OUTBOUND / {stage==='pick'?'PICK ITEMS':stage==='pack'?'PACK & VERIFY':stage==='ready'?'READY TO SHIP':'SHIPPED'}</p><h1>{title}</h1><p className="inbound-description">{description}</p></div>{stage!=='completed'&&<button className="inbound-secondary" onClick={save}>Save as Draft</button>}</div>
- {shipment.pickingIsDemo&&<p className="fulfillment-muted" role="note">Demo picking record · OUT-3046 has 3 products / 64 units. Picking quantities are sample data; package choices and verification start empty.</p>}{shipment.packingIsDemo&&<p className="fulfillment-muted" role="note">Demo packing record · The list design provides 3 products / 52 units. Product choices and verified packing are sample data for this shipment.</p>}
- {stage!=='completed'&&<ol className="outbound-steps dashboard-card">{['Order details','Pick items','Pack & verify','Ready to ship'].map((label,i)=><li key={label} className={i<=({pick:1,pack:2,ready:3}[stage])?'reached':''}><span>{i<({pick:1,pack:2,ready:3}[stage])?'✓':i+1}</span><strong>{label}</strong></li>)}</ol>}
- {shipment.issueItemsAreDemo&&<p className="fulfillment-muted">Demo item detail · The design provides Pallet Jack 10 units. The original second product (Safety Helmet 8 units) uses sample data.</p>}{shipment.backorderId&&<p className="fulfillment-muted">Remaining units are scheduled separately as {shipment.backorderId}.</p>}{shipment.parentOutboundId&&<p className="fulfillment-muted">Backorder for {shipment.parentOutboundId} · Original reference {shipment.originalReference}</p>}{stage==='pick'?<><div className="fulfillment-grid"><section className="dashboard-card fulfillment-panel"><h2>Picking List</h2><p className="fulfillment-muted">{shipment.destination} · Ship {outboundDate(shipment.date)} at {shipment.time}</p><div className="fulfillment-scan"><label>Scan product code or rack label<input ref={scanRef} aria-label="Scan outbound item" placeholder="Click here, then scan..." value={scan} onChange={e=>setScan(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')scanItem();}} /></label><button className="inbound-primary" onClick={scanItem}>Scan Item</button></div><div className="inbound-table-wrap fulfillment-table"><table><thead><tr>{['Product / Rack','Required','Picked','Progress','Action'].map(value=><th key={value}>{value}</th>)}</tr></thead><tbody>{shipment.products.map(row=>{const qty=Number(draft.picked[row.sku])||0,percent=Math.min(100,Math.max(0,qty/row.quantity*100));return <tr key={row.sku}><td><strong>{row.name}</strong><small>{row.sku} · Rack {row.rack}</small><small className="positive-text">Suggested route: {row.pickLocations?row.pickLocations.map(location=>`${location.rack} (${location.quantity} units)`).join(' + '):row.rack}</small></td><td>{row.quantity}</td><td><input type="number" min="0" max={row.quantity} step="1" aria-label={`Picked ${row.sku}`} value={draft.picked[row.sku]??0} onChange={e=>pick(row.sku,e.target.value)} /></td><td><progress max={row.quantity} value={Math.max(0,Math.min(qty,row.quantity))} /><small>{qty===row.quantity?'Complete':qty?`${Math.round(percent)}%`:'Not started'}</small></td><td><button className="dashboard-link" disabled={qty===row.quantity} onClick={()=>scanOne(row)}>{qty===row.quantity?'✓':qty?'Scan ›':'Start ›'}</button></td></tr>;})}</tbody></table></div></section><aside className="dashboard-card fulfillment-panel"><h2>Picking Progress</h2><div className="fulfillment-total"><small>Total picked</small><strong>{totals.picked} / {totals.required} <small>units</small></strong><progress value={Math.max(0,Math.min(totals.picked,totals.required))} max={totals.required} /></div><h3>Suggested pick route</h3><ol className="fulfillment-route">{routeGroups.map((group,i)=>{const required=group.rows.reduce((sum,row)=>sum+row.quantity,0),picked=group.rows.reduce((sum,row)=>sum+(Number(draft.picked[row.sku])||0),0);return <li key={group.key} className={picked>0?'route-progress':''}><span>{i+1}</span><div><strong>{group.rows.length===1?`${group.rows[0].rack} · ${group.rows[0].name}`:group.rows.map(row=>row.rack).join(' and ')}</strong><small>{picked===required?'Completed':picked>0?'In progress':'Not started'} · {picked} of {required}</small></div></li>;})}</ol><div className="fulfillment-warning"><strong>Found a problem?</strong><p>Report missing, damaged, or wrong stock.</p></div><button className="inbound-secondary fulfillment-issue-button" onClick={()=>{setIssueOpen(true);issueRef.current?.showModal();}}>Report Pick Issue</button></aside></div><div className="fulfillment-actions"><button className="dashboard-link" onClick={onBack}>‹ Back</button><span>{totals.picked} of {totals.required} units picked · Saved during this session</span><button className="inbound-secondary" onClick={onBack}>Cancel</button><button className="inbound-primary" disabled={Boolean(pickedError)} onClick={()=>advance('pack')}>Continue to Packing</button></div>{pickedError&&<p className="fulfillment-muted">{pickedError}</p>}</>
- :stage==='pack'?<><div className="fulfillment-grid"><section className="dashboard-card fulfillment-panel"><h2>Packing List</h2><p className="fulfillment-muted">{shipment.reference} · {shipment.destination} · {shipment.products.length} product types</p><div className="inbound-table-wrap fulfillment-table"><table><thead><tr><th>Product</th><th>Picked</th><th>Package</th><th>Verify</th></tr></thead><tbody>{shipment.products.map(row=><tr key={row.sku}><td><strong>{row.name}</strong><small>{row.sku} · Rack {row.rack}</small></td><td>{draft.picked[row.sku]}</td><td><select aria-label={`Package ${row.sku}`} value={draft.boxes[row.sku]||''} onChange={e=>box(row.sku,e.target.value)}><option value="">Choose box</option>{boxOptions.map(value=><option key={value}>{value}</option>)}</select></td><td><button className={`dashboard-link${draft.verified[row.sku]?'':' critical-text'}`} disabled={!draft.boxes[row.sku]} aria-label={`Verify ${row.sku}`} aria-pressed={Boolean(draft.verified[row.sku])} onClick={()=>change('verified',{...draft.verified,[row.sku]:!draft.verified[row.sku]})}>{draft.verified[row.sku]?'Verified ✓':'Not verified'}</button></td></tr>)}</tbody></table></div>{totals.verified<totals.required&&<div className="fulfillment-warning"><strong>{shipment.products.filter(row=>!draft.verified[row.sku]||!draft.boxes[row.sku]).length} item(s) still need verification</strong><p>Choose a package and click Not verified after checking its contents.</p></div>}</section><aside className="dashboard-card fulfillment-panel"><h2>Packing Summary</h2><div className="fulfillment-total"><small>Verified items</small><strong>{totals.verified} / {totals.required}</strong></div><div className="fulfillment-total fulfillment-neutral"><small>Packages</small><strong>{totals.packages.length} <small>boxes created</small></strong></div><h3>Package checklist</h3><p className={pickedError?'critical-text':'positive-text'}>{pickedError?'○':'✓'} Items counted</p><label className="fulfillment-check"><input type="checkbox" checked={draft.secured} onChange={e=>change('secured',e.target.checked)} /> Packaging secured</label><label className="fulfillment-check"><input type="checkbox" checked={draft.labels} onChange={e=>change('labels',e.target.checked)} /> Labels printed</label><p className={totals.verified===totals.required?'positive-text':'critical-text'}>{totals.verified===totals.required?'✓':'○'} All items verified</p>{packedError&&<div className="fulfillment-warning">Complete verification to continue.</div>}</aside></div><div className="fulfillment-actions"><button className="dashboard-link" onClick={()=>advanceBack('pick')}>‹ Back</button><span>Progress saved during this session</span><button className="inbound-secondary" onClick={save}>Save Draft</button><button className="inbound-primary" disabled={Boolean(packedError)} onClick={()=>advance('ready')}>Continue to Shipping</button></div></>
- :stage==='ready'?<><div className="fulfillment-grid fulfillment-shipping-grid"><section className="dashboard-card fulfillment-panel"><h2>Shipment Information</h2><dl className="fulfillment-info">{[['Outbound ID',shipment.id],['Order / Request',shipment.reference],['Destination',shipment.destination],['Total',`${shipment.products.length} items · ${totals.required} units · ${totals.packages.length} boxes`]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><h3>Shipping details</h3><div className="outbound-fields"><label>Carrier *<select aria-label="Carrier" value={draft.carrier} onChange={e=>change('carrier',e.target.value)}><option value="">Choose carrier</option>{['Nusantara Logistics','JNE','J&T Express','Warehouse Fleet'].map(value=><option key={value}>{value}</option>)}</select></label><label>Vehicle / plate *<input aria-label="Vehicle / plate" value={draft.plate} placeholder="Enter vehicle / plate" maxLength={80} onChange={e=>change('plate',e.target.value)} /></label><label>Driver name *<input aria-label="Driver name" value={draft.driver} placeholder="Enter driver name" maxLength={100} onChange={e=>change('driver',e.target.value)} /></label><label>Tracking number<input aria-label="Tracking number" value={draft.tracking} placeholder="Demo reference if left blank" maxLength={100} onChange={e=>change('tracking',e.target.value)} /></label></div></section><section className="dashboard-card fulfillment-panel"><h2>Dispatch Summary</h2><div className="fulfillment-total"><small>Packing status</small><strong>{packedError?'Verification required':'Verified and ready ✓'}</strong></div><h3>Packages</h3><div className="fulfillment-packages">{totals.packages.map(row=><div key={row.box}><span>{row.box}</span><strong>{row.units} units</strong><label><input type="number" min="0.01" step="0.01" aria-label={`Weight ${row.box}`} placeholder="Optional" value={draft.weights[row.box]??''} onChange={e=>change('weights',{...draft.weights,[row.box]:e.target.value})} /> kg</label></div>)}</div><div className="fulfillment-weight"><span>Total weight</span><strong>{totals.packages.every(row=>row.weight!==''&&Number(row.weight)>0)?`${totals.packages.reduce((sum,row)=>sum+Number(row.weight),0).toFixed(2)} kg`:'Not fully recorded'}</strong></div></section></div><div className="fulfillment-actions"><button className="dashboard-link" onClick={readyBack}>‹ Back to Packing</button><span /><button className="inbound-secondary" onClick={save}>Save Draft</button><button className="inbound-primary" disabled={Boolean(packedError)} onClick={requestShip}>Ship Order</button></div><div className="fulfillment-warning"><strong>Shipping will reduce warehouse stock</strong><p>After confirmation, {totals.required} units will be removed from inventory and the order status will become Shipped.</p></div></>
- :<CompletedOutbound shipment={shipment} onDetails={onDetails} onBack={onBack} withHeading={false}/>}
- {error&&<p role="alert" className="field-error">{error}</p>}{notice&&<p role="status" className="form-notice">{notice}</p>}
- <dialog ref={confirmRef} className="dashboard-dialog fulfillment-confirm" onCancel={()=>setConfirm(false)}><h2>Confirm shipment?</h2><p>Dispatch {shipment.id} to {shipment.destination} and deduct {totals.required} units from inventory.</p><label className="fulfillment-check"><input type="checkbox" checked={confirm} onChange={e=>setConfirm(e.target.checked)} /> I checked the packages and shipping details.</label><div className="inbound-form-actions"><button className="inbound-secondary" onClick={()=>{confirmRef.current?.close();setConfirm(false);}}>Cancel</button><button className="inbound-primary" disabled={!confirm} onClick={ship}>Confirm & Ship</button></div></dialog>
- <dialog ref={issueRef} className="dashboard-dialog fulfillment-confirm" onCancel={()=>setIssueOpen(false)}><h2>Report Pick Issue</h2><p>This shipment will be placed on hold. Inventory will not be deducted.</p><div className="outbound-fields"><label className="outbound-wide">Issue type<select aria-label="Issue type" value={issueType} onChange={e=>setIssueType(e.target.value)}><option value="">Choose issue</option>{['Missing stock','Damaged stock','Wrong stock'].map(value=><option key={value}>{value}</option>)}</select></label><label className="outbound-wide">Issue notes<textarea aria-label="Issue notes" value={issueNotes} maxLength={2000} onChange={e=>setIssueNotes(e.target.value)} placeholder="Describe the problem..." /></label></div><div className="inbound-form-actions"><button className="inbound-secondary" onClick={()=>{issueRef.current?.close();setIssueOpen(false);}}>Cancel</button><button className="inbound-primary" disabled={!issueType||!issueNotes.trim()} onClick={report}>Save Issue</button></div>{issueOpen&&error&&<p role="alert" className="field-error">{error}</p>}</dialog>
+import { typeOf } from "../utils/productTypes.js";
+import React, { useRef, useState } from "react";
+import { newFulfillmentDraft, fulfillmentTotals, validatePicked, validatePacked, validateShipping, downloadDispatchNote } from "../utils/outboundFulfillment.js";
+import CompletedOutbound from "./CompletedOutbound.jsx";
+import { outboundDate } from "../data/outbound.js";
+import "../styles/outboundFulfillment.css";
+function OutboundFulfillment({ shipment, inventory, initialDraft, onSave, onAdvance, onShip, onReportIssue, onBack, onDetails }) {
+  const [draft, setDraft] = useState(() => initialDraft || newFulfillmentDraft(shipment)), [scan, setScan] = useState(""), [error, setError] = useState(""), [notice, setNotice] = useState(""), [confirm, setConfirm] = useState(false), [issueOpen, setIssueOpen] = useState(false), [issueType, setIssueType] = useState(""), [issueNotes, setIssueNotes] = useState("");
+  const confirmRef = useRef(null), issueRef = useRef(null), scanRef = useRef(null), shippingLock = useRef(false);
+  const stage = shipment.status === "Shipped" ? "completed" : draft.stage;
+  const totals = fulfillmentTotals(shipment, draft), boxOptions = shipment.products.map((_, i) => `Box ${i + 1}`);
+  const pickedError = validatePicked(shipment, draft, inventory), packedError = validatePacked(shipment, draft, inventory);
+  function persist(next) {
+    setDraft(next);
+    onSave({ ...next, savedAt: (/* @__PURE__ */ new Date()).toISOString() });
+  }
+  function change(key, value) {
+    persist({ ...draft, [key]: value });
+    setError("");
+    setNotice("");
+  }
+  function save() {
+    onSave({ ...draft, savedAt: (/* @__PURE__ */ new Date()).toISOString() });
+    setNotice("Draft saved for this session. Refresh resets demo data.");
+  }
+  function pick(sku, value) {
+    persist({ ...draft, picked: { ...draft.picked, [sku]: value }, verified: { ...draft.verified, [sku]: false }, secured: false, labels: false });
+    setError("");
+  }
+  function scanOne(row) {
+    const picked = Number(draft.picked[row.sku]);
+    const current = inventory.find((item) => item.sku === row.sku)?.current || 0;
+    if (!wholeInput(draft.picked[row.sku]) || picked >= row.quantity || picked >= current) {
+      setError(`${row.name}: check picked quantity, required units, and available stock.`);
+      return;
+    }
+    pick(row.sku, picked + 1);
+    setNotice(`${row.name}: 1 unit scanned.`);
+    setScan("");
+    scanRef.current?.focus();
+  }
+  function scanItem() {
+    const text = scan.trim().toLowerCase();
+    if (!text) {
+      setError("Enter a SKU, barcode, or rack label to scan.");
+      return;
+    }
+    const matches = shipment.products.filter((row) => {
+      const item = inventory.find((item2) => item2.sku === row.sku);
+      return [row.sku, item?.barcode, row.rack].some((value) => value?.toLowerCase() === text);
+    });
+    if (matches.length !== 1) {
+      setError(matches.length ? "This rack contains several products. Scan a specific SKU or barcode." : "Code not found in this picking list.");
+      return;
+    }
+    scanOne(matches[0]);
+  }
+  function advance(nextStage) {
+    const message = nextStage === "pack" ? pickedError : packedError;
+    if (message) {
+      setError(message);
+      return;
+    }
+    const next = { ...draft, stage: nextStage };
+    const result = onAdvance(next);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    setDraft(next);
+    setError("");
+    setNotice("");
+    window.scrollTo(0, 0);
+  }
+  function box(sku, value) {
+    persist({ ...draft, boxes: { ...draft.boxes, [sku]: value }, verified: { ...draft.verified, [sku]: false }, secured: false, labels: false });
+    setError("");
+  }
+  function readyBack() {
+    advanceBack("pack");
+  }
+  function advanceBack(nextStage) {
+    const result = onAdvance({ ...draft, stage: nextStage });
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    setDraft({ ...draft, stage: nextStage });
+    setError("");
+    window.scrollTo(0, 0);
+  }
+  function requestShip() {
+    const message = packedError || validateShipping(draft);
+    if (message) {
+      setError(message);
+      return;
+    }
+    confirmRef.current?.showModal();
+  }
+  function ship() {
+    if (shippingLock.current) return;
+    shippingLock.current = true;
+    const result = onShip(draft);
+    if (result.error) {
+      setError(result.error);
+      shippingLock.current = false;
+      confirmRef.current?.close();
+      return;
+    }
+    setDraft(result.draft);
+    confirmRef.current?.close();
+    window.scrollTo(0, 0);
+  }
+  function report() {
+    if (!issueType || !issueNotes.trim()) {
+      setError("Choose an issue type and describe the problem.");
+      return;
+    }
+    const result = onReportIssue({ type: issueType, notes: issueNotes.trim() }, draft);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    issueRef.current?.close();
+    onBack();
+  }
+  const routeGroups = Object.values([...shipment.products].sort((a, b) => a.rack.localeCompare(b.rack)).reduce((groups, row) => {
+    const key = row.rack.split("-")[0];
+    if (!groups[key]) groups[key] = { key, rows: [] };
+    groups[key].rows.push(row);
+    return groups;
+  }, {}));
+  const title = stage === "pick" ? "Pick Items" : stage === "pack" ? "Pack & Verify" : stage === "ready" ? "Ready to Ship" : "Shipment Completed";
+  const description = stage === "pick" ? `Collect and scan ${totals.required} units for ${shipment.reference}.` : stage === "pack" ? "Pack the picked items and verify each package before shipping." : stage === "ready" ? "Confirm shipment details and dispatch the packed order." : "The outbound order has been dispatched successfully.";
+  return <>
+ <div className="fulfillment-heading"><div><p>OUTBOUND / {stage === "pick" ? "PICK ITEMS" : stage === "pack" ? "PACK & VERIFY" : stage === "ready" ? "READY TO SHIP" : "SHIPPED"}</p><h1>{title}</h1><p className="inbound-description">{description}</p></div>{stage !== "completed" && <button className="inbound-secondary" onClick={save}>Save as Draft</button>}</div>
+ {shipment.pickingIsDemo && <p className="fulfillment-muted" role="note">Demo picking record · OUT-3046 has 3 products / 64 units. Picking quantities are sample data; package choices and verification start empty.</p>}{shipment.packingIsDemo && <p className="fulfillment-muted" role="note">Demo packing record · The list design provides 3 products / 52 units. Product choices and verified packing are sample data for this shipment.</p>}
+ {stage !== "completed" && <ol className="outbound-steps dashboard-card">{["Order details", "Pick items", "Pack & verify", "Ready to ship"].map((label, i) => <li key={label} className={i <= { pick: 1, pack: 2, ready: 3 }[stage] ? "reached" : ""}><span>{i < { pick: 1, pack: 2, ready: 3 }[stage] ? "\u2713" : i + 1}</span><strong>{label}</strong></li>)}</ol>}
+ {shipment.issueItemsAreDemo && <p className="fulfillment-muted">Demo item detail · The design provides Pallet Jack 10 units. The original second product (Safety Helmet 8 units) uses sample data.</p>}{shipment.backorderId && <p className="fulfillment-muted">Remaining units are scheduled separately as {shipment.backorderId}.</p>}{shipment.parentOutboundId && <p className="fulfillment-muted">Backorder for {shipment.parentOutboundId} · Original reference {shipment.originalReference}</p>}{stage === "pick" ? <><div className="fulfillment-grid"><section className="dashboard-card fulfillment-panel"><h2>Picking List</h2><p className="fulfillment-muted">{shipment.destination} · Ship {outboundDate(shipment.date)} at {shipment.time}</p><div className="fulfillment-scan"><label>Scan product code or rack label<input ref={scanRef} aria-label="Scan outbound item" placeholder="Click here, then scan..." value={scan} onChange={(e) => setScan(e.target.value)} onKeyDown={(e) => {
+    if (e.key === "Enter") scanItem();
+  }} /></label><button className="inbound-primary" onClick={scanItem}>Scan Item</button></div><div className="inbound-table-wrap fulfillment-table"><table><thead><tr>{["Product / Rack", "Required", "Picked", "Progress", "Action"].map((value) => <th key={value}>{value}</th>)}</tr></thead><tbody>{shipment.products.map((row) => {
+    const qty = Number(draft.picked[row.sku]) || 0, percent = Math.min(100, Math.max(0, qty / row.quantity * 100));
+    return <tr key={row.sku}><td><strong>{row.name}</strong><small>Type: {typeOf(row)}</small><small>{row.sku} · Rack {row.rack}</small><small className="positive-text">Suggested route: {row.pickLocations ? row.pickLocations.map((location) => `${location.rack} (${location.quantity} units)`).join(" + ") : row.rack}</small></td><td>{row.quantity}</td><td><input type="number" min="0" max={row.quantity} step="1" aria-label={`Picked ${row.sku}`} value={draft.picked[row.sku] ?? 0} onChange={(e) => pick(row.sku, e.target.value)} /></td><td><progress max={row.quantity} value={Math.max(0, Math.min(qty, row.quantity))} /><small>{qty === row.quantity ? "Complete" : qty ? `${Math.round(percent)}%` : "Not started"}</small></td><td><button className="dashboard-link" disabled={qty === row.quantity} onClick={() => scanOne(row)}>{qty === row.quantity ? "\u2713" : qty ? "Scan \u203A" : "Start \u203A"}</button></td></tr>;
+  })}</tbody></table></div></section><aside className="dashboard-card fulfillment-panel"><h2>Picking Progress</h2><div className="fulfillment-total"><small>Total picked</small><strong>{totals.picked} / {totals.required} <small>units</small></strong><progress value={Math.max(0, Math.min(totals.picked, totals.required))} max={totals.required} /></div><h3>Suggested pick route</h3><ol className="fulfillment-route">{routeGroups.map((group, i) => {
+    const required = group.rows.reduce((sum, row) => sum + row.quantity, 0), picked = group.rows.reduce((sum, row) => sum + (Number(draft.picked[row.sku]) || 0), 0);
+    return <li key={group.key} className={picked > 0 ? "route-progress" : ""}><span>{i + 1}</span><div><strong>{group.rows.length === 1 ? `${group.rows[0].rack} \xB7 ${group.rows[0].name}` : group.rows.map((row) => row.rack).join(" and ")}</strong><small>{picked === required ? "Completed" : picked > 0 ? "In progress" : "Not started"} · {picked} of {required}</small></div></li>;
+  })}</ol><div className="fulfillment-warning"><strong>Found a problem?</strong><p>Report missing, damaged, or wrong stock.</p></div><button className="inbound-secondary fulfillment-issue-button" onClick={() => {
+    setIssueOpen(true);
+    issueRef.current?.showModal();
+  }}>Report Pick Issue</button></aside></div><div className="fulfillment-actions"><button className="dashboard-link" onClick={onBack}>‹ Back</button><span>{totals.picked} of {totals.required} units picked · Saved during this session</span><button className="inbound-secondary" onClick={onBack}>Cancel</button><button className="inbound-primary" disabled={Boolean(pickedError)} onClick={() => advance("pack")}>Continue to Packing</button></div>{pickedError && <p className="fulfillment-muted">{pickedError}</p>}</> : stage === "pack" ? <><div className="fulfillment-grid"><section className="dashboard-card fulfillment-panel"><h2>Packing List</h2><p className="fulfillment-muted">{shipment.reference} · {shipment.destination} · {shipment.products.length} product types</p><div className="inbound-table-wrap fulfillment-table"><table><thead><tr><th>Product</th><th>Picked</th><th>Package</th><th>Verify</th></tr></thead><tbody>{shipment.products.map((row) => <tr key={row.sku}><td><strong>{row.name}</strong><small>Type: {typeOf(row)}</small><small>{row.sku} · Rack {row.rack}</small></td><td>{draft.picked[row.sku]}</td><td><select aria-label={`Package ${row.sku}`} value={draft.boxes[row.sku] || ""} onChange={(e) => box(row.sku, e.target.value)}><option value="">Choose box</option>{boxOptions.map((value) => <option key={value}>{value}</option>)}</select></td><td><button className={`dashboard-link${draft.verified[row.sku] ? "" : " critical-text"}`} disabled={!draft.boxes[row.sku]} aria-label={`Verify ${row.sku}`} aria-pressed={Boolean(draft.verified[row.sku])} onClick={() => change("verified", { ...draft.verified, [row.sku]: !draft.verified[row.sku] })}>{draft.verified[row.sku] ? "Verified \u2713" : "Not verified"}</button></td></tr>)}</tbody></table></div>{totals.verified < totals.required && <div className="fulfillment-warning"><strong>{shipment.products.filter((row) => !draft.verified[row.sku] || !draft.boxes[row.sku]).length} item(s) still need verification</strong><p>Choose a package and click Not verified after checking its contents.</p></div>}</section><aside className="dashboard-card fulfillment-panel"><h2>Packing Summary</h2><div className="fulfillment-total"><small>Verified items</small><strong>{totals.verified} / {totals.required}</strong></div><div className="fulfillment-total fulfillment-neutral"><small>Packages</small><strong>{totals.packages.length} <small>boxes created</small></strong></div><h3>Package checklist</h3><p className={pickedError ? "critical-text" : "positive-text"}>{pickedError ? "\u25CB" : "\u2713"} Items counted</p><label className="fulfillment-check"><input type="checkbox" checked={draft.secured} onChange={(e) => change("secured", e.target.checked)} /> Packaging secured</label><label className="fulfillment-check"><input type="checkbox" checked={draft.labels} onChange={(e) => change("labels", e.target.checked)} /> Labels printed</label><p className={totals.verified === totals.required ? "positive-text" : "critical-text"}>{totals.verified === totals.required ? "\u2713" : "\u25CB"} All items verified</p>{packedError && <div className="fulfillment-warning">Complete verification to continue.</div>}</aside></div><div className="fulfillment-actions"><button className="dashboard-link" onClick={() => advanceBack("pick")}>‹ Back</button><span>Progress saved during this session</span><button className="inbound-secondary" onClick={save}>Save Draft</button><button className="inbound-primary" disabled={Boolean(packedError)} onClick={() => advance("ready")}>Continue to Shipping</button></div></> : stage === "ready" ? <><div className="fulfillment-grid fulfillment-shipping-grid"><section className="dashboard-card fulfillment-panel"><h2>Shipment Information</h2><dl className="fulfillment-info">{[["Outbound ID", shipment.id], ["Order / Request", shipment.reference], ["Destination", shipment.destination], ["Total", `${shipment.products.length} items \xB7 ${totals.required} units \xB7 ${totals.packages.length} boxes`]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><h3>Shipping details</h3><div className="outbound-fields"><label>Carrier *<input type="text" autoComplete="off" placeholder="Enter carrier name" aria-label="Carrier" value={draft.carrier} onChange={(e) => change("carrier", e.target.value)} /></label><label>Vehicle / plate *<input aria-label="Vehicle / plate" value={draft.plate} placeholder="Enter vehicle / plate" maxLength={80} onChange={(e) => change("plate", e.target.value)} /></label><label>Driver name *<input aria-label="Driver name" value={draft.driver} placeholder="Enter driver name" maxLength={100} onChange={(e) => change("driver", e.target.value)} /></label><label>Tracking number<input aria-label="Tracking number" value={draft.tracking} placeholder="Demo reference if left blank" maxLength={100} onChange={(e) => change("tracking", e.target.value)} /></label></div></section><section className="dashboard-card fulfillment-panel"><h2>Dispatch Summary</h2><div className="fulfillment-total"><small>Packing status</small><strong>{packedError ? "Verification required" : "Verified and ready \u2713"}</strong></div><h3>Packages</h3><div className="fulfillment-packages">{totals.packages.map((row) => <div key={row.box}><span>{row.box}</span><strong>{row.units} units</strong><label><input type="number" min="0.01" step="0.01" aria-label={`Weight ${row.box}`} placeholder="Optional" value={draft.weights[row.box] ?? ""} onChange={(e) => change("weights", { ...draft.weights, [row.box]: e.target.value })} /> kg</label></div>)}</div><div className="fulfillment-weight"><span>Total weight</span><strong>{totals.packages.every((row) => row.weight !== "" && Number(row.weight) > 0) ? `${totals.packages.reduce((sum, row) => sum + Number(row.weight), 0).toFixed(2)} kg` : "Not fully recorded"}</strong></div></section></div><div className="fulfillment-actions"><button className="dashboard-link" onClick={readyBack}>‹ Back to Packing</button><span /><button className="inbound-secondary" onClick={save}>Save Draft</button><button className="inbound-primary" disabled={Boolean(packedError)} onClick={requestShip}>Ship Order</button></div><div className="fulfillment-warning"><strong>Shipping will reduce warehouse stock</strong><p>After confirmation, {totals.required} units will be removed from inventory and the order status will become Shipped.</p></div></> : <CompletedOutbound shipment={shipment} onDetails={onDetails} onBack={onBack} withHeading={false} />}
+ {error && <p role="alert" className="field-error">{error}</p>}{notice && <p role="status" className="form-notice">{notice}</p>}
+ <dialog ref={confirmRef} className="dashboard-dialog fulfillment-confirm" onCancel={() => setConfirm(false)}><h2>Confirm shipment?</h2><p>Dispatch {shipment.id} to {shipment.destination} and deduct {totals.required} units from inventory.</p><label className="fulfillment-check"><input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} /> I checked the packages and shipping details.</label><div className="inbound-form-actions"><button className="inbound-secondary" onClick={() => {
+    confirmRef.current?.close();
+    setConfirm(false);
+  }}>Cancel</button><button className="inbound-primary" disabled={!confirm} onClick={ship}>Confirm & Ship</button></div></dialog>
+ <dialog ref={issueRef} className="dashboard-dialog fulfillment-confirm" onCancel={() => setIssueOpen(false)}><h2>Report Pick Issue</h2><p>This shipment will be placed on hold. Inventory will not be deducted.</p><div className="outbound-fields"><label className="outbound-wide">Issue type<select aria-label="Issue type" value={issueType} onChange={(e) => setIssueType(e.target.value)}><option value="">Choose issue</option>{["Missing stock", "Damaged stock", "Wrong stock"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="outbound-wide">Issue notes<textarea aria-label="Issue notes" value={issueNotes} maxLength={2e3} onChange={(e) => setIssueNotes(e.target.value)} placeholder="Describe the problem..." /></label></div><div className="inbound-form-actions"><button className="inbound-secondary" onClick={() => {
+    issueRef.current?.close();
+    setIssueOpen(false);
+  }}>Cancel</button><button className="inbound-primary" disabled={!issueType || !issueNotes.trim()} onClick={report}>Save Issue</button></div>{issueOpen && error && <p role="alert" className="field-error">{error}</p>}</dialog>
  </>;
 }
-function wholeInput(value){return value!==''&&Number.isSafeInteger(Number(value))&&Number(value)>=0;}
+function wholeInput(value) {
+  return value !== "" && Number.isSafeInteger(Number(value)) && Number(value) >= 0;
+}
+export {
+  OutboundFulfillment as default
+};

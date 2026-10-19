@@ -136,9 +136,6 @@
 .receiving-table-wrap {
   overflow-x: auto;
 }
-.receiving-table-wrap tbody tr:focus-within {
-  background: #eef3e9;
-}
 .receiving-table-wrap table {
   border-collapse: collapse;
   width: 100%;
@@ -163,11 +160,6 @@
   padding: 16px 14px;
   border-bottom: 1px solid #dfe4d9;
 }
-.receiving-table-wrap input:focus {
-  border-color: #b4cfaf;
-  outline: 2px solid #b4cfaf;
-  outline-offset: 1px;
-}
 .receiving-table-wrap tbody tr:focus-within {
   background: #eef3e9;
 }
@@ -188,7 +180,8 @@
 }
 .receiving-table-wrap input:focus {
   border-color: #b4cfaf;
-  outline: none;
+  outline: 2px solid #b4cfaf;
+  outline-offset: 1px;
 }
 .receiving-table-wrap .inbound-status {
   min-width: 88px;
@@ -239,6 +232,7 @@
   margin: 24px 0 10px;
 }
 .receiving-details-card select,
+.receiving-details-card input[type="text"],
 .receiving-details-card textarea {
   display: block;
   width: 100%;
@@ -858,7 +852,8 @@
 .receiving-top-actions .inbound-secondary {
   height: 44px;
 }
-.receiving-rack-card > select {
+.receiving-rack-card > select,
+.receiving-rack-card > input[type="text"] {
   width: 100%;
   border: 1px solid #dfe4d9;
   border-radius: 8px;
