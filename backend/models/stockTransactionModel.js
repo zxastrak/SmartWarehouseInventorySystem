@@ -15,7 +15,13 @@ const stockTransactionModel = {
 
   // Buat fitur "Riwayat Transaksi Harian Staf"
   getByUserId: async (user_id) => {
-    const sql = 'SELECT * FROM stock_transactions WHERE user_id = ? ORDER BY created_at DESC';
+    const sql = `
+      SELECT st.*, p.name as product_name, p.sku
+      FROM stock_transactions st
+      LEFT JOIN products p ON st.product_id = p.id
+      WHERE st.user_id = ?
+      ORDER BY st.created_at DESC
+    `;
     const [rows] = await db.query(sql, [user_id]);
     return rows;
   },

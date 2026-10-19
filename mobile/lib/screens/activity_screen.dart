@@ -37,7 +37,13 @@ class ActivityScreen extends StatelessWidget {
             ),
           ),
           Panel(
-            child: TaskChart(bars: true, inflow: s.inflow, outflow: s.outflow),
+            child: TaskChart(
+              bars: true,
+              inflow: s.inflow,
+              outflow: s.outflow,
+              inflowSeries: s.weeklyInflow,
+              outflowSeries: s.weeklyOutflow,
+            ),
           ),
         ],
       );
@@ -69,7 +75,13 @@ class ActivityScreen extends StatelessWidget {
           ),
         ),
         Panel(
-          child: TaskChart(bars: true, inflow: s.inflow, outflow: s.outflow),
+          child: TaskChart(
+            bars: true,
+            inflow: s.inflow,
+            outflow: s.outflow,
+            inflowSeries: s.weeklyInflow,
+            outflowSeries: s.weeklyOutflow,
+          ),
         ),
         Panel(
           child: Column(
@@ -84,7 +96,26 @@ class ActivityScreen extends StatelessWidget {
                 ),
               ),
               if (s.movements.isEmpty)
-                const Text('No confirmed stock movements yet.'),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 28,
+                          color: muted,
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          'Belum ada transaksi stok masuk atau keluar.',
+                          style: TextStyle(fontSize: 11, color: muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ...s.movements.map((a) {
                 final incoming = a.kind == MovementKind.stockIn;
                 final color = incoming ? olive : const Color(0xffbb0022);

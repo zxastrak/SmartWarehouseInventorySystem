@@ -230,10 +230,29 @@ class AuditEntries extends StatelessWidget {
   final List<Activity> entries;
   const AuditEntries(this.entries, {super.key});
   @override
-  Widget build(BuildContext context) => Column(
-    children:
-        entries
-            .map(
+  Widget build(BuildContext context) {
+    if (entries.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.history_toggle_off, size: 28, color: muted),
+              SizedBox(height: 6),
+              Text(
+                'Belum ada riwayat aktivitas stok untuk akun ini.',
+                style: TextStyle(fontSize: 11, color: muted),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return Column(
+      children:
+          entries
+              .map(
               (a) => Padding(
                 padding: const EdgeInsets.only(bottom: 17),
                 child: Row(
@@ -314,5 +333,7 @@ class AuditEntries extends StatelessWidget {
               ),
             )
             .toList(),
-  );
+    );
+  }
 }
+

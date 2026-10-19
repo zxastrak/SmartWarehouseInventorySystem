@@ -29,11 +29,11 @@ class DashboardScreen extends StatelessWidget {
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  '${s.staff.name} • Shift 08:00–16:00',
+                  '${s.staff.name} • ${s.currentShift}',
                   style: const TextStyle(fontSize: 8, color: muted),
                 ),
               ),
-              const Tag('Zebra TC-57'),
+              Tag(s.isBackendConnected ? 'DB Connected' : 'Local / Offline'),
             ],
           ),
         ),
@@ -48,48 +48,61 @@ class DashboardScreen extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           crossAxisSpacing: 9,
           mainAxisSpacing: 0,
-          mainAxisExtent: 140,
+          mainAxisExtent: 148,
           children: [
             Metric(
               'Total Active SKU',
               '${s.items.length}',
-              '+2.5% vs last week',
+              '${s.items.length} produk terdaftar',
               icon: Icons.inventory_2_outlined,
             ),
-            const Metric(
+            Metric(
               'Total Stock Units',
-              '842,910',
-              '↗ +1.8%',
+              '${s.totalStockUnits}',
+              'Total stok fisik saat ini',
               icon: Icons.layers_outlined,
             ),
             Metric(
               'Total Inbound\nToday',
-              '${s.inboundTotal}',
-              '${s.inflow} units • On schedule',
+              '${s.inflow}',
+              s.inflow > 0
+                  ? '${s.inflow} unit masuk hari ini'
+                  : 'Belum ada barang masuk',
               icon: Icons.move_to_inbox_outlined,
             ),
             Metric(
               'Total Outbound\nToday',
-              '${s.outboundTotal}',
-              '${s.outflow} units • Surge',
+              '${s.outflow}',
+              s.outflow > 0
+                  ? '${s.outflow} unit keluar hari ini'
+                  : 'Belum ada barang keluar',
               icon: Icons.outbox_outlined,
             ),
             Metric(
               'Critical Stocks',
               '${s.criticalCount}',
-              'Actions Required Immediately',
-              color: Colors.red,
+              s.criticalCount > 0 ? 'Perlu tindakan segera' : 'Semua stok aman',
+              color: s.criticalCount > 0 ? Colors.red : olive,
               icon: Icons.error_outline,
             ),
             Metric(
-              'Pending Restock',
-              '${s.orders.length}',
-              'Valuation  IDR 142,500',
-              icon: Icons.inventory_outlined,
+              'Pending Tasks',
+              '${s.alerts.length}',
+              s.alerts.isNotEmpty
+                  ? '${s.alerts.length} tugas aktif'
+                  : 'Tidak ada tugas pending',
+              icon: Icons.assignment_outlined,
             ),
           ],
         ),
-        Panel(child: TaskChart(inflow: s.inflow, outflow: s.outflow)),
+        Panel(
+          child: TaskChart(
+            inflow: s.inflow,
+            outflow: s.outflow,
+            inflowSeries: s.weeklyInflow,
+            outflowSeries: s.weeklyOutflow,
+          ),
+        ),
         Panel(
           child: Column(
             children: [
@@ -99,16 +112,35 @@ class DashboardScreen extends StatelessWidget {
                 Icons.psychology_outlined,
                 trailing: Tag(
                   '${s.items.where((i) => i.status != StockStatus.safe).length} Active',
-                  color: Colors.red,
+                  color: s.items.any((i) => i.status != StockStatus.safe)
+                      ? Colors.red
+                      : mint,
                 ),
               ),
-              ...s.items
+              if (s.items
                   .where(
                     (i) =>
                         i.status == StockStatus.critical ||
                         i.status == StockStatus.anomaly,
                   )
-                  .map((i) => InsightCard(i, compact: true)),
+                  .isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 14),
+                  child: Center(
+                    child: Text(
+                      'Semua stok barang dalam kondisi aman.',
+                      style: TextStyle(fontSize: 10, color: muted),
+                    ),
+                  ),
+                )
+              else
+                ...s.items
+                    .where(
+                      (i) =>
+                          i.status == StockStatus.critical ||
+                          i.status == StockStatus.anomaly,
+                    )
+                    .map((i) => InsightCard(i, compact: true)),
             ],
           ),
         ),
@@ -116,26 +148,38 @@ class DashboardScreen extends StatelessWidget {
           child: Column(
             children: [
               const SectionHeading(
-                'Critical Stock Monitoring',
-                'Showing prioritized items requiring immediate lead intervention',
+                'Inventory Items (Database)',
+                'Daftar stok produk dari MySQL',
                 Icons.inventory_outlined,
               ),
-              ...s.items.map((i) => StockCard(i, compact: true)),
+              if (s.items.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: Text(
+                      'Belum ada produk di database.',
+                      style: TextStyle(fontSize: 10, color: muted),
+                    ),
+                  ),
+                )
+              else
+                ...s.items.map((i) => StockCard(i, compact: true)),
             ],
           ),
         ),
-        Panel(
-          child: Column(
-            children: [
-              const SectionHeading(
-                'Pending Purchase Orders',
-                'Requires Ops Lead Sign-off',
-                Icons.folder_outlined,
-              ),
-              ...s.orders.map((po) => OrderCard(po, s.bySku(po.sku))),
-            ],
+        if (s.orders.isNotEmpty)
+          Panel(
+            child: Column(
+              children: [
+                const SectionHeading(
+                  'Pending Purchase Orders',
+                  'Requires Ops Lead Sign-off',
+                  Icons.folder_outlined,
+                ),
+                ...s.orders.map((po) => OrderCard(po, s.bySku(po.sku))),
+              ],
+            ),
           ),
-        ),
         Panel(
           child: Column(
             children: [
