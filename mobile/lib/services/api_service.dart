@@ -223,4 +223,86 @@ class ApiService {
     } catch (_) {}
     return null;
   }
+
+  Future<Map<String, dynamic>> updateTaskStatus({
+    required String token,
+    required int taskId,
+    required String status, // 'pending', 'in_progress', or 'done'
+  }) async {
+    try {
+      final response = await _client
+          .patch(
+            Uri.parse(ApiConfig.taskStatus(taskId)),
+            headers: _headers(token: token),
+            body: jsonEncode({'status': status}),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      final data = jsonDecode(response.body);
+      return {'success': response.statusCode == 200, 'message': data['message']};
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal update status: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> reassignTask({
+    required String token,
+    required int taskId,
+    String? reason,
+  }) async {
+    try {
+      final body = reason != null ? jsonEncode({'reason': reason}) : jsonEncode({});
+      final response = await _client
+          .patch(
+            Uri.parse(ApiConfig.taskReassign(taskId)),
+            headers: _headers(token: token),
+            body: body,
+          )
+          .timeout(const Duration(seconds: 6));
+
+      final data = jsonDecode(response.body);
+      return {'success': response.statusCode == 200, 'message': data['message']};
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal mengambil alih task: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse(ApiConfig.resetPassword),
+            headers: _headers(),
+            body: jsonEncode({
+              'email': email.trim(),
+              'new_password': newPassword,
+            }),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      final data = jsonDecode(response.body);
+      return {'success': response.statusCode == 200, 'message': data['message']};
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal reset password: $e'};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>?> getAttendancesMe(String token) async {
+    try {
+      final response = await _client
+          .get(Uri.parse(ApiConfig.attendanceMe), headers: _headers(token: token))
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return List<Map<String, dynamic>>.from(decoded);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
 }

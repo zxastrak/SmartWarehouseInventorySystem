@@ -43,7 +43,7 @@ function StockFlow({ period, onPeriodChange }) {
   </section>;
 }
 
-export default function Dashboard({ manager, warehouse, onSignOut, onNavigate, inventory }) {
+export default function Dashboard({ manager, warehouse, onSignOut, onNavigate, inventory, isBackendConnected, syncStatus, onSync }) {
   const [search, setSearch] = useState('');
   const [period, setPeriod] = useState('14');
   const [navOpen, setNavOpen] = useState(false);
@@ -65,7 +65,7 @@ export default function Dashboard({ manager, warehouse, onSignOut, onNavigate, i
   return <div className="dashboard-layout">
     <DashboardSidebar warehouseName={warehouseName} onNavigate={navigate} open={navOpen} onClose={() => setNavOpen(false)} />
     <div className="dashboard-main">
-      <WarehouseHeader manager={manager} search={search} onSearch={setSearch} searchRef={searchRef} onMenu={() => setNavOpen(true)} onSignOut={onSignOut} onAlerts={() => preview('Inventory alerts', 'Wireless Scanner, Safety Helmet and Pallet Jack need restocking.')} onViewProfile={() => preview('Manager profile', `Manager: ${manager?.fullName || firstName}. Warehouse: ${warehouseName}.`)} />
+      <WarehouseHeader manager={manager} search={search} onSearch={setSearch} searchRef={searchRef} onMenu={() => setNavOpen(true)} onSignOut={onSignOut} onAlerts={() => preview('Inventory alerts', 'Wireless Scanner, Safety Helmet and Pallet Jack need restocking.')} onViewProfile={() => preview('Manager profile', `Manager: ${manager?.fullName || firstName}. Warehouse: ${warehouseName}.`)} isBackendConnected={isBackendConnected} syncStatus={syncStatus} onSync={onSync} />
       <main className="dashboard-content">
         <div className="dashboard-intro"><div><p>GOOD MORNING</p><h1>Here’s what’s happening<br />in your warehouse</h1></div><div className="dashboard-date"><p>{date}</p><p>{warehouseName}</p></div></div>
         <div className="dashboard-columns">
