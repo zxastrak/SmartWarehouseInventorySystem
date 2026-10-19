@@ -30,4 +30,6 @@ class ApiConfig {
   static String get attendanceMe => '$baseUrl/attendances/me';
   static String get shiftsMe => '$baseUrl/shifts/me';
   static String get tasks => '$baseUrl/tasks';
+  static String taskStatus(int id) => '$baseUrl/tasks/$id/status';
+  static String taskReassign(int id) => '$baseUrl/tasks/$id/reassign';
 }

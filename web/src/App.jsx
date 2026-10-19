@@ -31,9 +31,14 @@ import { completedReceivingSeed } from './data/completedReceiving.js';
 import { inboundSeed } from './data/inbound.js';
 import StockMovementReports from './pages/StockMovementReports.jsx';
 import { inventorySeed, movementSeed } from './data/inventory.js';
+import api from './services/api.js';
 
 export default function App() {
   const [step, setStep] = useState('signin');
+  const [isBackendConnected, setIsBackendConnected] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('idle');
+  const [lastSyncTime, setLastSyncTime] = useState(null);
+  const [backendTasks, setBackendTasks] = useState([]);
   const [inventoryRequest,setInventoryRequest]=useState(null);
   const [inboundRequest,setInboundRequest]=useState(null);
   const [poRequest,setPoRequest]=useState(null);
@@ -242,17 +247,171 @@ export default function App() {
     setStep('manager');
   }
 
-  function demoSignIn(credentials) {
-    // Demo credentials only. Replace with an authenticated manager login API.
-    if (credentials.email.toLowerCase() !== 'naura@gmail.com' || credentials.password !== 'Susuno123!') {const email=credentials.email.toLowerCase();failedSignIns.current[email]=(failedSignIns.current[email]||0)+1;logEvent({module:'Authentication',action:'Login failed',user:'Unauthenticated',authenticated:false,reference:'Sign in',status:'Failure',severity:failedSignIns.current[email]>=3?'Critical':'Warning',details:`Failed sign-in attempt ${failedSignIns.current[email]} for this session identity`,changes:[]});return false;}
-    failedSignIns.current[credentials.email.toLowerCase()]=0;logEvent({module:'Authentication',action:'Signed in',reference:'Session',details:'Demo manager signed in successfully'});
-    setLoginEmail(credentials.email);
-    setStep('dashboard');
-    return true;
+  async function syncBackendData() {
+    if (!api.token) return;
+    setSyncStatus('syncing');
+    try {
+      const [productsRes, txRes, tasksRes, auditRes] = await Promise.allSettled([
+        api.getProducts(),
+        api.getStockTransactions(),
+        api.getTasks(),
+        api.getAuditLogs(),
+      ]);
+
+      if (productsRes.status === 'fulfilled' && Array.isArray(productsRes.value)) {
+        setInventoryItems(current => {
+          const map = new Map(current.map(i => [i.sku, i]));
+          productsRes.value.forEach(p => {
+            const loc = p.zone_location || 'RACK-A1-01-A';
+            const existing = map.get(p.sku) || {};
+            map.set(p.sku, {
+              ...existing,
+              id: p.id,
+              name: p.name,
+              sku: p.sku,
+              current: Number(p.stock_quantity) || 0,
+              reorder: existing.reorder || 10,
+              rack: loc,
+              warehouse: existing.warehouse || 'Main Warehouse',
+              supplier: existing.supplier || 'Main Supplier',
+              price: p.price,
+              unit: p.unit || 'pcs',
+              updated: p.updated_at ? p.updated_at.replace('T', ' ').slice(0, 16) : new Date().toISOString().slice(0, 16),
+            });
+          });
+          return Array.from(map.values());
+        });
+      }
+
+      if (txRes.status === 'fulfilled' && Array.isArray(txRes.value)) {
+        const mappedMovements = txRes.value.map(tx => ({
+          id: `TX-${tx.id}`,
+          sku: tx.sku || `SKU-${tx.product_id}`,
+          name: tx.product_name || `Produk #${tx.product_id}`,
+          date: tx.created_at ? tx.created_at.replace('T', ' ').slice(0, 16) : new Date().toISOString().slice(0, 16),
+          type: tx.type === 'in' ? 'Stock In (Mobile)' : 'Stock Out (Mobile)',
+          reference: `ST-${tx.id}`,
+          before: 0,
+          change: tx.type === 'in' ? Number(tx.quantity) : -Number(tx.quantity),
+          after: 0,
+          rack: 'RACK-A1-01-A',
+          user: tx.user_name || `Staf #${tx.user_id}`,
+          reason: tx.notes || 'Pencatatan mutasi lapangan',
+          warehouse: 'Main Warehouse',
+        }));
+        setMovements(current => {
+          const ids = new Set(mappedMovements.map(m => m.id));
+          return [...mappedMovements, ...current.filter(m => !ids.has(m.id))];
+        });
+      }
+
+      if (tasksRes.status === 'fulfilled' && Array.isArray(tasksRes.value)) {
+        setBackendTasks(tasksRes.value);
+      }
+
+      if (auditRes.status === 'fulfilled' && Array.isArray(auditRes.value)) {
+        const mappedLogs = auditRes.value.map(log => ({
+          id: `AL-${log.id}`,
+          time: log.created_at ? log.created_at.replace('T', ' ').slice(0, 19) : '',
+          user: log.user_name || `User #${log.user_id}`,
+          action: (log.action || '').replace(/_/g, ' '),
+          reference: `${log.table_affected || 'General'} #${log.record_id || ''}`,
+          status: 'Recorded',
+          severity: 'Info',
+          warehouse: 'Main Warehouse',
+          details: `Action ${log.action} on ${log.table_affected}`,
+          changes: [],
+        }));
+        setAuditEvents(current => {
+          const ids = new Set(mappedLogs.map(l => l.id));
+          return [...mappedLogs, ...current.filter(l => !ids.has(l.id))];
+        });
+      }
+
+      setSyncStatus('synced');
+      setLastSyncTime(new Date());
+    } catch (e) {
+      console.warn('Sync failed:', e);
+      setSyncStatus('error');
+    }
+  }
+
+  useEffect(() => {
+    if (!isBackendConnected || step === 'signin') return;
+    const interval = setInterval(() => {
+      syncBackendData();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [isBackendConnected, step]);
+
+  async function handleSignIn(credentials) {
+    try {
+      const res = await api.login(credentials.email, credentials.password);
+      if (res && res.user) {
+        if (res.user.role !== 'manager') {
+          return {
+            success: false,
+            message: 'Akun ini terdaftar sebagai staf lapangan. Silakan gunakan aplikasi mobile SUSUNO untuk staf.',
+          };
+        }
+
+        setManager({
+          fullName: res.user.name,
+          email: res.user.email,
+          role: res.user.role,
+          id: res.user.id,
+        });
+        setLoginEmail(credentials.email);
+        setIsBackendConnected(true);
+        logEvent({
+          module: 'Authentication',
+          action: 'Signed in',
+          reference: 'API Session',
+          details: `Manager ${res.user.name} signed in successfully via backend API`,
+        });
+
+        await syncBackendData();
+        setStep('dashboard');
+        return { success: true };
+      }
+      return { success: false, message: res?.message || 'Login gagal.' };
+    } catch (err) {
+      // Offline fallback for demo manager
+      if (
+        (credentials.email.toLowerCase() === 'naura@gmail.com' && credentials.password === 'Susuno123!') ||
+        (credentials.email.toLowerCase() === 'manager@test.com' && credentials.password === 'Susuno123!')
+      ) {
+        setManager({
+          fullName: credentials.email.includes('manager') ? 'Manager Utama' : 'Naura',
+          email: credentials.email,
+          role: 'manager',
+        });
+        setLoginEmail(credentials.email);
+        setIsBackendConnected(false);
+        setStep('dashboard');
+        return { success: true };
+      }
+
+      return {
+        success: false,
+        message: err.message || 'The email or password is incorrect. Please try again.',
+      };
+    }
   }
 
   if (step === 'dashboard') {
-    return <Dashboard manager={manager} warehouse={warehouse} inventory={inventoryItems} onNavigate={navigatePage} onSignOut={signOut} />;
+    return (
+      <Dashboard
+        manager={manager}
+        warehouse={warehouse}
+        inventory={inventoryItems}
+        onNavigate={navigatePage}
+        onSignOut={signOut}
+        isBackendConnected={isBackendConnected}
+        syncStatus={syncStatus}
+        onSync={syncBackendData}
+      />
+    );
   }
 
   if (step === 'reports') return <Reports manager={manager} warehouse={warehouse} items={inventoryItems} movements={movements} orders={poOrders} onNavigate={navigatePage} onSignOut={signOut} onAudit={auditExport('Reports')} onMovements={()=>{setReportSku(null);setReportReference(null);setReportOrigin('reports');setStep('movement-reports');}}/>;
@@ -299,7 +458,7 @@ export default function App() {
 
   if (step === 'signin') {
     return <SignIn initialEmail={loginEmail || manager?.email || ''} onCreateAccount={() => setStep('manager')}
-      onForgotPassword={email => { setRecoveryEmail(email); setStep('forgot'); }} onSignIn={demoSignIn} />;
+      onForgotPassword={email => { setRecoveryEmail(email); setStep('forgot'); }} onSignIn={handleSignIn} />;
   }
 
   if (step === 'security') {

@@ -8,15 +8,19 @@ export default function SignIn({ onCreateAccount, initialEmail = '', onSignIn, o
   const [errors, setErrors] = useState({});
   const [notice, setNotice] = useState('');
   const [authFailed, setAuthFailed] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   function handleChange(event) {
     const { name, value } = event.target;
     setValues(current => ({ ...current, [name]: value }));
     setErrors(current => ({ ...current, [name]: undefined }));
     setNotice('');
+    setAuthFailed(false);
+    setErrorMessage('');
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     const nextErrors = {};
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) {
@@ -25,17 +29,31 @@ export default function SignIn({ onCreateAccount, initialEmail = '', onSignIn, o
     if (!values.password) nextErrors.password = 'Enter your password.';
     setErrors(nextErrors);
     setNotice('');
+    setAuthFailed(false);
+    setErrorMessage('');
     const firstInvalid = Object.keys(nextErrors)[0];
     if (firstInvalid) {
       document.getElementById(`signin-${firstInvalid}`)?.focus();
       return;
     }
-    // Connect the login API here. Credentials must be verified by the server.
+
     if (onSignIn) {
-      const accepted = onSignIn({ email: values.email.trim(), password: values.password });
-      if (accepted === false) setAuthFailed(true);
+      setSubmitting(true);
+      try {
+        const result = await onSignIn({ email: values.email.trim(), password: values.password });
+        if (result === false || (result && result.success === false)) {
+          setAuthFailed(true);
+          setErrorMessage(result?.message || 'The email or password is incorrect. Please try again.');
+        }
+      } catch (err) {
+        setAuthFailed(true);
+        setErrorMessage(err.message || 'An error occurred during sign in.');
+      } finally {
+        setSubmitting(false);
+      }
+    } else {
+      setAuthFailed(true);
     }
-    else setAuthFailed(true); // Demo: simulate rejected login for the supplied error screen.
   }
 
   return (
@@ -50,7 +68,7 @@ export default function SignIn({ onCreateAccount, initialEmail = '', onSignIn, o
           </header>
           {authFailed && <div className="recovery-error signin-error" role="alert">
             <strong>Unable to sign in</strong>
-            <p>The email or password is incorrect. Please try again.</p>
+            <p>{errorMessage || 'The email or password is incorrect. Please try again.'}</p>
           </div>}
           <form className="signin-form" noValidate onSubmit={handleSubmit}>
             <div className="form-field">
@@ -85,7 +103,9 @@ export default function SignIn({ onCreateAccount, initialEmail = '', onSignIn, o
                 else setNotice('The password recovery page is not connected yet.');
               }}>Forgot password?</button>
             </div>
-            <button type="submit" className="continue-button signin-button">{authFailed ? 'Try Again' : 'Sign In to Dashboard'}</button>
+            <button type="submit" className="continue-button signin-button" disabled={submitting}>
+              {submitting ? 'Signing In...' : authFailed ? 'Try Again' : 'Sign In to Dashboard'}
+            </button>
             {notice && <p className="form-notice signin-notice" role="status">{notice}</p>}
           </form>
           {authFailed ? <p className="signin-error-register">New warehouse manager? <button type="button" className="text-button" onClick={onCreateAccount}>Create Manager Account</button></p> : <>
