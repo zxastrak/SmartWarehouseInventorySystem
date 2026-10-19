@@ -3,11 +3,11 @@ import 'package:susuno_mobile/state/warehouse_state.dart';
 import 'package:susuno_mobile/models/models.dart';
 
 void main() {
-  test('Invalid credentials do not enter the application', () {
+  test('Invalid credentials do not enter the application', () async {
     final s = WarehouseState();
-    expect(s.login('wrong@example.com', 'wrong'), isNotNull);
+    expect(await s.login('wrong@example.com', 'wrong'), isNotNull);
     expect(s.loggedIn, isFalse);
-    expect(s.login('tabinanaila@staff.co.id', 'Susuno123!'), isNull);
+    expect(await s.login('tabinanaila@staff.co.id', 'Susuno123!'), isNull);
     expect(s.loggedIn, isTrue);
     s.logout();
     expect(s.loggedIn, isFalse);

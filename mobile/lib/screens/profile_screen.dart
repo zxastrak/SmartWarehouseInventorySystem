@@ -194,9 +194,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const Text(
-                          'Warehouse Operations Specialist',
-                          style: TextStyle(
+                        Text(
+                          p.role.toUpperCase() == 'STAF'
+                              ? 'Warehouse Operations Staff'
+                              : 'Warehouse ${p.role}',
+                          style: const TextStyle(
                             fontSize: 10,
                             color: Color(0xff7e8574),
                             letterSpacing: .4,
@@ -213,7 +215,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Expanded(
                     child: _ShiftCard(
                       'Current Shift',
-                      'Alpha 07:00 - 18:00',
+                      s.currentShift,
                       Icons.schedule,
                     ),
                   ),

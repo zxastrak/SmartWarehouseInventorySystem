@@ -14,18 +14,28 @@ class _LoginScreenState extends State<LoginScreen> {
   final form = GlobalKey<FormState>();
   final email = TextEditingController(), password = TextEditingController();
   bool hidden = true;
+  bool loading = false;
   String? error;
-  void signIn() {
+
+  Future<void> signIn() async {
     if (!form.currentState!.validate()) {
       return;
     }
-    final result = context.read<WarehouseState>().login(
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    final result = await context.read<WarehouseState>().login(
       email.text,
       password.text,
     );
-    if (result != null) {
-      setState(() => error = result);
-    }
+    if (!mounted) return;
+    setState(() {
+      loading = false;
+      if (result != null) {
+        error = result;
+      }
+    });
   }
 
   @override
@@ -226,14 +236,23 @@ class _LoginScreenState extends State<LoginScreen> {
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        onPressed: signIn,
-                        child: const Text(
-                          'Sign In',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                        onPressed: loading ? null : signIn,
+                        child: loading
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Sign In',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 23),
@@ -258,11 +277,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           minimumSize: const Size(0, 45),
                         ),
                         onPressed: () {
-                          email.text =
-                              context.read<WarehouseState>().staff.email;
+                          email.text = 'stafujibaru@test.com';
                           message(
                             context,
-                            'Staff email selected. Enter your password to sign in.',
+                            'Akun staf DB (stafujibaru@test.com) dipilih. Masukkan password untuk login.',
                           );
                         },
                         icon: const Icon(Icons.qr_code_scanner, size: 18),

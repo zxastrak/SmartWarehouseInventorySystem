@@ -7,15 +7,19 @@ enum ScanMode { single, itemRack, putaway }
 enum MovementKind { stockIn, stockOut, putaway, rackCount }
 
 class StockItem {
+  final int? id;
   final String sku, name;
   String rack, zone;
   int quantity;
   final int minimum;
   final double dailyUsage;
+  final double price;
+  final String unit;
   bool anomaly, discrepancy, pendingVerification;
   DateTime? verifiedAt;
   final Map<String, int> rackCounts = {};
   StockItem({
+    this.id,
     required this.sku,
     required this.name,
     required this.rack,
@@ -23,6 +27,8 @@ class StockItem {
     required this.quantity,
     required this.minimum,
     required this.dailyUsage,
+    this.price = 0,
+    this.unit = 'pcs',
     this.anomaly = false,
     this.discrepancy = false,
     this.pendingVerification = false,
@@ -102,9 +108,11 @@ class WarehouseAlert {
 }
 
 class Staff {
+  int? id;
   String name = 'Tabina Naila', email = 'tabinanaila@staff.co.id';
   String phone = '081234567890', staffId = 'STF-024', badge = 'WH-STAFF-024';
   String emergency = '081298765432';
+  String role = 'staf';
   bool haptics = true,
       localAcoustic = true,
       highContrast = false,
