@@ -2,13 +2,24 @@ const db = require('../config/db');
 
 const stockTransactionModel = {
   getAll: async () => {
-    const sql = 'SELECT * FROM stock_transactions ORDER BY created_at DESC';
+    const sql = `
+    SELECT st.*, p.name AS product_name, p.sku
+    FROM stock_transactions st
+    LEFT JOIN products p ON st.product_id = p.id
+    ORDER BY st.created_at DESC
+  `;
     const [rows] = await db.query(sql);
     return rows;
   },
 
   getByProductId: async (product_id) => {
-    const sql = 'SELECT * FROM stock_transactions WHERE product_id = ? ORDER BY created_at DESC';
+    const sql = `
+    SELECT st.*, p.name AS product_name, p.sku
+    FROM stock_transactions st
+    LEFT JOIN products p ON st.product_id = p.id
+    WHERE st.product_id = ?
+    ORDER BY st.created_at DESC
+  `;
     const [rows] = await db.query(sql, [product_id]);
     return rows;
   },
