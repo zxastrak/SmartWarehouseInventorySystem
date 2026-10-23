@@ -2,7 +2,7 @@ const db = require('../config/db');
 
 const purchaseOrderModel = {
     create: async (poData) => {
-        const { supplier_id, created_by, items } = poData; // items = [{ product_id, quantity, unit_price }]
+        const { supplier_id, created_by, items } = poData; // items = [{ product_id, quantity, price }]
         const connection = await db.getConnection();
 
         try {
