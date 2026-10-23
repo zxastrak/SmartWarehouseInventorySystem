@@ -11,10 +11,9 @@ const purchaseOrderModel = {
             const insertPoSql = "INSERT INTO purchase_orders (supplier_id, created_by, status) VALUES (?, ?, 'pending')";
             const [poResult] = await connection.query(insertPoSql, [supplier_id, created_by]);
 
-            const insertItemSql = 'INSERT INTO purchase_order_items (purchase_order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)';
-            for (const item of items) {
-                await connection.query(insertItemSql, [poResult.insertId, item.product_id, item.quantity, item.price]);
-            }
+            const values = items.map((item) => [poResult.insertId, item.product_id, item.quantity, item.price]);
+            const insertItemsSql = 'INSERT INTO purchase_order_items (purchase_order_id, product_id, quantity, price) VALUES ?';
+            await connection.query(insertItemsSql, [values]);
 
             await connection.commit();
             return { poId: poResult.insertId };
