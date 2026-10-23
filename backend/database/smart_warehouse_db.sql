@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Oct 17, 2026 at 09:05 AM
+-- Generation Time: Oct 23, 2026 at 07:33 AM
 -- Server version: 8.0.30
 -- PHP Version: 8.4.20
 
@@ -103,7 +103,8 @@ INSERT INTO `audit_logs` (`id`, `user_id`, `action`, `table_affected`, `record_i
 (24, 1, 'USER_DEACTIVATED', 'users', 5, '2026-10-17 08:33:28'),
 (25, 1, 'USER_ACTIVATED', 'users', 5, '2026-10-17 08:37:01'),
 (26, 1, 'USER_DEACTIVATED', 'users', 5, '2026-10-17 08:48:31'),
-(27, 1, 'USER_ACTIVATED', 'users', 5, '2026-10-17 08:50:47');
+(27, 1, 'USER_ACTIVATED', 'users', 5, '2026-10-17 08:50:47'),
+(28, 1, 'PO_CREATED', 'purchase_orders', 5, '2026-10-23 07:15:24');
 
 -- --------------------------------------------------------
 
@@ -171,7 +172,9 @@ CREATE TABLE `products` (
 --
 
 INSERT INTO `products` (`id`, `name`, `sku`, `category_id`, `supplier_id`, `stock_quantity`, `unit`, `price`, `zone_location`, `created_at`, `updated_at`, `location_id`) VALUES
-(4, 'Kabel HDMI 2m', 'SKU-001', 3, 2, 45, 'pcs', 45000.00, 'A1', '2026-09-28 03:50:50', '2026-10-13 00:41:58', 2);
+(4, 'Kabel HDMI 2m', 'SKU-001', 3, 2, 45, 'pcs', 45000.00, 'A1', '2026-09-28 03:50:50', '2026-10-13 00:41:58', 2),
+(8, 'Kabel LAN 5m', 'SKU-002', NULL, 2, 0, 'pcs', 25000.00, NULL, '2026-10-23 07:13:12', '2026-10-23 07:13:12', NULL),
+(9, 'Mouse USB', 'SKU-003', NULL, 2, 0, 'pcs', 45000.00, NULL, '2026-10-23 07:13:12', '2026-10-23 07:13:12', NULL);
 
 -- --------------------------------------------------------
 
@@ -194,7 +197,8 @@ CREATE TABLE `purchase_orders` (
 INSERT INTO `purchase_orders` (`id`, `supplier_id`, `created_by`, `status`, `created_at`) VALUES
 (1, 2, 1, 'completed', '2026-10-12 04:35:06'),
 (2, 2, 1, 'pending', '2026-10-12 04:36:48'),
-(4, 2, 1, 'completed', '2026-10-13 00:49:35');
+(4, 2, 1, 'completed', '2026-10-13 00:49:35'),
+(5, 2, 1, 'pending', '2026-10-23 07:15:23');
 
 -- --------------------------------------------------------
 
@@ -217,7 +221,10 @@ CREATE TABLE `purchase_order_items` (
 INSERT INTO `purchase_order_items` (`id`, `purchase_order_id`, `product_id`, `quantity`, `price`) VALUES
 (1, 1, 4, 100, 45000.00),
 (2, 2, 4, 100, 45000.00),
-(5, 4, 4, 10, 45000.00);
+(5, 4, 4, 10, 45000.00),
+(6, 5, 4, 10, 15000.00),
+(7, 5, 8, 3, 22000.00),
+(8, 5, 9, 8, 9000.00);
 
 -- --------------------------------------------------------
 
@@ -383,14 +390,15 @@ ALTER TABLE `ai_predictions`
 --
 ALTER TABLE `attendance_logs`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `user_id` (`user_id`);
+  ADD KEY `idx_attendance_user_scan` (`user_id`,`scan_time`);
 
 --
 -- Indexes for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `user_id` (`user_id`);
+  ADD KEY `idx_audit_action_created` (`action`,`created_at`),
+  ADD KEY `idx_audit_user_created` (`user_id`,`created_at`);
 
 --
 -- Indexes for table `categories`
@@ -443,8 +451,8 @@ ALTER TABLE `shifts`
 --
 ALTER TABLE `stock_transactions`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `product_id` (`product_id`),
-  ADD KEY `user_id` (`user_id`);
+  ADD KEY `idx_stock_user_created` (`user_id`,`created_at`),
+  ADD KEY `idx_stock_product_created` (`product_id`,`created_at`);
 
 --
 -- Indexes for table `suppliers`
@@ -497,7 +505,7 @@ ALTER TABLE `attendance_logs`
 -- AUTO_INCREMENT for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- AUTO_INCREMENT for table `categories`
@@ -515,19 +523,19 @@ ALTER TABLE `locations`
 -- AUTO_INCREMENT for table `products`
 --
 ALTER TABLE `products`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `purchase_orders`
 --
 ALTER TABLE `purchase_orders`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `purchase_order_items`
 --
 ALTER TABLE `purchase_order_items`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `shifts`
