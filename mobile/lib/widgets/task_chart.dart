@@ -1,6 +1,12 @@
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../core/app_theme.dart';
+
+// Warna seri grafik: hijau untuk masuk, koral untuk keluar.
+const _inflowColor = Color(0xff9ab85c);
+const _outflowColor = Color(0xffe98686);
+const _axisText = Color(0xff94a3b8);
 
 class TaskChart extends StatelessWidget {
   final bool bars;
@@ -37,31 +43,36 @@ class TaskChart extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xff5f7f61).withAlpha(20),
+              padding: const EdgeInsets.all(12),
+              decoration: const BoxDecoration(
+                color: brandSoft,
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.query_stats_outlined,
-                size: 24,
-                color: Color(0xff5f7f61),
+                size: 26,
+                color: brand,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             const Text(
               'Belum Ada Aktivitas Telemetri',
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xff333333),
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: brandInk,
               ),
             ),
             const SizedBox(height: 4),
             const Text(
               'Grafik pergerakan stok harian akan tampil saat ada transaksi stok masuk/keluar di database.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 10, color: Color(0xff888888)),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: muted,
+                height: 1.4,
+              ),
             ),
           ],
         ),
@@ -77,28 +88,21 @@ class TaskChart extends StatelessWidget {
             painter: _ChartPainter(bars, inflow, outflow, a, b),
           ),
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 8),
         Wrap(
           alignment: WrapAlignment.center,
-          spacing: 15,
+          spacing: 16,
+          runSpacing: 6,
           children:
               bars
                   ? [
-                    legend(const Color(0xff83d3c3), 'Stok Masuk'),
-                    legend(const Color(0xfff69a9a), 'Stok Keluar'),
-                    legend(const Color(0xff5f7f61), 'Rata-rata', stroke: true),
+                    legend(_inflowColor, 'Stok Masuk'),
+                    legend(_outflowColor, 'Stok Keluar'),
+                    legend(brand, 'Rata-rata', stroke: true),
                   ]
                   : [
-                    legend(
-                      const Color(0xff5cc5a9),
-                      'Inbound (Masuk)',
-                      stroke: true,
-                    ),
-                    legend(
-                      const Color(0xffff865f),
-                      'Outbound (Keluar)',
-                      stroke: true,
-                    ),
+                    legend(_inflowColor, 'Inbound (Masuk)', stroke: true),
+                    legend(_outflowColor, 'Outbound (Keluar)', stroke: true),
                   ],
         ),
       ],
@@ -108,11 +112,22 @@ class TaskChart extends StatelessWidget {
   Widget legend(Color color, String label, {bool stroke = false}) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Container(width: 9, height: stroke ? 2 : 9, color: color),
-      const SizedBox(width: 4),
+      Container(
+        width: 10,
+        height: stroke ? 3 : 10,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(3),
+        ),
+      ),
+      const SizedBox(width: 5),
       Text(
         label,
-        style: const TextStyle(fontSize: 9, color: Color(0xff777777)),
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: brandSlate,
+        ),
       ),
     ],
   );
@@ -127,15 +142,22 @@ class _ChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas c, Size size) {
-    final box = Rect.fromLTRB(27, 30, size.width - 25, size.height - 23);
+    final box = Rect.fromLTRB(30, 30, size.width - 30, size.height - 26);
     final maxVal = [...a, ...b].fold<double>(0.0, (m, v) => math.max(m, v));
     final maximum = math.max(10.0, maxVal * 1.15);
 
+    // Teks di dalam CustomPaint tidak mewarisi font tema, jadi fontFamily
+    // diisi manual supaya sama dengan seluruh aplikasi.
     void label(String text, Offset pos, {TextAlign align = TextAlign.left}) {
       final painter = TextPainter(
         text: TextSpan(
           text: text,
-          style: const TextStyle(fontSize: 9, color: Color(0xff999999)),
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: _axisText,
+            fontFamily: appFont,
+          ),
         ),
         textDirection: TextDirection.ltr,
         textAlign: align,
@@ -149,12 +171,12 @@ class _ChartPainter extends CustomPainter {
         Offset(box.left, y),
         Offset(box.right, y),
         Paint()
-          ..color = const Color(0xffeeeeee)
-          ..strokeWidth = .6,
+          ..color = const Color(0xffeef2f6)
+          ..strokeWidth = 1,
       );
-      label('${(maximum * n / 5).round()}', Offset(0, y - 5));
+      label('${(maximum * n / 5).round()}', Offset(0, y - 6));
       if (bars) {
-        label('${(maximum * n / 5).round()}', Offset(box.right + 5, y - 5));
+        label('${(maximum * n / 5).round()}', Offset(box.right + 5, y - 6));
       }
     }
     final step = box.width / 6;
@@ -168,23 +190,30 @@ class _ChartPainter extends CustomPainter {
 
     for (int n = 0; n < 6; n++) {
       if (bars) {
-        c.drawRect(
-          Rect.fromLTWH(box.left + n * step, box.top, step * .58, box.height),
-          Paint()..color = const Color(0xfff4f4f4),
+        c.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(box.left + n * step, box.top, step * .58, box.height),
+            const Radius.circular(8),
+          ),
+          Paint()..color = const Color(0xfff8fafc),
         );
       }
-      label(labels[n], Offset(xs[n] - 9, box.bottom + 6));
+      label(labels[n], Offset(xs[n] - 10, box.bottom + 7));
     }
     void series(List<double> vals, Color color, double offset) {
       if (bars) {
         for (int i = 0; i < vals.length; i++) {
           final height = vals[i] / maximum * box.height;
-          c.drawRect(
-            Rect.fromLTWH(
-              xs[i] + offset,
-              box.bottom - height,
-              step * .25,
-              height,
+          c.drawRRect(
+            RRect.fromRectAndCorners(
+              Rect.fromLTWH(
+                xs[i] + offset,
+                box.bottom - height,
+                step * .25,
+                height,
+              ),
+              topLeft: const Radius.circular(5),
+              topRight: const Radius.circular(5),
             ),
             Paint()..color = color,
           );
@@ -218,33 +247,26 @@ class _ChartPainter extends CustomPainter {
           path,
           Paint()
             ..color = color
-            ..strokeWidth = 1.3
+            ..strokeWidth = 2
+            ..strokeCap = StrokeCap.round
             ..style = PaintingStyle.stroke,
         );
         for (final point in points) {
-          c.drawCircle(point, 2.2, Paint()..color = Colors.white);
+          c.drawCircle(point, 3, Paint()..color = Colors.white);
           c.drawCircle(
             point,
-            2.2,
+            3,
             Paint()
               ..color = color
-              ..strokeWidth = .8
+              ..strokeWidth = 1.5
               ..style = PaintingStyle.stroke,
           );
         }
       }
     }
 
-    series(
-      a,
-      bars ? const Color(0xff83d3c3) : const Color(0xff5cc5a9),
-      -step * .28,
-    );
-    series(
-      b,
-      bars ? const Color(0xfff69a9a) : const Color(0xffff865f),
-      step * .03,
-    );
+    series(a, _inflowColor, -step * .28);
+    series(b, _outflowColor, step * .03);
     if (bars) {
       final average = List.generate(6, (i) => (a[i] + b[i]) / 2);
       final path = Path();
@@ -259,19 +281,20 @@ class _ChartPainter extends CustomPainter {
       c.drawPath(
         path,
         Paint()
-          ..color = const Color(0xff5f7f61)
-          ..strokeWidth = 1.4
+          ..color = brand
+          ..strokeWidth = 2
+          ..strokeJoin = StrokeJoin.round
           ..style = PaintingStyle.stroke,
       );
       for (int i = 0; i < 6; i++) {
         final p = Offset(xs[i], box.bottom - average[i] / maximum * box.height);
-        c.drawCircle(p, 3, Paint()..color = Colors.white);
+        c.drawCircle(p, 3.5, Paint()..color = Colors.white);
         c.drawCircle(
           p,
-          3,
+          3.5,
           Paint()
-            ..color = const Color(0xff5f7f61)
-            ..strokeWidth = 1
+            ..color = brand
+            ..strokeWidth = 1.5
             ..style = PaintingStyle.stroke,
         );
       }

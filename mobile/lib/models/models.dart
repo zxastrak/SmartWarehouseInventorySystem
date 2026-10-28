@@ -78,20 +78,6 @@ class Activity {
   }) : time = time ?? DateTime.now();
 }
 
-class PurchaseOrder {
-  final String id, sku, status, arrival;
-  final int quantity;
-  final double price;
-  const PurchaseOrder(
-    this.id,
-    this.sku,
-    this.status,
-    this.arrival,
-    this.quantity,
-    this.price,
-  );
-}
-
 class WarehouseAlert {
   final String id, title, message, badge, sku;
   final String action;

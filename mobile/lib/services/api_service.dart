@@ -192,10 +192,14 @@ class ApiService {
     }
   }
 
-  Future<List<Map<String, dynamic>>?> getMyShifts(String token) async {
+  Future<List<Map<String, dynamic>>?> getMyShifts(
+    String token, {
+    String? date,
+  }) async {
     try {
+      final url = date != null ? ApiConfig.shiftsMeDate(date) : ApiConfig.shiftsMe;
       final response = await _client
-          .get(Uri.parse(ApiConfig.shiftsMe), headers: _headers(token: token))
+          .get(Uri.parse(url), headers: _headers(token: token))
           .timeout(const Duration(seconds: 6));
 
       if (response.statusCode == 200) {
@@ -212,6 +216,98 @@ class ApiService {
     try {
       final response = await _client
           .get(Uri.parse(ApiConfig.tasks), headers: _headers(token: token))
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return List<Map<String, dynamic>>.from(decoded);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<Map<String, dynamic>>?> getLocations(String token) async {
+    try {
+      final response = await _client
+          .get(Uri.parse(ApiConfig.locations), headers: _headers(token: token))
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return List<Map<String, dynamic>>.from(decoded);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<Map<String, dynamic>>?> getCategories(String token) async {
+    try {
+      final response = await _client
+          .get(Uri.parse(ApiConfig.categories), headers: _headers(token: token))
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return List<Map<String, dynamic>>.from(decoded);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<Map<String, dynamic>>?> getSuppliers(String token) async {
+    try {
+      final response = await _client
+          .get(Uri.parse(ApiConfig.suppliers), headers: _headers(token: token))
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return List<Map<String, dynamic>>.from(decoded);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<Map<String, dynamic>>?> getProductTransactions(
+    String token,
+    int productId,
+  ) async {
+    try {
+      final response = await _client
+          .get(
+            Uri.parse(ApiConfig.productTransactions(productId)),
+            headers: _headers(token: token),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return List<Map<String, dynamic>>.from(decoded);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<Map<String, dynamic>>?> getTaskHistory(
+    String token,
+    int taskId,
+  ) async {
+    try {
+      final response = await _client
+          .get(
+            Uri.parse(ApiConfig.taskHistory(taskId)),
+            headers: _headers(token: token),
+          )
           .timeout(const Duration(seconds: 6));
 
       if (response.statusCode == 200) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/models.dart';
 import '../state/warehouse_state.dart';
 import '../widgets/ui.dart';
 import '../widgets/warehouse_sections.dart';
@@ -73,8 +74,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       IconData icon,
     ) => Row(
       children: [
-        Icon(icon, size: 22, color: const Color(0xff546b46)),
-        const SizedBox(width: 6),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: brandSoft,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, size: 18, color: brand),
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,25 +91,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title,
                 style: const TextStyle(
                   fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w800,
+                  color: brandInk,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 subtitle,
                 style: const TextStyle(
-                  fontSize: 10,
-                  color: Color(0xff7e8574),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: muted,
                   height: 1.3,
                 ),
               ),
             ],
           ),
         ),
-        Transform.scale(
-          scale: .75,
-          child: Switch(value: value, onChanged: (v) => s.setting(key, v)),
-        ),
+        const SizedBox(width: 8),
+        Switch(value: value, onChanged: (v) => s.setting(key, v)),
       ],
     );
     Widget field(String label, String value, {bool editable = false}) =>
@@ -112,14 +120,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Text(
                 label,
-                style: const TextStyle(fontSize: 11, color: Color(0xff637057)),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: brandSlate,
+                ),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 6),
               Material(
-                color: lavender,
-                borderRadius: BorderRadius.circular(6),
+                color: const Color(0xfff8fafc),
+                borderRadius: BorderRadius.circular(16),
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(16),
                   onTap:
                       editable
                           ? () => flowSheet(context, const EditProfile())
@@ -127,26 +139,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 11,
+                      horizontal: 14,
+                      vertical: 13,
                     ),
                     decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xffd7ddd7)),
-                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: line),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: Row(
                       children: [
                         Expanded(
                           child: Text(
                             value,
-                            style: const TextStyle(fontSize: 11, color: ink),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: brandInk,
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 8),
                         Icon(
                           editable ? Icons.edit_outlined : Icons.lock_outline,
-                          size: 14,
-                          color: editable ? olive : muted,
+                          size: 16,
+                          color: editable ? brand : muted,
                         ),
                       ],
                     ),
@@ -159,19 +175,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const PageTitle(
-          'Staff Profile and Settings',
-          'Staff Handheld • Austin - 01',
-        ),
-        Panel(
-          tint: const Color(0xfff1f8ef),
+        Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [brandGradientStart, brandGradientEnd],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: brandCardShadow,
+          ),
           child: Column(
             children: [
               Row(
                 children: [
                   CircleAvatar(
-                    radius: 25,
-                    backgroundColor: olive,
+                    radius: 28,
+                    backgroundColor: Colors.white,
                     child: Text(
                       p.name
                           .split(RegExp(r'\s+'))
@@ -179,10 +201,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           .map((n) => n[0])
                           .take(2)
                           .join(),
-                      style: const TextStyle(fontSize: 16, color: Colors.white),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: brand,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -190,18 +216,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Text(
                           p.name,
                           style: const TextStyle(
-                            fontSize: 23,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.3,
+                            color: brandHeroInk,
                           ),
                         ),
+                        const SizedBox(height: 2),
                         Text(
                           p.role.toUpperCase() == 'STAF'
                               ? 'Warehouse Operations Staff'
                               : 'Warehouse ${p.role}',
                           style: const TextStyle(
-                            fontSize: 10,
-                            color: Color(0xff7e8574),
-                            letterSpacing: .4,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: brandHeroSub,
                           ),
                         ),
                       ],
@@ -209,7 +238,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 17),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
@@ -265,7 +294,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               field('Emergency On-Call Contact', p.emergency, editable: true),
               const Text(
                 'Tap the pencil to edit. Staff email and badge are managed by your manager.',
-                style: TextStyle(fontSize: 9, color: muted),
+                style: TextStyle(fontSize: 11, color: muted),
               ),
             ],
           ),
@@ -278,57 +307,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 'Shift & Sector Profile',
                 '',
                 Icons.engineering_outlined,
-                trailing: Text(
-                  'Tier-2 Certified',
-                  style: TextStyle(fontSize: 8, color: muted),
-                ),
+                trailing: Tag('Tier-2 Certified'),
               ),
               const Text(
                 'Assigned Primary Section',
-                style: TextStyle(fontSize: 11, color: Color(0xff637057)),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: brandSlate,
+                ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: lavender,
+                  color: const Color(0xfff8fafc),
                   border: Border.all(color: line),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
                   children: [
                     Container(
-                      width: 33,
-                      height: 43,
+                      width: 44,
+                      height: 44,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: olive,
-                        borderRadius: BorderRadius.circular(4),
+                        color: brand,
+                        borderRadius: BorderRadius.circular(14),
                       ),
                       child: const Text(
                         'A',
                         style: TextStyle(
+                          fontSize: 18,
                           color: Colors.white,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 12),
                     const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Zone A: Mechanical & Heavy\nBearings',
+                            'Zone A: Mechanical & Heavy Bearings',
                             style: TextStyle(
                               fontSize: 14,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
+                              color: brandInk,
+                              height: 1.25,
                             ),
                           ),
-                          SizedBox(height: 3),
+                          SizedBox(height: 4),
                           Text(
                             'High Bay Rack 01 - 10 • Automated Shuttle Node',
-                            style: TextStyle(fontSize: 9, color: muted),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: muted,
+                            ),
                           ),
                         ],
                       ),
@@ -338,35 +375,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.all(11),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xfff1f8ef),
-                  border: Border.all(color: line),
-                  borderRadius: BorderRadius.circular(6),
+                  color: brandSoft,
+                  border: Border.all(color: brandSoftBorder),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.fact_check_outlined, size: 30, color: olive),
-                    SizedBox(width: 9),
+                    Icon(Icons.fact_check_outlined, size: 28, color: brand),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: Tag('ACTIVE'),
-                          ),
+                          Tag('ACTIVE'),
+                          SizedBox(height: 6),
                           Text(
                             'Forklift & Telehandler (Class IV & V)',
                             style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: brandInk,
                             ),
                           ),
-                          SizedBox(height: 4),
+                          SizedBox(height: 3),
                           Text(
                             'Certified • Valid through Nov 2027',
-                            style: TextStyle(fontSize: 10, color: muted),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: muted,
+                            ),
                           ),
                         ],
                       ),
@@ -381,14 +421,158 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              SectionHeading(
+                'Absensi & Jam Kerja Staf',
+                'Riwayat clock-in dan clock-out shift',
+                Icons.access_time_outlined,
+                trailing: Tag(
+                  s.isCheckedIn ? 'ACTIVE SHIFT' : 'OFF DUTY',
+                  color: s.isCheckedIn ? forest : amber,
+                  solid: true,
+                ),
+              ),
+              if (s.attendances.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 14),
+                  child: Center(
+                    child: Text(
+                      'Belum ada catatan absensi untuk akun staf ini.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: muted,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ...s.attendances.take(5).map((log) {
+                  final isCheckIn = log['type'] == 'check_in';
+                  DateTime? dt;
+                  if (log['scan_time'] != null) {
+                    dt =
+                        DateTime.tryParse(
+                          log['scan_time'].toString(),
+                        )?.toLocal();
+                  }
+                  final timeStr =
+                      dt != null
+                          ? '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${clock(dt)}'
+                          : 'Waktu tidak tersedia';
+                  final c = isCheckIn ? forest : danger;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xfff8fafc),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xffeef2f6)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: c.withAlpha(25),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            isCheckIn ? Icons.login : Icons.logout,
+                            size: 16,
+                            color: c,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isCheckIn
+                                    ? 'Check-in Masuk'
+                                    : 'Check-out Pulang',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: brandInk,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                timeStr,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: muted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Tag(isCheckIn ? 'IN' : 'OUT', color: c),
+                      ],
+                    ),
+                  );
+                }),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: double.infinity,
+                child:
+                    s.isCheckedIn
+                        ? OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: danger,
+                            side: const BorderSide(color: danger, width: 1.5),
+                          ),
+                          onPressed: () async {
+                            final err = await s.checkOut();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    err ?? 'Check-out berhasil dicatat',
+                                  ),
+                                  backgroundColor:
+                                      err != null ? danger : forest,
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.logout, size: 18),
+                          label: const Text('Check-out Sekarang'),
+                        )
+                        : FilledButton.icon(
+                          onPressed: () async {
+                            final err = await s.checkIn();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    err ?? 'Check-in berhasil dicatat',
+                                  ),
+                                  backgroundColor:
+                                      err != null ? danger : forest,
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.login, size: 18),
+                          label: const Text('Check-in Sekarang'),
+                        ),
+              ),
+            ],
+          ),
+        ),
+        Panel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               const SectionHeading(
                 'Terminal Hardware Tuning',
                 '',
                 Icons.tune,
-                trailing: Text(
-                  'RH - 12 Profile',
-                  style: TextStyle(fontSize: 8, color: muted),
-                ),
+                trailing: Tag('RH - 12 Profile', color: muted),
               ),
               toggle(
                 'Barcode Haptic Pulse',
@@ -397,7 +581,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 p.haptics,
                 Icons.vibration,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 14),
               toggle(
                 'Laser Acoustic Tone',
                 'High-pitch tone for noisy industrial environments',
@@ -405,39 +589,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 p.localAcoustic,
                 Icons.volume_up_outlined,
               ),
-              const SizedBox(height: 17),
+              const SizedBox(height: 18),
               const Text(
                 'Display Ergonomics',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: brandSlate,
+                ),
               ),
-              const SizedBox(height: 7),
+              const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: lavender,
-                  borderRadius: BorderRadius.circular(6),
+                  color: const Color(0xfff1f5f9),
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
                   children: [
                     for (final option in [false, true])
                       Expanded(
                         child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
                           onTap: () => setState(() => night = option),
                           child: Container(
-                            padding: const EdgeInsets.all(7),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
                               color:
                                   night == option
                                       ? Colors.white
                                       : Colors.transparent,
-                              borderRadius: BorderRadius.circular(5),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow:
+                                  night == option ? brandCardShadow : null,
                             ),
                             child: Text(
                               option
                                   ? '☾ Night Shift (Dark)'
                                   : '☀ Day Shift (Light)',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 9, color: olive),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: night == option ? brand : muted,
+                              ),
                             ),
                           ),
                         ),
@@ -445,7 +640,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               toggle(
                 'High-Contrast Avionics HUD',
                 'Maximizes typography sharpness under direct halogen lighting',
@@ -464,35 +659,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 'Terminal Security',
                 '',
                 Icons.shield_outlined,
-                trailing: Text(
-                  'TLS 1.3 Pass',
-                  style: TextStyle(fontSize: 8, color: muted),
-                ),
+                trailing: Tag('TLS 1.3 Pass'),
               ),
               Container(
-                padding: const EdgeInsets.all(9),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: lavender,
-                  border: Border.all(color: const Color(0xff93b7ed)),
-                  borderRadius: BorderRadius.circular(6),
+                  color: brandSoft,
+                  border: Border.all(color: brandSoftBorder),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
                   children: [
                     const Expanded(
-                      child: Text(
-                        'Fast-Sign PIN\n● ● ● ●',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Fast-Sign PIN',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: brandInk,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            '● ● ● ●',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: brandSlate,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     OutlinedButton(
-                      onPressed: changePin,
-                      child: const Text(
-                        'Change\nPIN',
-                        style: TextStyle(fontSize: 10),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 40),
+                        backgroundColor: Colors.white,
                       ),
+                      onPressed: changePin,
+                      child: const Text('Change PIN'),
                     ),
                   ],
                 ),
@@ -505,48 +713,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 p.biometric,
                 Icons.fingerprint,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               const Tag(
                 '◷ Last authenticated: Today • Handheld RH - 12',
-                color: Color(0xff6b82b0),
+                color: muted,
               ),
             ],
           ),
         ),
         Panel(
-          tint: const Color(0xfffff3f5),
+          tint: const Color(0xfffff1f2),
+          border: const Color(0xfffecdd3),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Row(
                 children: [
-                  Icon(Icons.logout, size: 24, color: Colors.red),
-                  SizedBox(width: 6),
+                  Icon(Icons.logout, size: 22, color: danger),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Terminal Session Hand-Off',
                       style: TextStyle(
-                        color: Colors.red,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
+                        color: danger,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.2,
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               const Text(
                 'Logging out relinquishes the current terminal session before handing over this device.',
                 style: TextStyle(
                   fontSize: 12,
-                  color: Color(0xff67705f),
-                  height: 1.4,
+                  fontWeight: FontWeight.w500,
+                  color: brandSlate,
+                  height: 1.45,
                 ),
               ),
               const SizedBox(height: 14),
-              Center(
+              SizedBox(
+                width: double.infinity,
                 child: FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                  style: FilledButton.styleFrom(backgroundColor: danger),
                   onPressed: () async {
                     final yes = await showDialog<bool>(
                       context: context,
@@ -572,8 +784,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       s.logout();
                     }
                   },
-                  icon: const Icon(Icons.power_settings_new),
-                  label: const Text('Log Out', style: TextStyle(fontSize: 15)),
+                  icon: const Icon(Icons.power_settings_new, size: 18),
+                  label: const Text('Log Out'),
                 ),
               ),
             ],
@@ -590,29 +802,39 @@ class _ShiftCard extends StatelessWidget {
   const _ShiftCard(this.title, this.value, this.icon);
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(9),
+    padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: Colors.white,
-      border: Border.all(color: const Color(0xffbada92)),
-      borderRadius: BorderRadius.circular(7),
+      color: Colors.white.withAlpha(190),
+      borderRadius: BorderRadius.circular(16),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(icon, size: 17, color: olive),
-            const SizedBox(width: 3),
+            Icon(icon, size: 16, color: brand),
+            const SizedBox(width: 5),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(fontSize: 11, color: muted),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: brandSlate,
+                ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 7),
-        Text('• $value', style: const TextStyle(fontSize: 9, color: olive)),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: brandInk,
+          ),
+        ),
       ],
     ),
   );
@@ -727,14 +949,18 @@ class _EditProfileState extends State<EditProfile> {
             const SizedBox(height: 14),
             const Text(
               'Internal staff email, badge ID, shift and warehouse assignments are managed by your manager.',
-              style: TextStyle(fontSize: 10, color: muted, height: 1.4),
+              style: TextStyle(fontSize: 12, color: muted, height: 1.4),
             ),
             if (saveError != null)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Text(
                   saveError!,
-                  style: const TextStyle(color: danger, fontSize: 11),
+                  style: const TextStyle(
+                    color: danger,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             const SizedBox(height: 22),

@@ -17,6 +17,7 @@ class ActivityScreen extends StatelessWidget {
       return Column(
         children: [
           Panel(
+            padding: const EdgeInsets.all(16),
             child: Column(
               children: [
                 const SectionHeading(
@@ -26,9 +27,9 @@ class ActivityScreen extends StatelessWidget {
                   trailing: Text(
                     'View All',
                     style: TextStyle(
-                      fontSize: 10,
-                      color: olive,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      color: brand,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
@@ -37,6 +38,7 @@ class ActivityScreen extends StatelessWidget {
             ),
           ),
           Panel(
+            padding: const EdgeInsets.all(16),
             child: TaskChart(
               bars: true,
               inflow: s.inflow,
@@ -50,9 +52,10 @@ class ActivityScreen extends StatelessWidget {
     }
     return Column(
       children: [
-        SizedBox(
-          height: 145,
+        // Tinggi mengikuti isi kartu (bukan angka tetap), supaya tidak terpotong
+        IntrinsicHeight(
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
                 child: Metric(
@@ -75,6 +78,7 @@ class ActivityScreen extends StatelessWidget {
           ),
         ),
         Panel(
+          padding: const EdgeInsets.all(16),
           child: TaskChart(
             bars: true,
             inflow: s.inflow,
@@ -84,143 +88,233 @@ class ActivityScreen extends StatelessWidget {
           ),
         ),
         Panel(
+          padding: const EdgeInsets.all(16),
           child: Column(
             children: [
               SectionHeading(
                 'Stock Activity Logs',
                 '',
                 Icons.format_list_bulleted,
-                trailing: Tag(
-                  '${s.movements.length} Active',
-                  color: Colors.red,
+                trailing: Tag('${s.movements.length} Active', color: brand),
+              ),
+              if (s.movements.isEmpty) const _EmptyMovements(),
+              ...s.movements.map(
+                (a) => _MovementCard(
+                  incoming: a.kind == MovementKind.stockIn,
+                  title: a.title,
+                  quantity: '${a.quantity}',
+                  timeLabel: clock(a.time),
                 ),
               ),
-              if (s.movements.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.inventory_2_outlined,
-                          size: 28,
-                          color: muted,
-                        ),
-                        SizedBox(height: 6),
-                        Text(
-                          'Belum ada transaksi stok masuk atau keluar.',
-                          style: TextStyle(fontSize: 11, color: muted),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ...s.movements.map((a) {
-                final incoming = a.kind == MovementKind.stockIn;
-                final color = incoming ? olive : const Color(0xffbb0022);
-                return Panel(
-                  border:
-                      incoming
-                          ? const Color(0xffc9d8c4)
-                          : const Color(0xffffa4ae),
-                  padding: const EdgeInsets.all(9),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            incoming
-                                ? Icons.move_to_inbox_outlined
-                                : Icons.outbox_outlined,
-                            size: 22,
-                            color: color,
-                          ),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: Text(
-                              incoming
-                                  ? 'Receiving • Warehouse Floor'
-                                  : 'Dispatch • Warehouse Floor',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Color(0xff858585),
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          Tag(
-                            incoming ? 'Inbound' : 'Outbound',
-                            color: color,
-                            solid: !incoming,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        a.title,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 9),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xfff8f9fe),
-                          border: Border.all(color: line),
-                          borderRadius: BorderRadius.circular(7),
-                        ),
-                        child: Column(
-                          children: [
-                            const Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'QTY',
-                                  style: TextStyle(fontSize: 9, color: muted),
-                                ),
-                                Text(
-                                  'LOCATION',
-                                  style: TextStyle(fontSize: 9, color: muted),
-                                ),
-                                Text(
-                                  'STATUS',
-                                  style: TextStyle(fontSize: 9, color: muted),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 9),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  '${a.quantity} Units',
-                                  style: TextStyle(color: color, fontSize: 10),
-                                ),
-                                const Text(
-                                  'Warehouse',
-                                  style: TextStyle(fontSize: 10, color: muted),
-                                ),
-                                Text(
-                                  'Confirmed (${clock(a.time)})',
-                                  style: TextStyle(color: color, fontSize: 9),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
             ],
           ),
         ),
       ],
     );
   }
+}
+
+class _EmptyMovements extends StatelessWidget {
+  const _EmptyMovements();
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 24),
+    child: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: const BoxDecoration(
+              color: brandSoft,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.inventory_2_outlined,
+              size: 28,
+              color: brand,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Belum ada transaksi stok masuk atau keluar.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: muted,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Satu baris transaksi stok. Sebelumnya berupa Panel di dalam Panel
+/// (kartu dalam kartu), sekarang berupa blok ringan dengan border berwarna.
+class _MovementCard extends StatelessWidget {
+  final bool incoming;
+  final String title, quantity, timeLabel;
+  const _MovementCard({
+    required this.incoming,
+    required this.title,
+    required this.quantity,
+    required this.timeLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = incoming ? brand : danger;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: incoming ? brandSoft : const Color(0xfffff1f2),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: incoming ? brandSoftBorder : const Color(0xfffecdd3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  incoming
+                      ? Icons.move_to_inbox_outlined
+                      : Icons.outbox_outlined,
+                  size: 20,
+                  color: color,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  incoming
+                      ? 'Receiving • Warehouse Floor'
+                      : 'Dispatch • Warehouse Floor',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: brandSlate,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Tag(
+                incoming ? 'Inbound' : 'Outbound',
+                color: color,
+                solid: !incoming,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: brandInk,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: _DetailCell(
+                    label: 'QTY',
+                    value: '$quantity Units',
+                    color: color,
+                  ),
+                ),
+                const Expanded(
+                  flex: 3,
+                  child: _DetailCell(
+                    label: 'LOCATION',
+                    value: 'Warehouse',
+                    color: brandInk,
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: _DetailCell(
+                    label: 'STATUS',
+                    value: 'Confirmed',
+                    sub: timeLabel,
+                    color: color,
+                    end: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailCell extends StatelessWidget {
+  final String label, value;
+  final String? sub;
+  final Color color;
+  final bool end;
+  const _DetailCell({
+    required this.label,
+    required this.value,
+    required this.color,
+    this.sub,
+    this.end = false,
+  });
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: end ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: .3,
+          color: muted,
+        ),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
+      ),
+      if (sub != null)
+        Text(
+          sub!,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: muted,
+          ),
+        ),
+    ],
+  );
 }

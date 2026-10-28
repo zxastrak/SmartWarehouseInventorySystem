@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../core/app_theme.dart';
 
@@ -22,13 +24,16 @@ class _BarcodeInputState extends State<BarcodeInput> {
   bool camera = false;
   String? last;
   int zoom = 1;
+  bool cameraError = false;
   final cameraKey = GlobalKey<_CameraState>();
   void accept(String code) {
     if (code.trim().isEmpty) {
       return;
     }
+    HapticFeedback.mediumImpact();
     setState(() {
       camera = false;
+      cameraError = false;
       last = code.trim();
     });
     widget.onResult(code.trim());
@@ -76,18 +81,28 @@ class _BarcodeInputState extends State<BarcodeInput> {
   Widget build(BuildContext context) => Column(
     children: [
       Container(
-        height: 256,
+        height: 310,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: const Color(0xff040817),
-          borderRadius: BorderRadius.circular(13),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: const Color(0xff1e293b), width: 2),
         ),
         child: Stack(
           alignment: Alignment.center,
           children: [
             if (camera)
-              Positioned.fill(child: _Camera(key: cameraKey, onResult: accept)),
+              Positioned.fill(
+                child: _Camera(
+                  key: cameraKey,
+                  onResult: accept,
+                  onError: (v) {
+                    if (mounted) {
+                      setState(() => cameraError = v);
+                    }
+                  },
+                ),
+              ),
             Positioned(
               top: 10,
               left: 10,
@@ -96,7 +111,7 @@ class _BarcodeInputState extends State<BarcodeInput> {
                 children: [
                   Expanded(
                     child: Container(
-                      padding: const EdgeInsets.all(5),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                       decoration: BoxDecoration(
                         color: const Color(0xff111827),
                         borderRadius: BorderRadius.circular(14),
@@ -105,7 +120,8 @@ class _BarcodeInputState extends State<BarcodeInput> {
                       child: Text(
                         widget.title,
                         style: const TextStyle(
-                          fontSize: 8,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
                           color: Color(0xffd7e7b0),
                         ),
                         maxLines: 1,
@@ -115,16 +131,20 @@ class _BarcodeInputState extends State<BarcodeInput> {
                   const SizedBox(width: 7),
                   const Text(
                     'FPS: 60 • 1080p',
-                    style: TextStyle(fontSize: 8, color: Colors.white70),
+                    style: TextStyle(fontSize: 11, color: Colors.white70),
                   ),
                 ],
               ),
             ),
             if (!camera)
-              GestureDetector(
-                onTap: () => setState(() => camera = true),
-                child:
-                    widget.labelPreview
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => setState(() => camera = true),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      widget.labelPreview
                         ? Container(
                           width: 153,
                           height: 96,
@@ -166,37 +186,53 @@ class _BarcodeInputState extends State<BarcodeInput> {
                           size: 30,
                           color: Colors.white30,
                         ),
-              ),
-            IgnorePointer(
-              child: SizedBox(
-                width: 184,
-                height: 127,
-                child: CustomPaint(painter: _Reticle()),
-              ),
-            ),
-            IgnorePointer(
-              child: Container(
-                height: 2,
-                margin: const EdgeInsets.symmetric(horizontal: 20),
-                decoration: const BoxDecoration(
-                  color: Color(0xff9cbb55),
-                  boxShadow: [
-                    BoxShadow(color: Color(0xff9cbb55), blurRadius: 8),
-                  ],
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Ketuk untuk mengaktifkan kamera',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white54,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const Positioned(
-              bottom: 61,
-              child: Text(
-                'ALIGN CODE WITHIN RETICLE',
-                style: TextStyle(
-                  fontSize: 8,
-                  letterSpacing: 1.6,
-                  color: Colors.white60,
+            if (!cameraError)
+              IgnorePointer(
+                child: SizedBox(
+                  width: 184,
+                  height: 127,
+                  child: CustomPaint(painter: _Reticle()),
                 ),
               ),
-            ),
+            if (!cameraError)
+              IgnorePointer(
+                child: Container(
+                  height: 2,
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  decoration: const BoxDecoration(
+                    color: Color(0xff9cbb55),
+                    boxShadow: [
+                      BoxShadow(color: Color(0xff9cbb55), blurRadius: 8),
+                    ],
+                  ),
+                ),
+              ),
+            if (!cameraError)
+              const Positioned(
+                bottom: 61,
+                child: Text(
+                  'ALIGN CODE WITHIN RETICLE',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.6,
+                    color: Colors.white70,
+                  ),
+                ),
+              ),
             Positioned(
               bottom: 10,
               left: 10,
@@ -235,15 +271,15 @@ class _BarcodeInputState extends State<BarcodeInput> {
         Container(
           width: double.infinity,
           margin: const EdgeInsets.only(top: 8),
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: const Color(0xffecfdf5),
-            borderRadius: BorderRadius.circular(7),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: const Color(0xffa7f3d0)),
           ),
           child: Text(
-            '✓ Barcode Scan Verified   $last',
-            style: const TextStyle(fontSize: 9, color: mint),
+            '✓ Barcode Scan Verified: $last',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: mint),
           ),
         ),
       const SizedBox(height: 10),
@@ -266,26 +302,27 @@ class _CameraButton extends StatelessWidget {
   Widget build(BuildContext context) => InkWell(
     onTap: onTap,
     child: Container(
-      margin: const EdgeInsets.only(right: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+      margin: const EdgeInsets.only(right: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: selected ? olive : const Color(0xff090f1c),
         border: Border.all(color: const Color(0xff263040)),
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 10, color: const Color(0xffd7e7b0)),
-            const SizedBox(width: 3),
+            Icon(icon, size: 14, color: const Color(0xffd7e7b0)),
+            const SizedBox(width: 4),
           ],
           Text(
             label,
             style: const TextStyle(
-              fontSize: 8,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
               color: Colors.white,
-              letterSpacing: .6,
+              letterSpacing: .5,
             ),
           ),
         ],
@@ -325,7 +362,8 @@ class _Reticle extends CustomPainter {
 
 class _Camera extends StatefulWidget {
   final ValueChanged<String> onResult;
-  const _Camera({super.key, required this.onResult});
+  final ValueChanged<bool> onError;
+  const _Camera({super.key, required this.onResult, required this.onError});
   @override
   State<_Camera> createState() => _CameraState();
 }
@@ -333,6 +371,8 @@ class _Camera extends StatefulWidget {
 class _CameraState extends State<_Camera> with WidgetsBindingObserver {
   final controller = MobileScannerController();
   bool delivered = false;
+  bool reportedError = false;
+
   void setZoom(int value) {
     unawaited(controller.setZoomScale((value - 1) / 2));
   }
@@ -341,10 +381,27 @@ class _CameraState extends State<_Camera> with WidgetsBindingObserver {
     unawaited(controller.toggleTorch());
   }
 
+  // Memberi tahu BarcodeInput saat kamera masuk/keluar dari keadaan error,
+  // supaya reticle dan laser bisa disembunyikan. Dijadwalkan setelah frame
+  // agar tidak memanggil setState saat widget sedang di-build.
+  void onControllerChanged() {
+    final hasError = controller.value.error != null;
+    if (hasError == reportedError) {
+      return;
+    }
+    reportedError = hasError;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        widget.onError(hasError);
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    controller.addListener(onControllerChanged);
   }
 
   @override
@@ -364,6 +421,7 @@ class _CameraState extends State<_Camera> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    controller.removeListener(onControllerChanged);
     unawaited(controller.dispose());
     super.dispose();
   }
@@ -371,18 +429,65 @@ class _CameraState extends State<_Camera> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) => MobileScanner(
     controller: controller,
-    errorBuilder:
-        (context, error) => Container(
-          color: Colors.black,
-          padding: const EdgeInsets.all(20),
-          child: const Center(
-            child: Text(
-              'Camera unavailable or permission denied. Use Demo Scan or manual barcode.',
-              style: TextStyle(color: Colors.white),
-              textAlign: TextAlign.center,
+    errorBuilder: (context, error) {
+      final denied =
+          error.errorCode == MobileScannerErrorCode.permissionDenied;
+      return Container(
+        color: const Color(0xff040817),
+        padding: const EdgeInsets.fromLTRB(20, 52, 20, 56),
+        child: Center(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  denied
+                      ? Icons.no_photography_outlined
+                      : Icons.videocam_off_outlined,
+                  size: 32,
+                  color: Colors.white54,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  denied ? 'Izin Kamera Ditolak' : 'Kamera Tidak Tersedia',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  denied
+                      ? (kIsWeb
+                          ? 'Klik ikon gembok di sebelah alamat, ubah Kamera menjadi Izinkan, lalu tekan Coba Lagi.'
+                          : 'Buka Pengaturan aplikasi, pilih Izin, aktifkan Kamera, lalu tekan Coba Lagi.')
+                      : 'Kamera tidak bisa dibuka di perangkat ini. Gunakan tombol Manual untuk memasukkan barcode.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white70,
+                    height: 1.4,
+                  ),
+                ),
+                if (denied) ...[
+                  const SizedBox(height: 10),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 40),
+                    ),
+                    onPressed: () => unawaited(controller.start()),
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Coba Lagi'),
+                  ),
+                ],
+              ],
             ),
           ),
         ),
+      );
+    },
     onDetect: (capture) {
       if (delivered) {
         return;

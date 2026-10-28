@@ -11,8 +11,8 @@ class Panel extends StatelessWidget {
     super.key,
     required this.child,
     this.tint,
-    this.padding = const EdgeInsets.all(12),
-    this.border = line,
+    this.padding = const EdgeInsets.all(14),
+    this.border = Colors.transparent,
   });
   @override
   Widget build(BuildContext context) => Container(
@@ -20,8 +20,9 @@ class Panel extends StatelessWidget {
     padding: padding,
     decoration: BoxDecoration(
       color: tint ?? Colors.white,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(20),
       border: Border.all(color: border),
+      boxShadow: brandCardShadow,
     ),
     child: child,
   );
@@ -55,8 +56,10 @@ class PageTitle extends StatelessWidget {
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.3,
+                  color: brandInk,
                   height: 1.2,
                 ),
               ),
@@ -64,7 +67,7 @@ class PageTitle extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: const TextStyle(fontSize: 9, color: muted),
+                  style: const TextStyle(fontSize: 12, color: muted),
                 ),
               ],
             ],
@@ -83,17 +86,17 @@ class Tag extends StatelessWidget {
   const Tag(this.text, {super.key, this.color = olive, this.solid = false});
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
     decoration: BoxDecoration(
       color: solid ? color : color.withAlpha(24),
-      borderRadius: BorderRadius.circular(5),
+      borderRadius: BorderRadius.circular(20),
     ),
     child: Text(
       text,
       style: TextStyle(
-        fontSize: 8,
+        fontSize: 11,
         color: solid ? Colors.white : color,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
       ),
     ),
   );
@@ -112,42 +115,64 @@ class Metric extends StatelessWidget {
     this.icon,
   });
   @override
-  Widget build(BuildContext context) => Panel(
-    tint: color == Colors.red ? const Color(0xffffedf0) : Colors.white,
-    padding: const EdgeInsets.all(11),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xffa1a1a1),
-                  height: 1.2,
-                ),
+  Widget build(BuildContext context) {
+    final isDefault = color == olive;
+    final accent = isDefault ? brand : color;
+    return Panel(
+      tint: color == Colors.red ? const Color(0xffffedf0) : Colors.white,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: accent.withAlpha(24),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 18, color: accent),
+            ),
+            const SizedBox(height: 10),
+          ],
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 26,
+                letterSpacing: -0.4,
+                color: isDefault ? brandInk : color,
               ),
             ),
-            if (icon != null) Icon(icon, size: 15, color: color),
-          ],
-        ),
-        Text(
-          value,
-          maxLines: 1,
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 26,
-            color: color == olive ? const Color(0xff262626) : color,
           ),
-        ),
-        Text(foot, style: TextStyle(fontSize: 8, color: color)),
-      ],
-    ),
-  );
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: brandSlate,
+              height: 1.25,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            foot,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isDefault ? muted : color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class StockSummaryTable extends StatelessWidget {
@@ -155,11 +180,11 @@ class StockSummaryTable extends StatelessWidget {
   const StockSummaryTable(this.item, {super.key});
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(10),
+    padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
-      color: const Color(0xfff8f9fe),
-      borderRadius: BorderRadius.circular(6),
-      border: Border.all(color: line),
+      color: const Color(0xfff8fafc),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xffeef2f6)),
     ),
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -171,14 +196,22 @@ class StockSummaryTable extends StatelessWidget {
         ])
           Column(
             children: [
-              Text(pair.$1, style: const TextStyle(fontSize: 8, color: muted)),
-              const SizedBox(height: 7),
+              Text(
+                pair.$1,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: muted,
+                ),
+              ),
+              const SizedBox(height: 5),
               Text(
                 pair.$2,
                 style: TextStyle(
-                  fontSize: 10,
-                  color: pair.$1 == 'STOCK' ? statusColor(item.status) : ink,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color:
+                      pair.$1 == 'STOCK' ? statusColor(item.status) : brandInk,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
@@ -203,7 +236,7 @@ class StockCard extends StatelessWidget {
       StockStatus.safe => 'SAFE STOCK',
     };
     return Panel(
-      padding: const EdgeInsets.fromLTRB(13, 14, 13, 12),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -214,31 +247,44 @@ class StockCard extends StatelessWidget {
                 color: color,
                 solid: item.status == StockStatus.critical,
               ),
-              const SizedBox(width: 7),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   item.sku,
-                  style: const TextStyle(fontSize: 8, color: muted),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: brandInk,
+                  ),
                 ),
               ),
               if (!compact && item.status == StockStatus.critical)
-                const Icon(Icons.flag, size: 13, color: Color(0xff94a3b8)),
+                const Icon(Icons.flag, size: 16, color: Color(0xff94a3b8)),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
             item.name,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.2,
+              color: brandInk,
+            ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 5),
           Row(
             children: [
-              const Icon(Icons.location_on_outlined, size: 12, color: muted),
-              const SizedBox(width: 3),
+              const Icon(Icons.location_on_outlined, size: 15, color: muted),
+              const SizedBox(width: 4),
               Expanded(
                 child: Text(
                   '${item.rack} • ${item.zone}',
-                  style: const TextStyle(fontSize: 9, color: muted),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: muted,
+                  ),
                 ),
               ),
             ],
@@ -251,19 +297,23 @@ class StockCard extends StatelessWidget {
                     .where((e) => e.value > 0)
                     .map((e) => '${e.key}: ${e.value}')
                     .join(' • '),
-                style: const TextStyle(fontSize: 8, color: muted),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: muted,
+                ),
               ),
             ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           if (compact)
             StockSummaryTable(item)
           else
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xfff8faff),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: line),
+                color: const Color(0xfff8fafc),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xffeef2f6)),
               ),
               child: Column(
                 children: [
@@ -276,26 +326,34 @@ class StockCard extends StatelessWidget {
                           const Text(
                             'CURRENT FLOOR COUNT',
                             style: TextStyle(
-                              fontSize: 7,
-                              color: Color(0xff8095b5),
-                              letterSpacing: .3,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: muted,
+                              letterSpacing: .4,
                             ),
                           ),
                           const SizedBox(height: 5),
                           RichText(
                             text: TextSpan(
-                              style: TextStyle(color: color),
+                              style: TextStyle(
+                                color: color,
+                                fontFamily: appFont,
+                              ),
                               children: [
                                 TextSpan(
                                   text: '${item.quantity}',
                                   style: const TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w800,
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w900,
                                   ),
                                 ),
                                 const TextSpan(
                                   text: ' Units',
-                                  style: TextStyle(fontSize: 8, color: muted),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: muted,
+                                  ),
                                 ),
                               ],
                             ),
@@ -308,27 +366,30 @@ class StockCard extends StatelessWidget {
                           const Text(
                             'SAFE MIN REQUIRED',
                             style: TextStyle(
-                              fontSize: 7,
-                              color: Color(0xff8095b5),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: muted,
+                              letterSpacing: .4,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
                             '${item.minimum} Units',
                             style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: brandInk,
                             ),
                           ),
                         ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(5),
+                    borderRadius: BorderRadius.circular(6),
                     child: LinearProgressIndicator(
-                      minHeight: 6,
+                      minHeight: 8,
                       value:
                           (item.quantity / item.minimum)
                               .clamp(0.0, 1.0)
@@ -337,20 +398,33 @@ class StockCard extends StatelessWidget {
                       backgroundColor: line,
                     ),
                   ),
-                  const SizedBox(height: 9),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
-                        child: Text(switch (item.status) {
-                          StockStatus.critical => '↓ -18.4 units/hr pick rate',
-                          StockStatus.anomaly => '● +180% Outbound Spike',
-                          StockStatus.discrepancy => 'Log differs by -5 units',
-                          StockStatus.safe => '✓ Buffer Maintained',
-                        }, style: TextStyle(fontSize: 8, color: color)),
+                        child: Text(
+                          switch (item.status) {
+                            StockStatus.critical =>
+                              '↓ -18.4 units/hr pick rate',
+                            StockStatus.anomaly => '● +180% Outbound Spike',
+                            StockStatus.discrepancy =>
+                              'Log differs by -5 units',
+                            StockStatus.safe => '✓ Buffer Maintained',
+                          },
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: color,
+                          ),
+                        ),
                       ),
                       Text(
                         '${item.daysLeft.toStringAsFixed(1)} days buffer',
-                        style: const TextStyle(fontSize: 8, color: muted),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: muted,
+                        ),
                       ),
                     ],
                   ),
@@ -359,22 +433,26 @@ class StockCard extends StatelessWidget {
             ),
           if (item.verifiedAt != null)
             Padding(
-              padding: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.only(top: 10),
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xffecfdf5),
-                  border: Border.all(color: const Color(0xffa7f3d0)),
-                  borderRadius: BorderRadius.circular(5),
+                  color: brandSoft,
+                  border: Border.all(color: brandSoftBorder),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
                   '◎ Physical count verified at ${clock(item.verifiedAt!)}',
-                  style: const TextStyle(fontSize: 9, color: mint),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: forest,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
-          if (actions != null) ...[const SizedBox(height: 10), actions!],
+          if (actions != null) ...[const SizedBox(height: 12), actions!],
         ],
       ),
     );
@@ -396,7 +474,12 @@ class CountControl extends StatelessWidget {
     children: [
       const Text(
         'VERIFIED PHYSICAL COUNT',
-        style: TextStyle(fontSize: 8, color: muted, letterSpacing: 1),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: muted,
+          letterSpacing: 1,
+        ),
       ),
       Row(
         children: [
@@ -404,7 +487,7 @@ class CountControl extends StatelessWidget {
             onPressed: value > 0 ? () => onChanged(value - 1) : null,
             icon: const Icon(
               Icons.remove_circle_outline,
-              size: 21,
+              size: 28,
               color: muted,
             ),
           ),
@@ -414,96 +497,66 @@ class CountControl extends StatelessWidget {
                 Text(
                   '$value',
                   style: const TextStyle(
-                    fontSize: 40,
+                    fontSize: 42,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const Text(
                   'UNITS',
-                  style: TextStyle(fontSize: 8, color: muted),
+                  style: TextStyle(fontSize: 11, color: muted),
                 ),
               ],
             ),
           ),
           IconButton(
             onPressed: () => onChanged(value + 1),
-            icon: const Icon(Icons.add_circle, size: 21, color: forest),
+            icon: const Icon(Icons.add_circle, size: 28, color: forest),
           ),
         ],
       ),
-      const SizedBox(height: 6),
+      const SizedBox(height: 8),
       Wrap(
-        spacing: 7,
+        spacing: 8,
         children:
             [1, 5, 10]
                 .map(
                   (n) => OutlinedButton(
                     style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(38, 25),
-                      padding: const EdgeInsets.all(4),
+                      minimumSize: const Size(54, 42),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                     ),
                     onPressed: () => onChanged(value + n),
-                    child: Text('+$n', style: const TextStyle(fontSize: 9)),
+                    child: Text(
+                      '+$n',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 )
                 .toList(),
       ),
-      if (system != null)
+      if (system != null) ...[
+        const SizedBox(height: 8),
         OutlinedButton(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
           onPressed: () => onChanged(system!),
           child: Text(
             '↻ Match System ($system)',
-            style: const TextStyle(fontSize: 9),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
-        ),
-    ],
-  );
-}
-
-void message(BuildContext context, String value) =>
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
-
-class Brand extends StatelessWidget {
-  final bool large;
-  const Brand({super.key, this.large = false});
-  @override
-  Widget build(BuildContext context) => Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Image.asset(
-        'assets/images/susuno_logo.png',
-        width: large ? 58 : 32,
-        height: large ? 53 : 29,
-      ),
-      if (large) ...[
-        const SizedBox(height: 11),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset(
-              'assets/images/susuno_wordmark.png',
-              width: 86,
-              height: 30,
-            ),
-            Image.asset('assets/images/susuno_logo.png', width: 28, height: 26),
-          ],
         ),
       ],
     ],
   );
 }
 
-class CartonMenu extends StatelessWidget {
-  final VoidCallback onTap;
-  const CartonMenu({super.key, required this.onTap});
-  @override
-  Widget build(BuildContext context) => IconButton(
-    tooltip: 'Open sidebar',
-    onPressed: onTap,
-    padding: const EdgeInsets.all(5),
-    icon: Image.asset('assets/images/carton_menu.png', width: 37, height: 34),
-  );
-}
+void message(BuildContext context, String value) =>
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
 
 class CubeIcon extends StatelessWidget {
   final Color color;
@@ -552,80 +605,102 @@ class StockCountBox extends StatelessWidget {
   final StockItem item;
   const StockCountBox(this.item, {super.key});
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(13),
-    decoration: BoxDecoration(
-      color: const Color(0xfff8faff),
-      border: Border.all(color: line),
-      borderRadius: BorderRadius.circular(11),
-    ),
-    child: Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'CURRENT FLOOR COUNT',
-                  style: TextStyle(fontSize: 8, color: Color(0xff8095b5)),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '${item.quantity} Units',
-                  style: TextStyle(
-                    fontSize: 22,
-                    color: statusColor(item.status),
-                    fontWeight: FontWeight.w800,
+  Widget build(BuildContext context) {
+    final color = statusColor(item.status);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xfff8fafc),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xffeef2f6)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'CURRENT FLOOR COUNT',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: muted,
+                      letterSpacing: .4,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                const Text(
-                  'SAFE MIN REQUIRED',
-                  style: TextStyle(fontSize: 8, color: Color(0xff8095b5)),
-                ),
-                const SizedBox(height: 9),
-                Text(
-                  '${item.minimum} Units',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
+                  const SizedBox(height: 5),
+                  Text(
+                    '${item.quantity} Units',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: color,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 9),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            minHeight: 6,
-            value: (item.quantity / item.minimum).clamp(0.0, 1.0).toDouble(),
-            color: statusColor(item.status),
-            backgroundColor: line,
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    'SAFE MIN REQUIRED',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: muted,
+                      letterSpacing: .4,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${item.minimum} Units',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: brandInk,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '↓ Physical floor telemetry',
-              style: TextStyle(fontSize: 9, color: statusColor(item.status)),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              minHeight: 8,
+              value: (item.quantity / item.minimum).clamp(0.0, 1.0).toDouble(),
+              color: color,
+              backgroundColor: line,
             ),
-            Text(
-              '${item.daysLeft.toStringAsFixed(1)} days buffer',
-              style: const TextStyle(fontSize: 9, color: muted),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '↓ Physical floor telemetry',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+              Text(
+                '${item.daysLeft.toStringAsFixed(1)} days buffer',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: muted,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

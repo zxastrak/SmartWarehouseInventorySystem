@@ -16,11 +16,19 @@ class SectionHeading extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.only(bottom: 14),
     child: Row(
       children: [
-        Icon(icon, size: 23, color: olive),
-        const SizedBox(width: 7),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: brandSoft,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: brandSoftBorder),
+          ),
+          child: Icon(icon, size: 20, color: brand),
+        ),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -28,14 +36,20 @@ class SectionHeading extends StatelessWidget {
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.2,
+                  color: brandInk,
                 ),
               ),
               if (subtitle.isNotEmpty)
                 Text(
                   subtitle,
-                  style: const TextStyle(fontSize: 9, color: muted),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: muted,
+                  ),
                 ),
             ],
           ),
@@ -60,12 +74,17 @@ class InsightCard extends StatelessWidget {
       StockStatus.safe => 'SAFE',
     };
     return Panel(
-      tint:
-          item.status == StockStatus.anomaly
-              ? const Color(0xfff7f8ff)
-              : const Color(0xfffff9f9),
+      padding: const EdgeInsets.all(16),
+      tint: switch (item.status) {
+        StockStatus.critical => const Color(0xfffff1f2),
+        StockStatus.anomaly => const Color(0xfff5f7ff),
+        StockStatus.discrepancy => const Color(0xfffffbeb),
+        StockStatus.safe => Colors.white,
+      },
       border:
-          item.status == StockStatus.critical ? const Color(0xffffa6b9) : line,
+          item.status == StockStatus.critical
+              ? const Color(0xfffecdd3)
+              : Colors.transparent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -76,11 +95,15 @@ class InsightCard extends StatelessWidget {
                 color: color,
                 solid: item.status == StockStatus.critical,
               ),
-              const SizedBox(width: 5),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   item.sku,
-                  style: const TextStyle(fontSize: 8, color: muted),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: muted,
+                  ),
                 ),
               ),
               if (!compact)
@@ -89,37 +112,43 @@ class InsightCard extends StatelessWidget {
                       ? '+180% Spike'
                       : '${item.daysLeft.toStringAsFixed(1)} Days',
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: 12,
                     color: color,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 13),
+          const SizedBox(height: 12),
           Text(
             item.name,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.2,
+              color: brandInk,
+            ),
           ),
           if (item.status == StockStatus.critical) ...[
-            const SizedBox(height: 5),
+            const SizedBox(height: 6),
             const Text(
               'Suggested AI Order : +1,200 Units\nConfidence : 97%',
               style: TextStyle(
-                fontSize: 9,
-                color: Color(0xff777777),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: brandSlate,
                 height: 1.5,
               ),
             ),
           ],
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white,
-              border: Border.all(color: const Color(0xffd5d8dd)),
-              borderRadius: BorderRadius.circular(7),
+              border: Border.all(color: line),
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Text(
               switch (item.status) {
@@ -133,91 +162,11 @@ class InsightCard extends StatelessWidget {
                   'Stock remains above the safe buffer. Continue routine monitoring.',
               },
               style: const TextStyle(
-                fontSize: 11,
-                color: Color(0xff777777),
-                height: 1.4,
-                letterSpacing: .3,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: brandSlate,
+                height: 1.45,
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class OrderCard extends StatelessWidget {
-  final PurchaseOrder order;
-  final StockItem item;
-  final VoidCallback? onDetails;
-  const OrderCard(this.order, this.item, {super.key, this.onDetails});
-  @override
-  Widget build(BuildContext context) {
-    final color = order.id == 'PO-8815' ? Colors.red : olive;
-    return Panel(
-      padding: const EdgeInsets.all(9),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.description_outlined, size: 29, color: color),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 5,
-                  runSpacing: 4,
-                  children: [
-                    Text(
-                      order.id,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Tag(
-                      order.id == 'PO-8821'
-                          ? 'AI Generated'
-                          : order.id == 'PO-8819'
-                          ? 'Manual Req'
-                          : 'Urgent Buffer',
-                      color:
-                          order.id == 'PO-8819'
-                              ? const Color(0xff506b9d)
-                              : color,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '${item.name} • ${order.quantity} units',
-                  style: const TextStyle(fontSize: 9, color: muted),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  'IDR ${order.price.toStringAsFixed(0)}',
-                  style: const TextStyle(fontSize: 13, color: olive),
-                ),
-                if (onDetails != null)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(0, 24),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 3,
-                        ),
-                      ),
-                      onPressed: onDetails,
-                      child: const Text(
-                        'View Details',
-                        style: TextStyle(fontSize: 9),
-                      ),
-                    ),
-                  ),
-              ],
             ),
           ),
         ],
@@ -232,17 +181,33 @@ class AuditEntries extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (entries.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 24),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.history_toggle_off, size: 28, color: muted),
-              SizedBox(height: 6),
-              Text(
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: const BoxDecoration(
+                  color: brandSoft,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.history_toggle_off,
+                  size: 28,
+                  color: brand,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
                 'Belum ada riwayat aktivitas stok untuk akun ini.',
-                style: TextStyle(fontSize: 11, color: muted),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: muted,
+                ),
               ),
             ],
           ),
@@ -250,90 +215,137 @@ class AuditEntries extends StatelessWidget {
       );
     }
     return Column(
-      children:
-          entries
-              .map(
-              (a) => Padding(
-                padding: const EdgeInsets.only(bottom: 17),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Container(
-                        width: 5,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: a.kind == null ? Colors.red : olive,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  a.title,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: a.kind == null ? Colors.red : ink,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: .3,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                clock(a.time),
-                                style: const TextStyle(
-                                  fontSize: 9,
-                                  color: Color(0xff858975),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            a.detail,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Color(0xff666d5d),
-                              height: 1.35,
-                            ),
-                          ),
-                          const SizedBox(height: 7),
-                          Row(
-                            children: [
-                              const Text(
-                                'Operator: ',
-                                style: TextStyle(fontSize: 9, color: muted),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  a.kind == null
-                                      ? 'Pending Physical Rescan'
-                                      : 'QR Checksum Validated',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    color: a.kind == null ? Colors.red : olive,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-            .toList(),
+      children: [
+        for (var i = 0; i < entries.length; i++)
+          _AuditRow(entry: entries[i], isLast: i == entries.length - 1),
+      ],
     );
   }
 }
 
+/// Satu entri audit dalam bentuk timeline: titik + garis penghubung di kiri.
+class _AuditRow extends StatelessWidget {
+  final Activity entry;
+  final bool isLast;
+  const _AuditRow({required this.entry, required this.isLast});
+
+  @override
+  Widget build(BuildContext context) {
+    final a = entry;
+    final pending = a.kind == null;
+    final color = pending ? danger : brand;
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 16,
+            child: Column(
+              children: [
+                const SizedBox(height: 3),
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: color, width: 3),
+                  ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      color: line,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          a.title,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: pending ? danger : brandInk,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        clock(a.time),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xff94a3b8),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    a.detail,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: brandSlate,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: pending ? const Color(0xfffff1f2) : brandSoft,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Operator: ',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: muted,
+                          ),
+                        ),
+                        Flexible(
+                          child: Text(
+                            pending
+                                ? 'Pending Physical Rescan'
+                                : 'QR Checksum Validated',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: color,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

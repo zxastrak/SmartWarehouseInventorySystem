@@ -94,7 +94,15 @@ class WarehouseState extends ChangeNotifier {
       dailyUsage: 111,
     ),
   ];
-  List<PurchaseOrder> orders = [];
+
+  // Master data and attendance lists from backend
+  List<Map<String, dynamic>> locations = [];
+  List<Map<String, dynamic>> categories = [];
+  List<Map<String, dynamic>> suppliers = [];
+  List<Map<String, dynamic>> attendances = [];
+  bool isCheckedIn = false;
+  DateTime? lastAttendanceTime;
+
   final List<Activity> _activities = [];
   final List<WarehouseAlert> alerts = [];
   List<StockItem> get items => List.unmodifiable(_items);
@@ -132,9 +140,15 @@ class WarehouseState extends ChangeNotifier {
     return null;
   }
 
-  bool validRack(String rack) => RegExp(
-    r'^RACK-[A-D][0-9]+-[0-9]+-[A-Z]$',
-  ).hasMatch(rack.trim().toUpperCase());
+  bool validRack(String rack) {
+    final normalized = rack.trim().toUpperCase();
+    if (locations.any(
+      (l) => (l['location_code'] ?? '').toString().toUpperCase() == normalized,
+    )) {
+      return true;
+    }
+    return RegExp(r'^RACK-[A-D][0-9]+-[0-9]+-[A-Z]$').hasMatch(normalized);
+  }
   double get safePercent =>
       _items.where((i) => i.status == StockStatus.safe).length /
       _items.length *
@@ -367,8 +381,15 @@ class WarehouseState extends ChangeNotifier {
         }
       }
 
-      // Staf tidak mengelola Purchase Orders di backend
-      orders = [];
+      // Ambil master data lokasi, kategori, dan supplier untuk sinkronisasi
+      final locs = await api.getLocations(token!);
+      if (locs != null) locations = locs;
+
+      final cats = await api.getCategories(token!);
+      if (cats != null) categories = cats;
+
+      final sups = await api.getSuppliers(token!);
+      if (sups != null) suppliers = sups;
 
       // Ambil jadwal shift aktual milik staf
       final shifts = await api.getMyShifts(token!);
@@ -409,16 +430,172 @@ class WarehouseState extends ChangeNotifier {
           }
         }
       }
+
+      // Ambil riwayat absensi aktual milik staf
+      await loadAttendances();
     } catch (e, st) {
       debugPrint('loadFromApi error: $e\n$st');
     }
     notifyListeners();
   }
 
+  Future<void> loadAttendances() async {
+    if (token == null) return;
+    try {
+      final logs = await api.getAttendancesMe(token!);
+      if (logs != null) {
+        attendances = logs;
+        if (attendances.isNotEmpty) {
+          final latest = attendances.first;
+          isCheckedIn = latest['type'] == 'check_in';
+          if (latest['scan_time'] != null) {
+            lastAttendanceTime =
+                DateTime.tryParse(latest['scan_time'].toString())?.toLocal();
+          }
+        } else {
+          isCheckedIn = false;
+        }
+      }
+    } catch (e) {
+      debugPrint('loadAttendances error: $e');
+    }
+  }
+
+  Future<String?> checkIn() async {
+    if (token == null) {
+      isCheckedIn = true;
+      lastAttendanceTime = DateTime.now();
+      _activities.insert(
+        0,
+        Activity(
+          'Check-in Masuk',
+          'Absensi staf • ${clock(DateTime.now())}',
+        ),
+      );
+      notifyListeners();
+      return null;
+    }
+    try {
+      final res = await api.checkIn(token!);
+      if (res['success'] == true) {
+        isCheckedIn = true;
+        lastAttendanceTime = DateTime.now();
+        await loadAttendances();
+        _activities.insert(
+          0,
+          Activity(
+            'Check-in Masuk',
+            'Absensi staf • ${clock(DateTime.now())}',
+          ),
+        );
+        notifyListeners();
+        return null;
+      }
+      return res['message'] ?? 'Gagal check-in';
+    } catch (e) {
+      return 'Error check-in: $e';
+    }
+  }
+
+  Future<String?> checkOut() async {
+    if (token == null) {
+      isCheckedIn = false;
+      lastAttendanceTime = DateTime.now();
+      _activities.insert(
+        0,
+        Activity(
+          'Check-out Pulang',
+          'Absensi staf • ${clock(DateTime.now())}',
+        ),
+      );
+      notifyListeners();
+      return null;
+    }
+    try {
+      final res = await api.checkOut(token!);
+      if (res['success'] == true) {
+        isCheckedIn = false;
+        lastAttendanceTime = DateTime.now();
+        await loadAttendances();
+        _activities.insert(
+          0,
+          Activity(
+            'Check-out Pulang',
+            'Absensi staf • ${clock(DateTime.now())}',
+          ),
+        );
+        notifyListeners();
+        return null;
+      }
+      return res['message'] ?? 'Gagal check-out';
+    } catch (e) {
+      return 'Error check-out: $e';
+    }
+  }
+
+  Future<String?> updateTaskStatus(int taskId, String status) async {
+    if (token == null) {
+      for (final t in tasks) {
+        if (_parseInt(t['id']) == taskId) {
+          t['status'] = status;
+        }
+      }
+      notifyListeners();
+      return null;
+    }
+    try {
+      final res = await api.updateTaskStatus(
+        token: token!,
+        taskId: taskId,
+        status: status,
+      );
+      if (res['success'] == true) {
+        await loadFromApi();
+        return null;
+      }
+      return res['message'] ?? 'Gagal update status task';
+    } catch (e) {
+      return 'Error update status: $e';
+    }
+  }
+
+  Future<String?> takeOverTask(int taskId, {String? reason}) async {
+    if (token == null) {
+      for (final t in tasks) {
+        if (_parseInt(t['id']) == taskId) {
+          t['current_assignee_id'] = staff.id;
+          t['assignee_name'] = staff.name;
+        }
+      }
+      notifyListeners();
+      return null;
+    }
+    try {
+      final res = await api.reassignTask(
+        token: token!,
+        taskId: taskId,
+        reason: reason,
+      );
+      if (res['success'] == true) {
+        await loadFromApi();
+        return null;
+      }
+      return res['message'] ?? 'Gagal mengambil alih task';
+    } catch (e) {
+      return 'Error takeover: $e';
+    }
+  }
+
   void logout() {
     token = null;
     isBackendConnected = false;
     currentShift = 'Belum ada jadwal shift';
+    locations = [];
+    categories = [];
+    suppliers = [];
+    attendances = [];
+    isCheckedIn = false;
+    lastAttendanceTime = null;
     loggedIn = false;
     page = 0;
     notifyListeners();
