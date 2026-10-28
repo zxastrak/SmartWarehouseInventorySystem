@@ -1,256 +1,410 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../state/warehouse_state.dart';
 import '../core/app_theme.dart';
-import '../widgets/ui.dart';
-import 'dashboard_screen.dart';
+import 'shift_hub_screen.dart';
 import 'stock_screen.dart';
 import 'scanner_screen.dart';
-import 'alerts_screen.dart';
 import 'profile_screen.dart';
 import 'activity_screen.dart';
-import 'orders_screen.dart';
 import 'insight_screen.dart';
 
 class AppShell extends StatelessWidget {
   const AppShell({super.key});
+
   @override
   Widget build(BuildContext context) {
     final s = context.watch<WarehouseState>();
+
+    // Route selector for pages
     final body = switch (s.page) {
-      0 => const DashboardScreen(),
+      0 => const ShiftHubScreen(),
       1 => const StockScreen(),
       2 => const ScannerScreen(),
-      3 => const AlertsScreen(),
+      3 => const ActivityScreen(audit: true),
       4 => const ActivityScreen(audit: true),
       5 => const ActivityScreen(),
       6 => const InsightScreen(),
-      7 => const OrdersScreen(),
       8 => const ProfileScreen(),
-      _ => const DashboardScreen(),
+      _ => const ShiftHubScreen(),
     };
-    final bottomIndex = s.page <= 4 ? s.page : 0;
-    final screens = <(String, IconData, int)>[
-      ('Dashboard', Icons.dashboard_outlined, 0),
-      ('Inbound / Outbound', Icons.swap_vert, 5),
-      ('AI Insight', Icons.auto_awesome_outlined, 6),
-      ('Purchase Orders', Icons.shopping_cart_outlined, 7),
-      ('Audit Trail', Icons.history, 4),
-      ('Stock Monitoring', Icons.inventory_2_outlined, 1),
-      ('Settings', Icons.settings_outlined, 8),
-    ];
+
+    // Calculate active bottom bar tab
+    final activeBottomTab = switch (s.page) {
+      0 => 0,
+      1 => 1,
+      2 => 2,
+      3 || 4 || 5 => 3,
+      _ => -1, // Sub-pages like Profile (8) do not highlight bottom tabs
+    };
+
+    final title = switch (s.page) {
+      0 => 'SUSUNO',
+      1 => 'Stok & Rak Gudang',
+      2 => 'Quick Scanner Vision',
+      3 || 4 || 5 => 'Aktivitas Shift',
+      6 => 'AI Telemetry Insight',
+      8 => 'Profil & Pengaturan',
+      _ => 'SUSUNO',
+    };
+
+    final isHome = s.page == 0;
+
     return Scaffold(
-      drawer: Drawer(
-        backgroundColor: Colors.white,
-        child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
-                child: Row(
-                  children: [
-                    Image.asset('assets/images/susuno_wordmark.png', width: 98),
-                    const Brand(),
-                  ],
-                ),
+      backgroundColor: canvas,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: canvas,
+        surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
+        toolbarHeight: 68,
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            // Tombol back hanya di sub-halaman. Di Home tidak ada ikon di kiri.
+            if (!isHome) ...[
+              _RoundIconButton(
+                icon: Icons.arrow_back,
+                tooltip: 'Kembali ke Home',
+                onTap: () => s.navigate(0),
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Text(
-                  s.staff.name,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 3, 20, 20),
-                child: Text(
-                  'Warehouse Staff',
-                  style: TextStyle(fontSize: 11, color: muted),
-                ),
-              ),
-              Expanded(
-                child: ListView(
-                  children:
-                      screens
-                          .map(
-                            (menu) => ListTile(
-                              leading: Icon(menu.$2, size: 20),
-                              title: Text(
-                                menu.$1,
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                              selected: s.page == menu.$3,
-                              selectedTileColor: const Color(0xffd3e8cc),
-                              onTap: () {
-                                Navigator.pop(context);
-                                s.navigate(menu.$3);
-                              },
-                            ),
-                          )
-                          .toList(),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.person_outline),
-                title: const Text('Staff Profile'),
-                onTap: () {
-                  Navigator.pop(context);
-                  s.navigate(8);
-                },
-              ),
+              const SizedBox(width: 12),
             ],
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: isHome ? 0.6 : -0.3,
+                      color: isHome ? brandHeroInk : brandInk,
+                    ),
+                  ),
+                  if (isHome)
+                    const Text(
+                      'Warehouse & Inventory System',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: brandHeroSub,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          _ProfileButton(
+            selected: s.page == 8,
+            onTap: () => s.navigate(8),
+          ),
+          const SizedBox(width: 16),
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            // Screens 0 and 1 manage their own scroll views (ListView / CustomScrollView with lazy loading)
+            child: s.page == 0 || s.page == 1
+                ? body
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                    child: body,
+                  ),
           ),
         ),
       ),
-      body: CustomScrollView(
-        key: ValueKey(s.page),
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            toolbarHeight: 48,
-            automaticallyImplyLeading: false,
-            leadingWidth: 56,
-            leading: Builder(
-              builder:
-                  (headerContext) => CartonMenu(
-                    onTap: () => Scaffold.of(headerContext).openDrawer(),
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x1a000000),
+              blurRadius: 20,
+              offset: Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            height: 72,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  _NavTabItem(
+                    label: 'Tugas',
+                    icon: Icons.assignment_outlined,
+                    activeIcon: Icons.assignment,
+                    isSelected: activeBottomTab == 0,
+                    badgeCount: s.pendingCount,
+                    onTap: () => s.navigate(0),
                   ),
-            ),
-            backgroundColor: const Color(0xff5c732b),
-            foregroundColor: Colors.white,
-            centerTitle: true,
-            title: const Text(
-              'SUSUNO',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-            ),
-            actions: [
-              IconButton(
-                onPressed: () => s.navigate(8),
-                icon: const Icon(Icons.account_circle_outlined),
-              ),
-            ],
-          ),
-          SliverToBoxAdapter(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 400),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 24),
-                  child: body,
-                ),
+                  _NavTabItem(
+                    label: 'Stok & Rak',
+                    icon: Icons.inventory_2_outlined,
+                    activeIcon: Icons.inventory_2,
+                    isSelected: activeBottomTab == 1,
+                    onTap: () => s.navigate(1),
+                  ),
+                  _ScanTabItem(
+                    isSelected: activeBottomTab == 2,
+                    onTap: () => s.navigate(2),
+                  ),
+                  _NavTabItem(
+                    label: 'Aktivitas',
+                    icon: Icons.history,
+                    activeIcon: Icons.history_toggle_off,
+                    isSelected: activeBottomTab == 3,
+                    onTap: () => s.navigate(3),
+                  ),
+                ],
               ),
             ),
           ),
-        ],
+        ),
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          height: 54,
-          decoration: const BoxDecoration(
-            color: Color(0xfff8f9fa),
-            border: Border(top: BorderSide(color: Color(0xffe7e8e6), width: 5)),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Top bar
+// -----------------------------------------------------------------------------
+
+class _RoundIconButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _RoundIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.white,
+        elevation: 2,
+        shadowColor: const Color(0x26000000),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Icon(icon, size: 22, color: brandInk),
           ),
-          child: Row(
-            children: List.generate(5, (index) {
-              const labels = ['Dashboard', 'Stock', '', 'Alerts', 'Audit'];
-              const icons = [
-                Icons.dashboard_outlined,
-                Icons.inventory_2_outlined,
-                Icons.qr_code_scanner,
-                Icons.notifications_none_outlined,
-                Icons.history,
-              ];
-              final selected = s.page <= 4 && bottomIndex == index;
-              return Expanded(
-                child: InkWell(
-                  onTap: () => s.navigate(index),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    alignment: Alignment.center,
-                    children: [
-                      if (index == 2)
-                        Positioned(
-                          top: -17,
-                          child: Container(
-                            width: 51,
-                            height: 51,
-                            decoration: const BoxDecoration(
-                              color: olive,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.qr_code_scanner,
-                              size: 31,
-                              color: Colors.white,
-                            ),
-                          ),
-                        )
-                      else
-                        Container(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 5,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 3,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: selected ? olive : Colors.transparent,
-                            borderRadius: BorderRadius.circular(22),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  if (index == 1)
-                                    CubeIcon(
-                                      size: 21,
-                                      color: selected ? Colors.white : ink,
-                                    )
-                                  else
-                                    Icon(
-                                      icons[index],
-                                      size: 22,
-                                      color: selected ? Colors.white : ink,
-                                    ),
-                                  if (index == 3 &&
-                                      s.alerts.any((a) => !a.read))
-                                    Positioned(
-                                      right: 1,
-                                      top: 1,
-                                      child: Container(
-                                        width: 5,
-                                        height: 5,
-                                        decoration: const BoxDecoration(
-                                          color: Color(0xffb88585),
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              Text(
-                                labels[index],
-                                style: TextStyle(
-                                  fontSize: 7,
-                                  letterSpacing: .5,
-                                  color: selected ? Colors.white : ink,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileButton extends StatelessWidget {
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ProfileButton({required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Profil Staf',
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: selected ? brand : brandSoft,
+            border: Border.all(
+              color: selected ? brand : brandSoftBorder,
+              width: 1.5,
+            ),
+          ),
+          child: Icon(
+            Icons.person,
+            size: 22,
+            color: selected ? Colors.white : brand,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Bottom nav
+// -----------------------------------------------------------------------------
+
+class _NavTabItem extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final IconData activeIcon;
+  final bool isSelected;
+  final int badgeCount;
+  final VoidCallback onTap;
+
+  const _NavTabItem({
+    required this.label,
+    required this.icon,
+    required this.activeIcon,
+    required this.isSelected,
+    this.badgeCount = 0,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isSelected ? brand : muted;
+
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Pill latar untuk tab terpilih
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 56,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isSelected ? brandSoft : Colors.transparent,
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    isSelected ? activeIcon : icon,
+                    size: 24,
+                    color: color,
                   ),
+                  if (badgeCount > 0)
+                    Positioned(
+                      right: -6,
+                      top: -4,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: const BoxDecoration(
+                          color: danger,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 14,
+                          minHeight: 14,
+                        ),
+                        child: Text(
+                          '$badgeCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: color,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Tombol Scan di tengah: lingkaran oranye, diberi cincin saat aktif.
+class _ScanTabItem extends StatelessWidget {
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ScanTabItem({required this.isSelected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: brand,
+                border: Border.all(
+                  color: isSelected ? brandSoftBorder : Colors.transparent,
+                  width: 4,
                 ),
-              );
-            }),
-          ),
+                boxShadow: [
+                  BoxShadow(
+                    color: brand.withAlpha(isSelected ? 110 : 70),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.qr_code_scanner,
+                size: 24,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'Scan Cepat',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
+                color: brand,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ),
       ),
     );

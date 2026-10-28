@@ -116,4 +116,61 @@ void main() {
       isTrue,
     );
   });
+
+  test('Attendance check-in and check-out update status and log activity', () async {
+    final s = WarehouseState();
+    expect(s.isCheckedIn, isFalse);
+    expect(s.lastAttendanceTime, isNull);
+
+    // Check in
+    final inRes = await s.checkIn();
+    expect(inRes, isNull);
+    expect(s.isCheckedIn, isTrue);
+    expect(s.lastAttendanceTime, isNotNull);
+    expect(s.activities.first.title, 'Check-in Masuk');
+
+    // Check out
+    final outRes = await s.checkOut();
+    expect(outRes, isNull);
+    expect(s.isCheckedIn, isFalse);
+    expect(s.activities.first.title, 'Check-out Pulang');
+  });
+
+  test('Tasks can be updated and taken over by staff', () async {
+    final s = WarehouseState();
+    s.tasks = [
+      {
+        'id': 101,
+        'title': 'Pindahkan Box ke Rak B',
+        'status': 'pending',
+        'current_assignee_id': s.staff.id,
+      },
+      {
+        'id': 102,
+        'title': 'Audit Rak C',
+        'status': 'pending',
+        'current_assignee_id': 999,
+        'assignee_name': 'Ahmad',
+      },
+    ];
+
+    // Update status to in_progress
+    await s.updateTaskStatus(101, 'in_progress');
+    expect(s.tasks.firstWhere((t) => t['id'] == 101)['status'], 'in_progress');
+
+    // Takeover task 102
+    await s.takeOverTask(102);
+    expect(s.tasks.firstWhere((t) => t['id'] == 102)['current_assignee_id'], s.staff.id);
+  });
+
+  test('validRack accepts locations from database and standard regex', () {
+    final s = WarehouseState();
+    s.locations = [
+      {'id': 1, 'location_code': 'CUSTOM-LOC-01', 'zone': 'Zone X'},
+    ];
+
+    expect(s.validRack('CUSTOM-LOC-01'), isTrue);
+    expect(s.validRack('RACK-A1-01-A'), isTrue);
+    expect(s.validRack('INVALID-LOCATION-XYZ'), isFalse);
+  });
 }

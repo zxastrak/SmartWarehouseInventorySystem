@@ -3,14 +3,8 @@ import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../state/warehouse_state.dart';
 import 'stock_flows.dart';
-
-const _olive = Color(0xff5a7129);
-const _ink = Color(0xff191c1d);
-const _muted = Color(0xff64748b);
-const _border = Color(0xffe2e8f0);
-const _red = Color(0xffd91c24);
-const _orange = Color(0xffdf7f00);
-const _blue = Color(0xff008ac4);
+import '../core/app_theme.dart';
+import '../widgets/ui.dart';
 
 class AlertsScreen extends StatefulWidget {
   const AlertsScreen({super.key});
@@ -57,7 +51,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
             ),
             content: Text(
               '${alert.title}\n\n${alert.message}\n\nSKU: ${alert.sku}',
-              style: const TextStyle(color: _ink, fontSize: 13),
+              style: const TextStyle(color: brandInk, fontSize: 13),
             ),
             actions: [
               TextButton(
@@ -80,90 +74,57 @@ class _AlertsScreenState extends State<AlertsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: _border),
-            borderRadius: BorderRadius.circular(9),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Operational Alerts',
-                      style: TextStyle(
-                        color: _ink,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        height: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Floor Task Feed and Notifications',
-                      style: TextStyle(
-                        color: _muted,
-                        fontSize: 9,
-                        letterSpacing: .3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              _AlertBadge('$unread Unread', color: _red, solid: true),
-            ],
-          ),
+        PageTitle(
+          'Operational Alerts',
+          'Floor Task Feed and Notifications',
+          trailing: Tag('$unread Unread', color: danger, solid: true),
         ),
-        const SizedBox(height: 11),
         Row(
-          children: List.generate(
-            3,
-            (index) => Expanded(
+          children: List.generate(3, (index) {
+            final active = filter == index;
+            return Expanded(
               child: Padding(
-                padding: EdgeInsets.only(right: index == 2 ? 0 : 5),
+                padding: EdgeInsets.only(right: index == 2 ? 0 : 6),
                 child: FilledButton(
                   style: FilledButton.styleFrom(
-                    backgroundColor:
-                        filter == index ? _olive : const Color(0xffe8edff),
-                    foregroundColor:
-                        filter == index
-                            ? Colors.white
-                            : const Color(0xff424940),
-                    minimumSize: const Size(0, 35),
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
+                    backgroundColor: active ? brand : Colors.white,
+                    foregroundColor: active ? Colors.white : brandSlate,
+                    side: BorderSide(color: active ? brand : line),
+                    minimumSize: const Size(0, 40),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
                   ),
                   onPressed: () => setState(() => filter = index),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        ['● All Alerts', 'Unread', 'Urgent Tasks'][index],
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
+                      Flexible(
+                        child: Text(
+                          ['All Alerts', 'Unread', 'Urgent Tasks'][index],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                       if (index == 1) ...[
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(
-                            color: _red,
-                            shape: BoxShape.circle,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: danger,
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
                             '$unread',
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 8,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ),
@@ -172,21 +133,24 @@ class _AlertsScreenState extends State<AlertsScreen> {
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          }),
         ),
+        const SizedBox(height: 14),
+
         const SizedBox(height: 15),
         if (alerts.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: _border),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: const Text(
-              'No notifications in this category.',
-              style: TextStyle(color: _muted, fontSize: 12),
+          const Panel(
+            padding: EdgeInsets.all(24),
+            child: Center(
+              child: Text(
+                'No notifications in this category.',
+                style: TextStyle(
+                  color: muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         for (final alert in alerts)
@@ -228,13 +192,13 @@ class _AlertCard extends StatelessWidget {
     final putaway = alert.action == 'putaway';
     final color =
         receiving
-            ? _olive
+            ? brand
             : rack
-            ? _orange
+            ? amber
             : putaway
-            ? _blue
-            : _olive;
-    final badgeColor = receiving ? _red : color;
+            ? mint
+            : brand;
+    final badgeColor = receiving ? danger : color;
     final matching = state.items.where((item) => item.sku == alert.sku);
     final location = matching.isEmpty ? alert.sku : matching.first.rack;
     final badge =
@@ -260,24 +224,24 @@ class _AlertCard extends StatelessWidget {
             ? 'View Route Map'
             : 'View Details';
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: const Color(0xffe5e7e0)),
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: brandCardShadow,
       ),
-      clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          const Positioned(
+          Positioned(
             top: 0,
             bottom: 0,
             left: 0,
-            width: 7,
-            child: ColoredBox(color: Color(0xffe7e9e1)),
+            width: 6,
+            child: ColoredBox(color: alert.read ? line : color),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 11, 12),
+            padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -300,44 +264,50 @@ class _AlertCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 5),
-                    const Icon(Icons.schedule, size: 10, color: _muted),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.schedule, size: 13, color: muted),
                     const SizedBox(width: 4),
                     Text(
                       alert.read ? 'Read' : 'New',
-                      style: const TextStyle(color: _muted, fontSize: 9),
+                      style: TextStyle(
+                        color: alert.read ? muted : brand,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 11),
+                const SizedBox(height: 12),
                 Text(
                   alert.title,
                   style: const TextStyle(
-                    color: _ink,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                    color: brandInk,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.2,
                     height: 1.25,
                   ),
                 ),
-                const SizedBox(height: 9),
+                const SizedBox(height: 8),
                 Text(
                   alert.message,
                   style: const TextStyle(
-                    color: Color(0xff424940),
-                    fontSize: 11,
-                    height: 1.4,
+                    color: brandSlate,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    height: 1.45,
                   ),
                 ),
-                const SizedBox(height: 11),
+                const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 9,
+                    horizontal: 12,
+                    vertical: 11,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xffe8edff),
-                    border: Border.all(color: const Color(0xffd6d9dc)),
-                    borderRadius: BorderRadius.circular(6),
+                    color: const Color(0xfff8fafc),
+                    border: Border.all(color: const Color(0xffeef2f6)),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: Row(
                     children: [
@@ -347,16 +317,17 @@ class _AlertCard extends StatelessWidget {
                             : rack
                             ? Icons.inventory_2_outlined
                             : Icons.near_me_outlined,
-                        size: 14,
+                        size: 16,
                         color: color,
                       ),
-                      const SizedBox(width: 5),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           receiving ? 'Bay Dock 02' : location,
                           style: const TextStyle(
-                            color: Color(0xff334155),
-                            fontSize: 9,
+                            color: brandInk,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
                             height: 1.3,
                           ),
                         ),
@@ -364,25 +335,18 @@ class _AlertCard extends StatelessWidget {
                       if (rack)
                         const Text(
                           'Physical check',
-                          style: TextStyle(color: _red, fontSize: 8),
+                          style: TextStyle(
+                            color: danger,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: color,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 40),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 9,
-                    ),
-                  ),
+                  style: FilledButton.styleFrom(backgroundColor: color),
                   onPressed: onPrimary,
                   icon: Icon(
                     receiving
@@ -392,31 +356,12 @@ class _AlertCard extends StatelessWidget {
                         : putaway
                         ? Icons.local_shipping_outlined
                         : Icons.notifications_none,
-                    size: 21,
+                    size: 18,
                   ),
-                  label: Text(
-                    primaryText,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  label: Text(primaryText),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xff424940),
-                    backgroundColor: Colors.white,
-                    minimumSize: const Size(0, 39),
-                    side: const BorderSide(color: Color(0xff939d8a)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
-                  ),
                   onPressed: onSecondary,
                   icon: Icon(
                     receiving
@@ -426,12 +371,9 @@ class _AlertCard extends StatelessWidget {
                         : putaway
                         ? Icons.map_outlined
                         : Icons.info_outline,
-                    size: 20,
+                    size: 18,
                   ),
-                  label: Text(
-                    secondaryText,
-                    style: const TextStyle(fontSize: 11),
-                  ),
+                  label: Text(secondaryText),
                 ),
               ],
             ),
@@ -445,35 +387,29 @@ class _AlertCard extends StatelessWidget {
 class _AlertBadge extends StatelessWidget {
   final String text;
   final Color color;
-  final bool solid;
   final IconData? icon;
-  const _AlertBadge(
-    this.text, {
-    required this.color,
-    this.solid = false,
-    this.icon,
-  });
+  const _AlertBadge(this.text, {required this.color, this.icon});
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
     decoration: BoxDecoration(
-      color: solid ? color : color.withAlpha(28),
-      borderRadius: BorderRadius.circular(8),
+      color: color.withAlpha(24),
+      borderRadius: BorderRadius.circular(20),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (icon != null) ...[
-          Icon(icon, size: 10, color: solid ? Colors.white : color),
-          const SizedBox(width: 3),
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 4),
         ],
         Flexible(
           child: Text(
             text,
             style: TextStyle(
-              color: solid ? Colors.white : color,
-              fontSize: 8,
-              fontWeight: FontWeight.w700,
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
               height: 1.2,
             ),
           ),

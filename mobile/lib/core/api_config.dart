@@ -25,11 +25,18 @@ class ApiConfig {
   static String productBySku(String sku) => '$baseUrl/products/sku/$sku';
   static String get stockTransactions => '$baseUrl/stock-transactions';
   static String get stockTransactionsMe => '$baseUrl/stock-transactions/me';
+  static String productTransactions(int id) =>
+      '$baseUrl/stock-transactions/product/$id';
   static String get attendanceCheckIn => '$baseUrl/attendances/check-in';
   static String get attendanceCheckOut => '$baseUrl/attendances/check-out';
   static String get attendanceMe => '$baseUrl/attendances/me';
   static String get shiftsMe => '$baseUrl/shifts/me';
+  static String shiftsMeDate(String date) => '$baseUrl/shifts/me?date=$date';
   static String get tasks => '$baseUrl/tasks';
   static String taskStatus(int id) => '$baseUrl/tasks/$id/status';
   static String taskReassign(int id) => '$baseUrl/tasks/$id/reassign';
+  static String taskHistory(int id) => '$baseUrl/tasks/$id/history';
+  static String get locations => '$baseUrl/locations';
+  static String get categories => '$baseUrl/categories';
+  static String get suppliers => '$baseUrl/suppliers';
 }

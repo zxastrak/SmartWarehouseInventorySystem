@@ -12,21 +12,28 @@ void main() {
       await tester.pumpWidget(
         ChangeNotifierProvider.value(value: state, child: const SusunoApp()),
       );
-      expect(find.text('Welcome!'), findsOneWidget);
+      expect(find.text('Selamat Datang, Staf'), findsOneWidget);
       await tester.enterText(
         find.byType(TextFormField).at(0),
         'tabinanaila@staff.co.id',
       );
       await tester.enterText(find.byType(TextFormField).at(1), 'Susuno123!');
       final signIn = find.widgetWithText(FilledButton, 'Sign In');
-      await tester.ensureVisible(signIn);
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -150));
+      await tester.pumpAndSettle();
       await tester.tap(signIn);
       await tester.pumpAndSettle();
-      expect(find.text('Real-time Inventory Telemetry'), findsOneWidget);
-      expect(find.text('Welcome!'), findsNothing);
+      expect(find.text('AKSI CEPAT (QUICK ACTIONS)'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('TUGAS SAYA HARI INI'),
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('TUGAS SAYA HARI INI'), findsOneWidget);
+      expect(find.text('Selamat Datang, Staf'), findsNothing);
       state.logout();
       await tester.pumpAndSettle();
-      expect(find.text('Welcome!'), findsOneWidget);
+      expect(find.text('Selamat Datang, Staf'), findsOneWidget);
     },
   );
 }
