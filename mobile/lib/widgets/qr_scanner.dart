@@ -3,10 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-/// Modul QR Scanner Mandiri (Self-Contained QR Scanner Module)
+/// Format barcode standar industri gudang SUSUNO:
+/// Mendukung 1D Barcode (Code 128, Code 39, EAN-13) dan 2D Barcode (QR Code, DataMatrix).
+const List<BarcodeFormat> defaultWarehouseFormats = [
+  BarcodeFormat.qrCode,
+  BarcodeFormat.code128,
+  BarcodeFormat.code39,
+  BarcodeFormat.ean13,
+  BarcodeFormat.dataMatrix,
+];
+
+/// Modul Barcode & QR Scanner Mandiri (Self-Contained Scanner Module)
 ///
 /// Modul ini menyediakan:
-/// 1. [QrScannerScreen] - Halaman penuh untuk memindai QR code via `QrScannerScreen.scan(context)`.
+/// 1. [QrScannerScreen] - Halaman penuh untuk memindai via `QrScannerScreen.scan(context)`.
 /// 2. [QrScannerView]   - Widget scanner yang dapat disematkan ke dalam container/dialog mana pun.
 class QrScannerScreen extends StatefulWidget {
   final String title;
@@ -15,25 +25,25 @@ class QrScannerScreen extends StatefulWidget {
 
   const QrScannerScreen({
     super.key,
-    this.title = 'Scan QR Code',
-    this.hintText = 'Arahkan kamera ke QR Code',
-    this.formats = const [BarcodeFormat.qrCode],
+    this.title = 'Scan Barcode / QR',
+    this.hintText = 'Arahkan kamera ke Barcode atau QR Code',
+    this.formats = defaultWarehouseFormats,
   });
 
-  /// Helper statis untuk membuka scanner dan langsung mendapatkan teks QR yang dipindai.
+  /// Helper statis untuk membuka scanner dan langsung mendapatkan teks yang dipindai.
   ///
   /// Contoh pemanggilan:
   /// ```dart
-  /// final qrData = await QrScannerScreen.scan(context);
-  /// if (qrData != null) {
-  ///   print('Hasil QR: $qrData');
+  /// final scannedData = await QrScannerScreen.scan(context);
+  /// if (scannedData != null) {
+  ///   print('Hasil: $scannedData');
   /// }
   /// ```
   static Future<String?> scan(
     BuildContext context, {
-    String title = 'Scan QR Code',
-    String hintText = 'Arahkan kamera ke QR Code',
-    List<BarcodeFormat> formats = const [BarcodeFormat.qrCode],
+    String title = 'Scan Barcode / QR',
+    String hintText = 'Arahkan kamera ke Barcode atau QR Code',
+    List<BarcodeFormat> formats = defaultWarehouseFormats,
   }) {
     return Navigator.of(context).push<String>(
       MaterialPageRoute(
@@ -53,6 +63,8 @@ class QrScannerScreen extends StatefulWidget {
 class _QrScannerScreenState extends State<QrScannerScreen> {
   final GlobalKey<QrScannerViewState> _scannerKey = GlobalKey<QrScannerViewState>();
   bool _torchOn = false;
+
+  void resetScan() => _scannerKey.currentState?.resetScan();
 
   @override
   Widget build(BuildContext context) {
@@ -101,7 +113,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 }
 
-/// Widget modular QR Scanner yang dapat disematkan di mana saja.
+/// Widget modular Barcode & QR Scanner yang dapat disematkan di mana saja.
 class QrScannerView extends StatefulWidget {
   final ValueChanged<String> onScanned;
   final String hintText;
@@ -114,8 +126,8 @@ class QrScannerView extends StatefulWidget {
   const QrScannerView({
     super.key,
     required this.onScanned,
-    this.hintText = 'Arahkan kamera ke QR Code',
-    this.formats = const [BarcodeFormat.qrCode],
+    this.hintText = 'Arahkan kamera ke Barcode atau QR Code',
+    this.formats = defaultWarehouseFormats,
     this.scanWindowSize = 250.0,
     this.cornerColor = const Color(0xff22c55e),
     this.scanLineColor = const Color(0xff4ade80),
@@ -153,6 +165,17 @@ class QrScannerViewState extends State<QrScannerView>
     _animPosition = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
     );
+  }
+
+  /// Membuka kembali sensor pemindaian agar siap membaca barcode berikutnya
+  void resetScan() {
+    if (mounted) {
+      setState(() {
+        _isDispatched = false;
+      });
+    } else {
+      _isDispatched = false;
+    }
   }
 
   Future<void> toggleTorch() async {
@@ -298,30 +321,31 @@ class QrScannerViewState extends State<QrScannerView>
                     ),
                   ),
 
-                  // Garis Laser Animasi
-                  AnimatedBuilder(
-                    animation: _animPosition,
-                    builder: (context, child) {
-                      return Positioned(
-                        top: _animPosition.value * (boxSize - 16) + 8,
-                        left: 12,
-                        right: 12,
-                        child: Container(
-                          height: 2.5,
-                          decoration: BoxDecoration(
-                            color: widget.scanLineColor,
-                            borderRadius: BorderRadius.circular(2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: widget.scanLineColor.withValues(alpha: 0.8),
-                                blurRadius: 10,
-                                spreadRadius: 2,
-                              ),
-                            ],
+                  // Garis Laser Animasi (Positioned.fill langsung anak dari Stack)
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: _animPosition,
+                      builder: (context, child) {
+                        return Align(
+                          alignment: Alignment(0, -1.0 + (_animPosition.value * 2.0)),
+                          child: Container(
+                            height: 2.5,
+                            margin: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: widget.scanLineColor,
+                              borderRadius: BorderRadius.circular(2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: widget.scanLineColor.withValues(alpha: 0.8),
+                                  blurRadius: 10,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),

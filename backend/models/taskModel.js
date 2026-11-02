@@ -1,15 +1,63 @@
 const db = require('../config/db');
 
 const taskModel = {
-  // General view — SEMUA staff bisa lihat semua task & statusnya
-  getAll: async () => {
-    const sql = 'SELECT * FROM tasks ORDER BY created_at DESC';
+  // General view — SEMUA staff bisa lihat task operasional aktif & statusnya lengkap dengan nama PIC.
+  // Otomatisasi Harian:
+  // - Task yang belum selesai (pending / in_progress) SELALU tampil (termasuk tugas kemarin yang belum tuntas).
+  // - Task yang sudah selesai (done) hanya tampil di hari ia diselesaikan (CURDATE()). Begitu lewat jam 00:00 (ganti hari),
+  //   task selesai kemarin otomatis disembunyikan dari layar harian, namun tetap tersimpan utuh di DB.
+  // - Jika options.all === true, seluruh arsip task (termasuk yang selesai hari-hari lalu) akan ditampilkan.
+  getAll: async (options = {}) => {
+    let whereClause = '';
+    if (!options.all) {
+      whereClause = `
+        WHERE (t.status IN ('pending', 'in_progress'))
+           OR (t.status = 'done' AND DATE(COALESCE(t.completed_at, t.created_at)) = CURDATE())
+      `;
+    }
+
+    const sql = `
+      SELECT 
+        t.*,
+        u.name AS assignee_name,
+        u.email AS assignee_email,
+        l.location_code AS location_code,
+        l.zone AS location_zone,
+        p.sku AS sku,
+        p.name AS product_name
+      FROM tasks t
+      LEFT JOIN users u ON u.id = t.current_assignee_id
+      LEFT JOIN locations l ON l.id = t.location_id
+      LEFT JOIN products p ON p.id = t.related_product_id
+      ${whereClause}
+      ORDER BY 
+        CASE 
+          WHEN t.status = 'in_progress' THEN 1
+          WHEN t.status = 'pending' THEN 2
+          ELSE 3
+        END ASC,
+        t.created_at DESC
+    `;
     const [rows] = await db.query(sql);
     return rows;
   },
 
   getById: async (id) => {
-    const sql = 'SELECT * FROM tasks WHERE id = ?';
+    const sql = `
+      SELECT 
+        t.*,
+        u.name AS assignee_name,
+        u.email AS assignee_email,
+        l.location_code AS location_code,
+        l.zone AS location_zone,
+        p.sku AS sku,
+        p.name AS product_name
+      FROM tasks t
+      LEFT JOIN users u ON u.id = t.current_assignee_id
+      LEFT JOIN locations l ON l.id = t.location_id
+      LEFT JOIN products p ON p.id = t.related_product_id
+      WHERE t.id = ?
+    `;
     const [rows] = await db.query(sql, [id]);
     return rows;
   },

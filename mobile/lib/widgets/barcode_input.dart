@@ -39,32 +39,94 @@ class _BarcodeInputState extends State<BarcodeInput> {
     widget.onResult(code.trim());
   }
 
+  static bool _privacyConsentGiven = false;
+
+  Future<void> activateCamera() async {
+    if (_privacyConsentGiven) {
+      if (mounted) setState(() => camera = true);
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Izin Privasi Kamera',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Aplikasi SUSUNO memerlukan akses kamera hanya untuk memindai barcode barang atau kode rak gudang secara langsung.',
+              style: TextStyle(fontSize: 13, height: 1.4, color: brandSlate),
+            ),
+            SizedBox(height: 14),
+            _PrivacyCheckRow(
+              icon: Icons.shield_outlined,
+              text: 'Pemindaian barcode diproses lokal di perangkat.',
+            ),
+            SizedBox(height: 8),
+            _PrivacyCheckRow(
+              icon: Icons.no_photography_outlined,
+              text: 'Tidak ada foto atau rekaman video yang disimpan.',
+            ),
+            SizedBox(height: 8),
+            _PrivacyCheckRow(
+              icon: Icons.cloud_off_outlined,
+              text: 'Tidak ada rekaman visual yang diunggah ke server.',
+            ),
+          ],
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(c, true),
+            icon: const Icon(Icons.check, size: 18),
+            label: const Text('Izinkan & Buka'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      _privacyConsentGiven = true;
+      setState(() => camera = true);
+    }
+  }
+
   Future<void> manual() async {
     final field = TextEditingController();
     final result = await showDialog<String>(
       context: context,
       builder:
           (c) => AlertDialog(
-            title: const Text('Manual Barcode'),
+            title: const Text('Input Barcode Manual'),
             content: TextField(
               controller: field,
               decoration: const InputDecoration(
-                hintText: 'Enter SKU or rack barcode',
+                hintText: 'Masukkan SKU barang atau kode rak',
               ),
               onSubmitted: (v) => Navigator.pop(c, v),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(c, widget.demoCode),
-                child: const Text('Demo Scan'),
+                child: const Text('Isi Contoh'),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(c),
-                child: const Text('Cancel'),
+                child: const Text('Batal'),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(c, field.text),
-                child: const Text('Use Barcode'),
+                child: const Text('Gunakan Barcode'),
               ),
             ],
           ),
@@ -85,8 +147,8 @@ class _BarcodeInputState extends State<BarcodeInput> {
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: const Color(0xff040817),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xff1e293b), width: 2),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xff1e293b), width: 1.5),
         ),
         child: Stack(
           alignment: Alignment.center,
@@ -103,103 +165,85 @@ class _BarcodeInputState extends State<BarcodeInput> {
                   },
                 ),
               ),
-            Positioned(
-              top: 10,
-              left: 10,
-              right: 10,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xff111827),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xff273246)),
-                      ),
-                      child: Text(
-                        widget.title,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xffd7e7b0),
-                        ),
-                        maxLines: 1,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 7),
-                  const Text(
-                    'FPS: 60 • 1080p',
-                    style: TextStyle(fontSize: 11, color: Colors.white70),
-                  ),
-                ],
-              ),
-            ),
             if (!camera)
               Positioned.fill(
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: () => setState(() => camera = true),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      widget.labelPreview
-                        ? Container(
-                          width: 153,
-                          height: 96,
-                          padding: const EdgeInsets.all(9),
+                  onTap: activateCamera,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 58,
+                          height: 58,
                           decoration: BoxDecoration(
-                            color: const Color(0xfff9fbfd),
-                            borderRadius: BorderRadius.circular(7),
+                            color: Colors.white.withValues(alpha: 0.08),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.16),
+                              width: 1.5,
+                            ),
                           ),
-                          child: Column(
-                            children: [
-                              Text(
-                                widget.demoCode,
-                                style: const TextStyle(
-                                  fontSize: 9,
-                                  letterSpacing: 1,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 9),
-                              const Expanded(
-                                child: SizedBox(
-                                  width: double.infinity,
-                                  child: CustomPaint(painter: _BarcodeGuide()),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                widget.demoCode,
-                                style: const TextStyle(
-                                  fontSize: 7,
-                                  letterSpacing: .8,
-                                ),
-                              ),
-                            ],
+                          child: const Icon(
+                            Icons.camera_alt_outlined,
+                            size: 30,
+                            color: Colors.white70,
                           ),
-                        )
-                        : const Icon(
-                          Icons.camera_alt_outlined,
-                          size: 30,
-                          color: Colors.white30,
                         ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Ketuk untuk mengaktifkan kamera',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white54,
+                        const SizedBox(height: 14),
+                        const Text(
+                          'Ketuk untuk mengaktifkan kamera',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white70,
+                            letterSpacing: 0.2,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            if (!cameraError)
+            if (camera && !cameraError) ...[
+              Positioned(
+                top: 10,
+                left: 10,
+                right: 10,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xff111827),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xff273246)),
+                        ),
+                        child: Text(
+                          widget.title,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xffd7e7b0),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    const Text(
+                      'FPS: 60 • 1080p',
+                      style: TextStyle(fontSize: 11, color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
               IgnorePointer(
                 child: SizedBox(
                   width: 184,
@@ -207,7 +251,6 @@ class _BarcodeInputState extends State<BarcodeInput> {
                   child: CustomPaint(painter: _Reticle()),
                 ),
               ),
-            if (!cameraError)
               IgnorePointer(
                 child: Container(
                   height: 2,
@@ -220,11 +263,10 @@ class _BarcodeInputState extends State<BarcodeInput> {
                   ),
                 ),
               ),
-            if (!cameraError)
               const Positioned(
                 bottom: 61,
                 child: Text(
-                  'ALIGN CODE WITHIN RETICLE',
+                  'Arahkan barcode ke dalam bingkai',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -233,53 +275,58 @@ class _BarcodeInputState extends State<BarcodeInput> {
                   ),
                 ),
               ),
-            Positioned(
-              bottom: 10,
-              left: 10,
-              right: 10,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _CameraButton('Torch ON', () {
-                    if (camera) {
-                      cameraKey.currentState?.toggleTorch();
-                    } else {
-                      setState(() => camera = true);
-                    }
-                  }, icon: Icons.flash_on),
-                  Row(
-                    children: [
-                      for (int i = 1; i <= 3; i++)
-                        _CameraButton('${i}x', () {
-                          setState(() => zoom = i);
-                          cameraKey.currentState?.setZoom(i);
-                        }, selected: zoom == i),
-                    ],
-                  ),
-                  _CameraButton(
-                    'Manual',
-                    manual,
-                    icon: Icons.keyboard_outlined,
-                  ),
-                ],
+              Positioned(
+                bottom: 10,
+                left: 10,
+                right: 10,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _CameraButton('Flash', () {
+                      if (camera) {
+                        cameraKey.currentState?.toggleTorch();
+                      } else {
+                        activateCamera();
+                      }
+                    }, icon: Icons.flash_on),
+                    Row(
+                      children: [
+                        for (int i = 1; i <= 3; i++)
+                          _CameraButton('${i}x', () {
+                            setState(() => zoom = i);
+                            cameraKey.currentState?.setZoom(i);
+                          }, selected: zoom == i),
+                      ],
+                    ),
+                    _CameraButton(
+                      'Manual',
+                      manual,
+                      icon: Icons.keyboard_outlined,
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
       if (last != null)
         Container(
           width: double.infinity,
-          margin: const EdgeInsets.only(top: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          margin: const EdgeInsets.only(top: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xffecfdf5),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xffa7f3d0)),
+            color: brandSoft,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: brandSoftBorder),
           ),
           child: Text(
-            '✓ Barcode Scan Verified: $last',
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: mint),
+            'Barcode Terverifikasi: $last',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: forest,
+            ),
           ),
         ),
       const SizedBox(height: 10),
@@ -300,14 +347,15 @@ class _CameraButton extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) => InkWell(
+    borderRadius: BorderRadius.circular(20),
     onTap: onTap,
     child: Container(
-      margin: const EdgeInsets.only(right: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      margin: const EdgeInsets.only(right: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
       decoration: BoxDecoration(
-        color: selected ? olive : const Color(0xff090f1c),
-        border: Border.all(color: const Color(0xff263040)),
-        borderRadius: BorderRadius.circular(6),
+        color: selected ? brand : const Color(0xff0f172a),
+        border: Border.all(color: selected ? brand : const Color(0xff263040)),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -320,7 +368,7 @@ class _CameraButton extends StatelessWidget {
             label,
             style: const TextStyle(
               fontSize: 11,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               color: Colors.white,
               letterSpacing: .5,
             ),
@@ -504,65 +552,29 @@ class _CameraState extends State<_Camera> with WidgetsBindingObserver {
   );
 }
 
-class _BarcodeGuide extends CustomPainter {
-  const _BarcodeGuide();
-  @override
-  void paint(Canvas c, Size s) {
-    // Decorative scan guide; camera decoding uses real labels, not these bars.
-    final p = Paint()..color = ink;
-    final widths = [
-      2,
-      1,
-      1,
-      3,
-      1,
-      2,
-      1,
-      1,
-      3,
-      2,
-      1,
-      1,
-      2,
-      3,
-      1,
-      2,
-      1,
-      1,
-      1,
-      3,
-      2,
-      2,
-      1,
-      1,
-      3,
-      1,
-      2,
-      1,
-      2,
-      3,
-      1,
-      1,
-      2,
-      1,
-      3,
-      2,
-      1,
-      2,
-      1,
-      1,
-    ];
-    final unit = s.width / widths.fold<int>(0, (sum, n) => sum + n);
-    double x = 0;
-    for (int i = 0; i < widths.length; i++) {
-      final w = widths[i] * unit;
-      if (i.isEven) {
-        c.drawRect(Rect.fromLTWH(x, 0, w, s.height), p);
-      }
-      x += w;
-    }
-  }
+class _PrivacyCheckRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _PrivacyCheckRow({required this.icon, required this.text});
 
   @override
-  bool shouldRepaint(covariant _BarcodeGuide old) => false;
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: forest),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: brandInk,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }

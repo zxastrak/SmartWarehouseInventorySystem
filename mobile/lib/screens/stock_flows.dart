@@ -113,7 +113,7 @@ class FlowBody extends StatelessWidget {
 
 Future<void> openStockScan(
   BuildContext context, {
-  String demoCode = 'SKU-9249',
+  String demoCode = '',
 }) => flowSheet(context, StockScanFlow(demoCode: demoCode));
 Future<void> openRack(BuildContext context, String sku) =>
     flowSheet(context, RackCountFlow(sku: sku));
@@ -122,7 +122,7 @@ Future<void> openDiscrepancy(BuildContext context, String sku) =>
 
 class StockScanFlow extends StatefulWidget {
   final String demoCode;
-  const StockScanFlow({super.key, this.demoCode = 'SKU-9249'});
+  const StockScanFlow({super.key, this.demoCode = ''});
   @override
   State<StockScanFlow> createState() => _StockScanFlowState();
 }
@@ -245,7 +245,11 @@ class StockDetailsFlow extends StatelessWidget {
   const StockDetailsFlow({super.key, required this.sku});
   @override
   Widget build(BuildContext context) {
-    final item = context.watch<WarehouseState>().bySku(sku);
+    final s = context.watch<WarehouseState>();
+    final item = s.bySku(sku);
+    final color = statusColor(item.status);
+    final isCritical = item.status == StockStatus.critical;
+
     return FlowBody(
       title: item.name,
       subtitle: '◎ ${item.rack} • ${item.zone}',
@@ -255,100 +259,138 @@ class StockDetailsFlow extends StatelessWidget {
           runSpacing: 6,
           children: [
             Tag(
-              statusLabel(item.status),
-              color: statusColor(item.status),
-              solid: item.status == StockStatus.critical,
+              isCritical ? 'KRITIS / PERLU RESTOCK' : 'STOK AMAN',
+              color: color,
+              solid: true,
             ),
-            Tag(item.sku, color: muted),
-          ],
-        ),
-        const SizedBox(height: 12),
-        const Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            Tag('Category: Mechanical Parts', color: muted),
-            Tag('Supplier: Warehouse Partner', color: muted),
+            Tag('SKU: ${item.sku}', color: brandInk),
+            if (item.category != null && item.category!.isNotEmpty)
+              Tag('Kategori: ${item.category}', color: brand),
+            if (item.supplier != null && item.supplier!.isNotEmpty)
+              Tag('Pemasok: ${item.supplier}', color: brandSlate),
           ],
         ),
         const SizedBox(height: 18),
         StockCountBox(item),
-        const SizedBox(height: 18),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Panel(
-                child: Row(
-                  children: [
-                    const Icon(Icons.history, color: brand, size: 20),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'INBOUND LOG\n4d ago (+300)',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          height: 1.35,
-                          color: brandInk,
-                        ),
-                      ),
-                    ),
-                  ],
+        const SizedBox(height: 16),
+        Panel(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Data Master Produk',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: brandInk,
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Panel(
-                child: Row(
-                  children: [
-                    const Icon(Icons.hourglass_empty, color: brand, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'AI FORECAST\n${item.daysLeft.toStringAsFixed(1)} days buffer',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          height: 1.35,
-                          color: danger,
-                        ),
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 12),
+              _DetailRow('Kode SKU', item.sku),
+              _DetailRow('Nama Barang', item.name),
+              _DetailRow('Lokasi Rak', item.rack),
+              _DetailRow('Zona Gudang', item.zone),
+              _DetailRow('Satuan Unit', item.unit),
+              if (item.price > 0)
+                _DetailRow('Harga Satuan', formatRupiah(item.price)),
+              if (item.price > 0)
+                _DetailRow(
+                  'Estimasi Nilai Stok',
+                  formatRupiah(item.price * item.quantity),
+                  highlight: true,
                 ),
-              ),
-            ),
-          ],
-        ),
-        FilledButton.icon(
-          onPressed: () async {
-            final previous = item.verifiedAt;
-            await openRack(context, sku);
-            if (!context.mounted) {
-              return;
-            }
-            if (item.verifiedAt != previous) {
-              Navigator.pop(context);
-            }
-          },
-          icon: const Icon(Icons.fact_check_outlined, size: 18),
-          label: const Text('Verify Rack Count'),
-        ),
-        const SizedBox(height: 10),
-        OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(
-            foregroundColor: amber,
-            side: const BorderSide(color: amber, width: 1.4),
+            ],
           ),
-          onPressed: () => openDiscrepancy(context, sku),
-          icon: const Icon(Icons.warning_amber, size: 18),
-          label: const Text('Report Stock Discrepancy'),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: brand,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              s.openScanner(
+                item.sku,
+                mode: isCritical ? ScanMode.putaway : ScanMode.single,
+              );
+            },
+            icon: const Icon(Icons.qr_code_scanner, size: 18),
+            label: Text(
+              isCritical ? 'Putaway' : 'Single Scan',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          height: 44,
+          child: OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: line),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+            ),
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Tutup',
+              style: TextStyle(
+                color: brandSlate,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
         ),
       ],
     );
   }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label, value;
+  final bool highlight;
+  const _DetailRow(this.label, this.value, {this.highlight = false});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 130,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: muted,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: highlight ? FontWeight.w900 : FontWeight.w700,
+              color: highlight ? forest : brandInk,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class RackCountFlow extends StatefulWidget {

@@ -43,7 +43,7 @@ class InsightScreen extends StatelessWidget {
                             ),
                           ),
                         ),
-                        Tag('SAFE', color: statusColor(i.status)),
+                        Tag('SAFE', color: statusColor(i.status), solid: true),
                         const SizedBox(width: 8),
                         const Tag('Details', color: muted),
                       ],

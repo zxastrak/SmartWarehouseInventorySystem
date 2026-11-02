@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 enum StockStatus { safe, critical, anomaly, discrepancy }
 
-enum ScanMode { single, itemRack, putaway }
+enum ScanMode { single, putaway, dispatch }
 
 enum MovementKind { stockIn, stockOut, putaway, rackCount }
 
@@ -15,6 +15,8 @@ class StockItem {
   final double dailyUsage;
   final double price;
   final String unit;
+  final String? category;
+  final String? supplier;
   bool anomaly, discrepancy, pendingVerification;
   DateTime? verifiedAt;
   final Map<String, int> rackCounts = {};
@@ -29,6 +31,8 @@ class StockItem {
     required this.dailyUsage,
     this.price = 0,
     this.unit = 'pcs',
+    this.category,
+    this.supplier,
     this.anomaly = false,
     this.discrepancy = false,
     this.pendingVerification = false,
@@ -95,9 +99,9 @@ class WarehouseAlert {
 
 class Staff {
   int? id;
-  String name = 'Tabina Naila', email = 'tabinanaila@staff.co.id';
-  String phone = '081234567890', staffId = 'STF-024', badge = 'WH-STAFF-024';
-  String emergency = '081298765432';
+  String name = '', email = '';
+  String phone = '', staffId = '', badge = '';
+  String emergency = '';
   String role = 'staf';
   bool haptics = true,
       localAcoustic = true,
@@ -112,7 +116,7 @@ String statusLabel(StockStatus s) => switch (s) {
   StockStatus.discrepancy => 'STOCK DISCREPANCY',
 };
 Color statusColor(StockStatus s) => switch (s) {
-  StockStatus.safe => const Color(0xff16a085),
+  StockStatus.safe => const Color(0xff439e8a), // mint (warna angka 33.3% di ringkasan stok)
   StockStatus.critical => const Color(0xffe11d48),
   StockStatus.anomaly => const Color(0xffe11d48),
   StockStatus.discrepancy => const Color(0xffd97706),

@@ -12,6 +12,10 @@ void main() {
       await tester.pumpWidget(
         ChangeNotifierProvider.value(value: state, child: const SusunoApp()),
       );
+      // Biarkan animasi splash screen selesai dan bertransisi ke login
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+
       expect(find.text('Selamat Datang, Staf'), findsOneWidget);
       await tester.enterText(
         find.byType(TextFormField).at(0),

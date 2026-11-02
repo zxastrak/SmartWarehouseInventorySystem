@@ -14,28 +14,37 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _emailFocusNode = FocusNode();
+  final _passwordFocusNode = FocusNode();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _hasSubmitted = false;
   String? _errorMessage;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _emailFocusNode.dispose();
+    _passwordFocusNode.dispose();
     super.dispose();
   }
 
   Future<void> _handleSignIn() async {
+    setState(() {
+      _hasSubmitted = true;
+      _errorMessage = null;
+    });
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
     setState(() {
       _isLoading = true;
-      _errorMessage = null;
     });
 
     final result = await context.read<WarehouseState>().login(
-      _emailController.text,
+      _emailController.text.trim(),
       _passwordController.text,
     );
 
@@ -89,40 +98,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 18),
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: brandSoft,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: brandSoftBorder),
-                        ),
-                        child: const Icon(
-                          Icons.lock_reset,
-                          color: brand,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
                       const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Reset Password Staf',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                                color: brandInk,
-                              ),
-                            ),
-                            Text(
-                              'POST /api/auth/reset-password',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xff64748b),
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          'Reset Password Staf',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: brandInk,
+                          ),
                         ),
                       ),
                       IconButton(
@@ -365,11 +348,11 @@ class _LoginScreenState extends State<LoginScreen> {
     const visibleFraction = 0.60;
 
     return Scaffold(
-      backgroundColor: brandGradientEnd,
+      backgroundColor: const Color(0xfff5f5f5),
       resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
-          // LAYER 1: gradien diagonal
+          // LAYER 1: background putih tulang f5f5f5
           Positioned(
             top: 0,
             left: 0,
@@ -377,11 +360,7 @@ class _LoginScreenState extends State<LoginScreen> {
             height: heroHeight + 40,
             child: const DecoratedBox(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [brandGradientStart, brandGradientEnd],
-                ),
+                color: Color(0xfff5f5f5),
               ),
             ),
           ),
@@ -472,7 +451,15 @@ class _LoginScreenState extends State<LoginScreen> {
           // Input 1: Email
           TextFormField(
             controller: _emailController,
+            focusNode: _emailFocusNode,
             keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            onFieldSubmitted: (_) {
+              FocusScope.of(context).requestFocus(_passwordFocusNode);
+            },
+            autovalidateMode: _hasSubmitted
+                ? AutovalidateMode.onUserInteraction
+                : AutovalidateMode.disabled,
             style: const TextStyle(
               fontSize: 14,
               color: brandInk,
@@ -481,6 +468,11 @@ class _LoginScreenState extends State<LoginScreen> {
             autofillHints: const [AutofillHints.username],
             decoration: InputDecoration(
               hintText: 'Email',
+              errorStyle: const TextStyle(
+                color: danger,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
               hintStyle: const TextStyle(
                 color: Color(0xff64748b),
                 fontSize: 14,
@@ -517,7 +509,26 @@ class _LoginScreenState extends State<LoginScreen> {
                   width: 1.8,
                 ),
               ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(28),
+                borderSide: const BorderSide(
+                  color: danger,
+                  width: 1.2,
+                ),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(28),
+                borderSide: const BorderSide(
+                  color: danger,
+                  width: 1.8,
+                ),
+              ),
             ),
+            onChanged: (_) {
+              if (_errorMessage != null) {
+                setState(() => _errorMessage = null);
+              }
+            },
             validator: (val) {
               if (val == null || val.trim().isEmpty) {
                 return 'Email wajib diisi.';
@@ -533,7 +544,13 @@ class _LoginScreenState extends State<LoginScreen> {
           // Input 2: Password
           TextFormField(
             controller: _passwordController,
+            focusNode: _passwordFocusNode,
             obscureText: _obscurePassword,
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => _handleSignIn(),
+            autovalidateMode: _hasSubmitted
+                ? AutovalidateMode.onUserInteraction
+                : AutovalidateMode.disabled,
             style: const TextStyle(
               fontSize: 14,
               color: brandInk,
@@ -542,6 +559,12 @@ class _LoginScreenState extends State<LoginScreen> {
             autofillHints: const [AutofillHints.password],
             decoration: InputDecoration(
               hintText: 'Password',
+              errorText: _errorMessage,
+              errorStyle: const TextStyle(
+                color: danger,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
               hintStyle: const TextStyle(
                 color: Color(0xff64748b),
                 fontSize: 14,
@@ -590,47 +613,38 @@ class _LoginScreenState extends State<LoginScreen> {
                   width: 1.8,
                 ),
               ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(28),
+                borderSide: const BorderSide(
+                  color: danger,
+                  width: 1.2,
+                ),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(28),
+                borderSide: const BorderSide(
+                  color: danger,
+                  width: 1.8,
+                ),
+              ),
             ),
-            onFieldSubmitted: (_) => _handleSignIn(),
+            onChanged: (_) {
+              if (_errorMessage != null) {
+                setState(() => _errorMessage = null);
+              }
+            },
             validator: (val) {
+              final email = _emailController.text.trim();
+              // Jangan tampilkan error password jika email sendiri belum valid
+              if (email.isEmpty || !email.contains('@')) {
+                return null;
+              }
               if (val == null || val.isEmpty) {
                 return 'Password wajib diisi.';
               }
               return null;
             },
           ),
-
-          // Error message if any
-          if (_errorMessage != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 10,
-              ),
-              decoration: BoxDecoration(
-                color: const Color(0xfffef2f2),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xfffecaca)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.error_outline, color: danger, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _errorMessage!,
-                      style: const TextStyle(
-                        color: danger,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
 
           // Forgot Password Link
           Align(
@@ -700,23 +714,19 @@ class _Branding extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: Colors.white.withAlpha(90),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Icon(
-            Icons.warehouse_outlined,
-            size: 28,
-            color: brandHeroInk,
-          ),
+        Image.asset(
+          'assets/images/susuno_logo.png',
+          width: 36,
+          height: 36,
+          fit: BoxFit.contain,
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
         const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'SUSUNO',
