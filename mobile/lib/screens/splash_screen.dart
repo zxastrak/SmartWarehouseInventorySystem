@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 /// Splash Screen SUSUNO dengan animasi Sprite Sheet pelari 8-frame,
-/// garis kecepatan dinamis, progress bar responsif dengan kurir berjalan (Opsi B),
+/// garis kecepatan dinamis, progress bar responsif dengan kurir berjalan,
 /// dan teks status loading dinamis.
 class SplashScreen extends StatefulWidget {
   final VoidCallback? onFinish;
@@ -226,7 +226,7 @@ class _SplashScreenState extends State<SplashScreen>
                           return Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              _buildProgressBarOptionB(progress),
+                              _buildProgressBar(progress),
                               const SizedBox(height: 18),
                               _buildDynamicStatusText(progress),
                             ],
@@ -367,8 +367,8 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  /// OPSI B: Progress bar kapsul dengan kurir putih kecil bergerak di ujung garis loading
-  Widget _buildProgressBarOptionB(double progress) {
+  /// Progress bar kapsul dengan kurir putih kecil bergerak di ujung garis loading
+  Widget _buildProgressBar(double progress) {
     const trackWidth = 270.0;
     const trackHeight = 8.0;
     const courierWidth = 24.0;
@@ -420,7 +420,7 @@ class _SplashScreenState extends State<SplashScreen>
             ),
           ),
 
-          // 3. Ikon Kurir Kecil Dinamis (Opsi B) yang berlari di ujung progress bar
+          // 3. Ikon Kurir Kecil Dinamis yang berlari di ujung progress bar
           Positioned(
             left: courierX,
             top: 2,
