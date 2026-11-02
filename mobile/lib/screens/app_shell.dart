@@ -8,7 +8,6 @@ import 'stock_screen.dart';
 import 'scanner_screen.dart';
 import 'profile_screen.dart';
 import 'activity_screen.dart';
-import 'insight_screen.dart';
 
 class AppShell extends StatelessWidget {
   const AppShell({super.key});
@@ -17,28 +16,19 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = context.watch<WarehouseState>();
 
-    // Route selector for pages
+    // Route selector for pages (5 core operational tabs)
     final body = switch (s.page) {
       0 => const ShiftHubScreen(),
       1 => const StockScreen(),
       2 => const ScannerScreen(),
       3 => const ActivityScreen(),
-      4 || 8 => const ProfileScreen(),
-      5 => const ActivityScreen(),
-      6 => const InsightScreen(),
+      4 => const ProfileScreen(),
       _ => const ShiftHubScreen(),
     };
 
     // Calculate active bottom bar tab:
     // 0: Tugas, 1: Stok & Rak, 2: Scan Cepat, 3: Aktivitas, 4: Profil
-    final activeBottomTab = switch (s.page) {
-      0 => 0,
-      1 => 1,
-      2 => 2,
-      3 || 5 => 3,
-      4 || 8 => 4,
-      _ => 0,
-    };
+    final activeBottomTab = (s.page >= 0 && s.page <= 4) ? s.page : 0;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark.copyWith(

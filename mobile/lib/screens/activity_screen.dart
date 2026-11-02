@@ -4,7 +4,6 @@ import '../state/warehouse_state.dart';
 import '../models/models.dart';
 import '../widgets/ui.dart';
 import '../widgets/task_chart.dart';
-import '../widgets/warehouse_sections.dart';
 import '../core/app_theme.dart';
 
 class ActivityScreen extends StatefulWidget {
@@ -402,6 +401,240 @@ class _DetailCell extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class SectionHeading extends StatelessWidget {
+  final String title, subtitle;
+  final IconData? icon;
+  final Widget? trailing;
+  const SectionHeading(
+    this.title,
+    this.subtitle,
+    this.icon, {
+    super.key,
+    this.trailing,
+  });
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: Row(
+      children: [
+        if (icon != null) ...[
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: brandSoft,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: brandSoftBorder),
+            ),
+            child: Icon(icon!, size: 20, color: brand),
+          ),
+          const SizedBox(width: 10),
+        ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.2,
+                  color: brandInk,
+                ),
+              ),
+              if (subtitle.isNotEmpty)
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: muted,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (trailing != null) trailing!,
+      ],
+    ),
+  );
+}
+
+class AuditEntries extends StatelessWidget {
+  final List<Activity> entries;
+  const AuditEntries(this.entries, {super.key});
+  @override
+  Widget build(BuildContext context) {
+    if (entries.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: const BoxDecoration(
+                  color: brandSoft,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.history_toggle_off,
+                  size: 28,
+                  color: brand,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Belum ada riwayat aktivitas stok untuk akun ini.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: muted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return Column(
+      children: [
+        for (var i = 0; i < entries.length; i++)
+          _AuditRow(entry: entries[i], isLast: i == entries.length - 1),
+      ],
+    );
+  }
+}
+
+/// Satu entri audit dalam bentuk timeline: titik + garis penghubung di kiri.
+class _AuditRow extends StatelessWidget {
+  final Activity entry;
+  final bool isLast;
+  const _AuditRow({required this.entry, required this.isLast});
+
+  @override
+  Widget build(BuildContext context) {
+    final a = entry;
+    final pending = a.kind == null;
+    final color = pending ? danger : brand;
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 16,
+            child: Column(
+              children: [
+                const SizedBox(height: 3),
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: color, width: 3),
+                  ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      color: line,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          a.title,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: pending ? danger : brandInk,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        clock(a.time),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xff94a3b8),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    a.detail,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: brandSlate,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: pending ? const Color(0xfffff1f2) : brandSoft,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Status: ',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: muted,
+                          ),
+                        ),
+                        Flexible(
+                          child: Text(
+                            pending
+                                ? 'Menunggu Verifikasi'
+                                : 'Tercatat di Database',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: color,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
