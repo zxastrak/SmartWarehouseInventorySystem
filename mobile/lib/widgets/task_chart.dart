@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../core/app_theme.dart';
 
-// Warna seri grafik: hijau untuk masuk, koral untuk keluar.
-const _inflowColor = Color(0xff9ab85c);
+// Warna seri grafik: hijau untuk masuk, koral/merah untuk keluar.
+const _inflowColor = mintLogo;
 const _outflowColor = Color(0xffe98686);
 const _axisText = Color(0xff94a3b8);
 
@@ -27,10 +27,10 @@ class TaskChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final a =
         inflowSeries ??
-        List.generate(6, (i) => i == 5 ? inflow.toDouble() : 0.0);
+        List.generate(7, (i) => i == 6 ? inflow.toDouble() : 0.0);
     final b =
         outflowSeries ??
-        List.generate(6, (i) => i == 5 ? outflow.toDouble() : 0.0);
+        List.generate(7, (i) => i == 6 ? outflow.toDouble() : 0.0);
     final hasData = a.any((v) => v > 0) || b.any((v) => v > 0);
 
     if (!hasData) {
@@ -142,13 +142,14 @@ class _ChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas c, Size size) {
-    final box = Rect.fromLTRB(30, 30, size.width - 30, size.height - 26);
+    final count = a.length;
+    // Beri ruang untuk teks sumbu Y di kiri (32px) dan margin rapi di kanan (16px)
+    final box = Rect.fromLTRB(32, 24, size.width - 16, size.height - 26);
     final maxVal = [...a, ...b].fold<double>(0.0, (m, v) => math.max(m, v));
     final maximum = math.max(10.0, maxVal * 1.15);
 
-    // Teks di dalam CustomPaint tidak mewarisi font tema, jadi fontFamily
-    // diisi manual supaya sama dengan seluruh aplikasi.
-    void label(String text, Offset pos, {TextAlign align = TextAlign.left}) {
+    // Fungsi menggambar label teks dengan posisi teks presisi
+    void drawLabel(String text, Offset pos, {bool center = false, bool rightAlign = false}) {
       final painter = TextPainter(
         text: TextSpan(
           text: text,
@@ -160,67 +161,82 @@ class _ChartPainter extends CustomPainter {
           ),
         ),
         textDirection: TextDirection.ltr,
-        textAlign: align,
       )..layout();
-      painter.paint(c, pos);
+
+      double dx = pos.dx;
+      if (center) {
+        dx = pos.dx - painter.width / 2;
+      } else if (rightAlign) {
+        dx = pos.dx - painter.width;
+      }
+      painter.paint(c, Offset(dx, pos.dy - painter.height / 2));
     }
 
-    for (int n = 0; n < 6; n++) {
-      final y = box.bottom - box.height * n / 5;
+    // Gridline horizontal & angka sumbu Y di sisi kiri (cukup 5 garis)
+    for (int n = 0; n <= 4; n++) {
+      final y = box.bottom - box.height * n / 4;
       c.drawLine(
         Offset(box.left, y),
         Offset(box.right, y),
         Paint()
-          ..color = const Color(0xffeef2f6)
+          ..color = const Color(0xfff1f5f9)
           ..strokeWidth = 1,
       );
-      label('${(maximum * n / 5).round()}', Offset(0, y - 6));
-      if (bars) {
-        label('${(maximum * n / 5).round()}', Offset(box.right + 5, y - 6));
-      }
+      final val = (maximum * n / 4).round();
+      drawLabel('$val', Offset(box.left - 6, y), rightAlign: true);
     }
-    final step = box.width / 6;
-    final xs = List.generate(6, (n) => box.left + step * (n + .5));
+
+    final step = box.width / count;
+    final xs = List.generate(count, (n) => box.left + step * (n + .5));
     final now = DateTime.now();
-    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final labels = List.generate(6, (n) {
-      final d = now.subtract(Duration(days: 5 - n));
+    const dayNames = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+    final labels = List.generate(count, (n) {
+      final d = now.subtract(Duration(days: count - 1 - n));
       return dayNames[d.weekday - 1];
     });
 
-    for (int n = 0; n < 6; n++) {
+    // Dimensi batang dan wadah abu-abu agar simetris di tengah
+    final bgWidth = step * 0.68;
+    final barWidth = step * 0.25;
+    final barGap = step * 0.04;
+
+    for (int n = 0; n < count; n++) {
       if (bars) {
+        // Wadah pilar abu-abu tepat di tengah kolom sumbu xs[n]
         c.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromLTWH(box.left + n * step, box.top, step * .58, box.height),
+            Rect.fromLTWH(xs[n] - bgWidth / 2, box.top, bgWidth, box.height),
             const Radius.circular(8),
           ),
           Paint()..color = const Color(0xfff8fafc),
         );
       }
-      label(labels[n], Offset(xs[n] - 10, box.bottom + 7));
+      // Label hari tepat di tengah kolom sumbu xs[n]
+      drawLabel(labels[n], Offset(xs[n], box.bottom + 12), center: true);
     }
-    void series(List<double> vals, Color color, double offset) {
+
+    void series(List<double> vals, Color color, double leftOffset) {
       if (bars) {
         for (int i = 0; i < vals.length; i++) {
-          final height = vals[i] / maximum * box.height;
+          if (vals[i] <= 0) continue;
+          final height = math.max(3.0, vals[i] / maximum * box.height);
           c.drawRRect(
             RRect.fromRectAndCorners(
               Rect.fromLTWH(
-                xs[i] + offset,
+                xs[i] + leftOffset,
                 box.bottom - height,
-                step * .25,
+                barWidth,
                 height,
               ),
-              topLeft: const Radius.circular(5),
-              topRight: const Radius.circular(5),
+              topLeft: const Radius.circular(4),
+              topRight: const Radius.circular(4),
             ),
             Paint()..color = color,
           );
         }
       } else {
         final points = List.generate(
-          6,
+          count,
           (n) => Offset(xs[n], box.bottom - vals[n] / maximum * box.height),
         );
         final path = Path()..moveTo(points.first.dx, points.first.dy);
@@ -265,38 +281,43 @@ class _ChartPainter extends CustomPainter {
       }
     }
 
-    series(a, _inflowColor, -step * .28);
-    series(b, _outflowColor, step * .03);
+    // Menggambar batang Masuk (kiri) dan Keluar (kanan) tepat di dalam wadah
+    series(a, _inflowColor, -barWidth - barGap / 2);
+    series(b, _outflowColor, barGap / 2);
+
     if (bars) {
-      final average = List.generate(6, (i) => (a[i] + b[i]) / 2);
-      final path = Path();
-      for (int i = 0; i < 6; i++) {
-        final p = Offset(xs[i], box.bottom - average[i] / maximum * box.height);
-        if (i == 0) {
-          path.moveTo(p.dx, p.dy);
-        } else {
-          path.lineTo(p.dx, p.dy);
+      final average = List.generate(count, (i) => (a[i] + b[i]) / 2);
+      final hasAverage = average.any((v) => v > 0);
+      if (hasAverage) {
+        final path = Path();
+        for (int i = 0; i < count; i++) {
+          final p = Offset(xs[i], box.bottom - average[i] / maximum * box.height);
+          if (i == 0) {
+            path.moveTo(p.dx, p.dy);
+          } else {
+            path.lineTo(p.dx, p.dy);
+          }
         }
-      }
-      c.drawPath(
-        path,
-        Paint()
-          ..color = brand
-          ..strokeWidth = 2
-          ..strokeJoin = StrokeJoin.round
-          ..style = PaintingStyle.stroke,
-      );
-      for (int i = 0; i < 6; i++) {
-        final p = Offset(xs[i], box.bottom - average[i] / maximum * box.height);
-        c.drawCircle(p, 3.5, Paint()..color = Colors.white);
-        c.drawCircle(
-          p,
-          3.5,
+        c.drawPath(
+          path,
           Paint()
-            ..color = brand
-            ..strokeWidth = 1.5
+            ..color = brand.withValues(alpha: 0.85)
+            ..strokeWidth = 2
+            ..strokeJoin = StrokeJoin.round
             ..style = PaintingStyle.stroke,
         );
+        for (int i = 0; i < count; i++) {
+          final p = Offset(xs[i], box.bottom - average[i] / maximum * box.height);
+          c.drawCircle(p, 3.5, Paint()..color = Colors.white);
+          c.drawCircle(
+            p,
+            3.5,
+            Paint()
+              ..color = brand
+              ..strokeWidth = 1.5
+              ..style = PaintingStyle.stroke,
+          );
+        }
       }
     }
   }

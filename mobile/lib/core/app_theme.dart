@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
-const olive = Color(0xff5a7129);
-const forest = Color(0xff2e5b32);
+// Warna Brand Mint SUSUNO (sesuai logo #60B39F)
+const mintLogo = Color(0xff60b39f); // Warna murni logo SUSUNO #60B39F
+const mint = Color(0xff439e8a); // Mint solid kontras tinggi untuk tombol, aksi, dan indikator
+const forest = Color(0xff25705e); // Deep mint forest (untuk status sukses / selesai)
+const olive = mint; // Kompatibilitas mundur mengarah ke mint
 const ink = Color(0xff0f172a);
 const muted = Color(0xff64748b);
 const canvas = Color(0xfff9f9ff);
@@ -9,21 +12,18 @@ const line = Color(0xffe2e8f0);
 const lavender = Color(0xffe8edff);
 const danger = Color(0xffe11d48);
 const amber = Color(0xffdf7f00);
-const mint = Color(0xff008e68);
 
 // Nama family font, harus sama persis dengan yang dideklarasikan di pubspec.yaml.
 const appFont = 'PlusJakartaSans';
 
 // -----------------------------------------------------------------------------
-// BRAND TOKENS (design language baru, tema HIJAU).
-// Semua halaman redesign memakai token ini. Mau ganti warna brand? Cukup ubah
-// nilai di blok ini saja. Warna lama di atas (olive, forest, dst.) tidak diubah.
+// BRAND TOKENS (design language tema HIJAU MINT SUSUNO).
 // -----------------------------------------------------------------------------
-const brand = olive; // hijau aksi utama (tombol, tab aktif, ikon)
-const brandSoft = Color(0xffeef4e4); // latar ikon / item terpilih
-const brandSoftBorder = Color(0xffdbe7c4);
-const brandGradientStart = Color(0xffe3efc9); // hijau sage muda
-const brandGradientEnd = Color(0xff9ab85c); // hijau daun
+const brand = mint; // hijau mint aksi utama (tombol, tab aktif, ikon)
+const brandSoft = Color(0xffe8f6f2); // latar ikon / item terpilih (mint pastel muda)
+const brandSoftBorder = Color(0xffbfe5dc); // border mint lembut
+const brandGradientStart = Color(0xffdaf1ea); // mint lembut
+const brandGradientEnd = mintLogo; // hijau mint logo SUSUNO (#60B39F)
 const brandInk = Color(0xff111827); // judul
 const brandSlate = Color(0xff475569); // teks isi
 const brandHeroInk = Color(0xff18181b); // teks di atas gradien
@@ -41,6 +41,8 @@ ThemeData appTheme(bool contrast) => ThemeData(
   fontFamily: appFont,
   colorScheme: ColorScheme.fromSeed(seedColor: brand, primary: brand),
   scaffoldBackgroundColor: canvas,
+  focusColor: Colors.transparent,
+  hoverColor: Colors.transparent,
   visualDensity: VisualDensity.standard,
   textTheme: ThemeData.light().textTheme
       .apply(fontFamily: appFont, bodyColor: ink, displayColor: ink)
@@ -155,3 +157,9 @@ ThemeData appTheme(bool contrast) => ThemeData(
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
   ),
 );
+
+String formatRupiah(num number) {
+  final str = number.toStringAsFixed(0);
+  final regex = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
+  return 'Rp ${str.replaceAllMapped(regex, (m) => '${m[1]}.')}';
+}

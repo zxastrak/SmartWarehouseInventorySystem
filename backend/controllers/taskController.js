@@ -7,7 +7,8 @@ const VALID_STATUS = ['pending', 'in_progress', 'done'];
 const taskController = {
   getAll: async (req, res) => {
     try {
-      const tasks = await taskModel.getAll();
+      const showAll = req.query.all === 'true' || req.query.history === 'true';
+      const tasks = await taskModel.getAll({ all: showAll });
       res.status(200).json(tasks);
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });

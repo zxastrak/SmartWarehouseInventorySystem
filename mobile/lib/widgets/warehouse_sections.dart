@@ -5,7 +5,7 @@ import 'ui.dart';
 
 class SectionHeading extends StatelessWidget {
   final String title, subtitle;
-  final IconData icon;
+  final IconData? icon;
   final Widget? trailing;
   const SectionHeading(
     this.title,
@@ -19,16 +19,18 @@ class SectionHeading extends StatelessWidget {
     padding: const EdgeInsets.only(bottom: 14),
     child: Row(
       children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: brandSoft,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: brandSoftBorder),
+        if (icon != null) ...[
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: brandSoft,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: brandSoftBorder),
+            ),
+            child: Icon(icon!, size: 20, color: brand),
           ),
-          child: Icon(icon, size: 20, color: brand),
-        ),
-        const SizedBox(width: 10),
+          const SizedBox(width: 10),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,7 +95,7 @@ class InsightCard extends StatelessWidget {
               Tag(
                 label,
                 color: color,
-                solid: item.status == StockStatus.critical,
+                solid: true,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -318,7 +320,7 @@ class _AuditRow extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Text(
-                          'Operator: ',
+                          'Status: ',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
@@ -328,8 +330,8 @@ class _AuditRow extends StatelessWidget {
                         Flexible(
                           child: Text(
                             pending
-                                ? 'Pending Physical Rescan'
-                                : 'QR Checksum Validated',
+                                ? 'Menunggu Verifikasi'
+                                : 'Tercatat di Database',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,

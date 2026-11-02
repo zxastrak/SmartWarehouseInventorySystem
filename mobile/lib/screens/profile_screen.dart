@@ -3,115 +3,19 @@ import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../state/warehouse_state.dart';
 import '../widgets/ui.dart';
-import '../widgets/warehouse_sections.dart';
 import '../core/app_theme.dart';
 import 'stock_flows.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
-  @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
-}
-
-class _ProfileScreenState extends State<ProfileScreen> {
-  bool night = false;
-  Future<void> changePin() async {
-    final pin = TextEditingController();
-    String? error;
-    await showDialog<void>(
-      context: context,
-      builder:
-          (c) => StatefulBuilder(
-            builder:
-                (c, update) => AlertDialog(
-                  title: const Text('Fast-Sign PIN'),
-                  content: TextField(
-                    controller: pin,
-                    obscureText: true,
-                    maxLength: 4,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'New 4-digit PIN',
-                      errorText: error,
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(c),
-                      child: const Text('Cancel'),
-                    ),
-                    FilledButton(
-                      onPressed: () {
-                        if (!RegExp(r'^\d{4}$').hasMatch(pin.text)) {
-                          update(() => error = 'Use exactly 4 digits.');
-                          return;
-                        }
-                        Navigator.pop(c);
-                        message(
-                          context,
-                          'PIN format accepted for the UI preview.',
-                        );
-                      },
-                      child: const Text('Save'),
-                    ),
-                  ],
-                ),
-          ),
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    pin.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     final s = context.watch<WarehouseState>();
     final p = s.staff;
-    Widget toggle(
-      String title,
-      String subtitle,
-      String key,
-      bool value,
-      IconData icon,
-    ) => Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: brandSoft,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, size: 18, color: brand),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: brandInk,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: muted,
-                  height: 1.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        Switch(value: value, onChanged: (v) => s.setting(key, v)),
-      ],
-    );
+    final hasShift =
+        s.currentShift.isNotEmpty && s.currentShift != 'Belum ada jadwal shift';
+
     Widget field(String label, String value, {bool editable = false}) =>
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -172,20 +76,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
         );
+
+    final staffId =
+        p.staffId.isNotEmpty
+            ? p.staffId
+            : (p.id != null ? 'STF-${p.id.toString().padLeft(3, '0')}' : '-');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Hero Card Profil
         Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [brandGradientStart, brandGradientEnd],
-            ),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: brandCardShadow,
+            color: mint,
+            borderRadius: BorderRadius.circular(28),
           ),
           child: Column(
             children: [
@@ -204,11 +110,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: brand,
+                        color: mint,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,21 +122,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Text(
                           p.name,
                           style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.3,
-                            color: brandHeroInk,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                            color: Colors.white,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 3),
                         Text(
                           p.role.toUpperCase() == 'STAF'
-                              ? 'Warehouse Operations Staff'
+                              ? 'Staf Operasional Gudang'
                               : 'Warehouse ${p.role}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: brandHeroSub,
+                            letterSpacing: 0.5,
+                            color: Colors.white.withAlpha(225),
                           ),
                         ),
                       ],
@@ -243,7 +150,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   Expanded(
                     child: _ShiftCard(
-                      'Current Shift',
+                      'Jadwal Shift',
                       s.currentShift,
                       Icons.schedule,
                     ),
@@ -251,9 +158,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _ShiftCard(
-                      'Hardware Link',
-                      'Zebra TC57 RH #12',
-                      Icons.phone_android_outlined,
+                      'ID Staf',
+                      staffId,
+                      Icons.badge_outlined,
                     ),
                   ),
                 ],
@@ -261,176 +168,80 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
         ),
+
+        // Identitas Akun
         Panel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SectionHeading(
-                'Personal Identity',
-                '',
-                Icons.badge_outlined,
-                trailing: TextButton(
-                  onPressed: () => flowSheet(context, const EditProfile()),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.edit_outlined, size: 14),
-                      SizedBox(width: 4),
-                      Text(
-                        'Edit Profile',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Identitas Akun',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.2,
+                      color: brandInk,
+                    ),
                   ),
-                ),
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () => flowSheet(context, const EditProfile()),
+                    icon: const Icon(Icons.edit_outlined, size: 14),
+                    label: const Text(
+                      'Edit Profil',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              field('Full Name', p.name, editable: true),
-              field('Internal Staff Email', p.email),
-              field('Phone Number', p.phone, editable: true),
-              field('Employee Master Badge ID', p.badge),
-              field('Emergency On-Call Contact', p.emergency, editable: true),
-              const Text(
-                'Tap the pencil to edit. Staff email and badge are managed by your manager.',
-                style: TextStyle(fontSize: 11, color: muted),
-              ),
+              const SizedBox(height: 10),
+              field('Nama Lengkap', p.name, editable: true),
+              field('Email Staf', p.email),
+              field('ID Staf', staffId),
+              field('Peran / Role', p.role.toUpperCase()),
             ],
           ),
         ),
+
+        // Absensi & Jam Kerja
         Panel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SectionHeading(
-                'Shift & Sector Profile',
-                '',
-                Icons.engineering_outlined,
-                trailing: Tag('Tier-2 Certified'),
-              ),
-              const Text(
-                'Assigned Primary Section',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: brandSlate,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xfff8fafc),
-                  border: Border.all(color: line),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: brand,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Text(
-                        'A',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Absensi & Jam Kerja Staf',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.2,
+                      color: brandInk,
                     ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Zone A: Mechanical & Heavy Bearings',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: brandInk,
-                              height: 1.25,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'High Bay Rack 01 - 10 • Automated Shuttle Node',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: muted,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  Tag(
+                    s.isCheckedIn
+                        ? 'ACTIVE SHIFT'
+                        : (!hasShift ? 'NO SHIFT' : 'OFF DUTY'),
+                    color: s.isCheckedIn
+                        ? forest
+                        : (!hasShift ? muted : amber),
+                    solid: true,
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: brandSoft,
-                  border: Border.all(color: brandSoftBorder),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.fact_check_outlined, size: 28, color: brand),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Tag('ACTIVE'),
-                          SizedBox(height: 6),
-                          Text(
-                            'Forklift & Telehandler (Class IV & V)',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: brandInk,
-                            ),
-                          ),
-                          SizedBox(height: 3),
-                          Text(
-                            'Certified • Valid through Nov 2027',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: muted,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        Panel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SectionHeading(
-                'Absensi & Jam Kerja Staf',
-                'Riwayat clock-in dan clock-out shift',
-                Icons.access_time_outlined,
-                trailing: Tag(
-                  s.isCheckedIn ? 'ACTIVE SHIFT' : 'OFF DUTY',
-                  color: s.isCheckedIn ? forest : amber,
-                  solid: true,
-                ),
-              ),
               if (s.attendances.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
@@ -510,7 +321,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ],
                           ),
                         ),
-                        Tag(isCheckIn ? 'IN' : 'OUT', color: c),
                       ],
                     ),
                   );
@@ -520,7 +330,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 width: double.infinity,
                 child:
                     s.isCheckedIn
-                        ? OutlinedButton.icon(
+                        ? OutlinedButton(
                           style: OutlinedButton.styleFrom(
                             foregroundColor: danger,
                             side: const BorderSide(color: danger, width: 1.5),
@@ -539,214 +349,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               );
                             }
                           },
-                          icon: const Icon(Icons.logout, size: 18),
-                          label: const Text('Check-out Sekarang'),
+                          child: const Text('Check-out Sekarang'),
                         )
-                        : FilledButton.icon(
-                          onPressed: () async {
-                            final err = await s.checkIn();
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    err ?? 'Check-in berhasil dicatat',
-                                  ),
-                                  backgroundColor:
-                                      err != null ? danger : forest,
-                                ),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.login, size: 18),
-                          label: const Text('Check-in Sekarang'),
+                        : FilledButton(
+                          style: FilledButton.styleFrom(
+                            disabledBackgroundColor: const Color(0xffe2e8f0),
+                            disabledForegroundColor: const Color(0xff94a3b8),
+                          ),
+                          onPressed: hasShift
+                              ? () async {
+                                  final err = await s.checkIn();
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          err ?? 'Check-in berhasil dicatat',
+                                        ),
+                                        backgroundColor:
+                                            err != null ? danger : forest,
+                                      ),
+                                    );
+                                  }
+                                }
+                              : null,
+                          child: Text(
+                            hasShift
+                                ? 'Check-in Sekarang'
+                                : 'Belum Ada Jadwal Shift',
+                          ),
                         ),
               ),
             ],
           ),
         ),
+
+        // Keluar Akun
         Panel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SectionHeading(
-                'Terminal Hardware Tuning',
-                '',
-                Icons.tune,
-                trailing: Tag('RH - 12 Profile', color: muted),
-              ),
-              toggle(
-                'Barcode Haptic Pulse',
-                'Vibration feedback on successful SKU barcode read',
-                'haptics',
-                p.haptics,
-                Icons.vibration,
-              ),
-              const SizedBox(height: 14),
-              toggle(
-                'Laser Acoustic Tone',
-                'High-pitch tone for noisy industrial environments',
-                'acoustic',
-                p.localAcoustic,
-                Icons.volume_up_outlined,
-              ),
-              const SizedBox(height: 18),
               const Text(
-                'Display Ergonomics',
+                'Keluar dari Aplikasi',
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: brandSlate,
+                  color: brandInk,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.2,
                 ),
               ),
               const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: const Color(0xfff1f5f9),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    for (final option in [false, true])
-                      Expanded(
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () => setState(() => night = option),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              color:
-                                  night == option
-                                      ? Colors.white
-                                      : Colors.transparent,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow:
-                                  night == option ? brandCardShadow : null,
-                            ),
-                            child: Text(
-                              option
-                                  ? '☾ Night Shift (Dark)'
-                                  : '☀ Day Shift (Light)',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: night == option ? brand : muted,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              toggle(
-                'High-Contrast Avionics HUD',
-                'Maximizes typography sharpness under direct halogen lighting',
-                'contrast',
-                p.highContrast,
-                Icons.contrast,
-              ),
-            ],
-          ),
-        ),
-        Panel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SectionHeading(
-                'Terminal Security',
-                '',
-                Icons.shield_outlined,
-                trailing: Tag('TLS 1.3 Pass'),
-              ),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: brandSoft,
-                  border: Border.all(color: brandSoftBorder),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Fast-Sign PIN',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: brandInk,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            '● ● ● ●',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: brandSlate,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(0, 40),
-                        backgroundColor: Colors.white,
-                      ),
-                      onPressed: changePin,
-                      child: const Text('Change PIN'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              toggle(
-                'Biometric Unlock',
-                'Permit optical scanner instant unlock',
-                'biometric',
-                p.biometric,
-                Icons.fingerprint,
-              ),
-              const SizedBox(height: 12),
-              const Tag(
-                '◷ Last authenticated: Today • Handheld RH - 12',
-                color: muted,
-              ),
-            ],
-          ),
-        ),
-        Panel(
-          tint: const Color(0xfffff1f2),
-          border: const Color(0xfffecdd3),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.logout, size: 22, color: danger),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Terminal Session Hand-Off',
-                      style: TextStyle(
-                        color: danger,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
               const Text(
-                'Logging out relinquishes the current terminal session before handing over this device.',
+                'Mengakhiri sesi akun staf pada perangkat ini.',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
@@ -757,35 +410,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 14),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton.icon(
+                child: FilledButton(
                   style: FilledButton.styleFrom(backgroundColor: danger),
                   onPressed: () async {
-                    final yes = await showDialog<bool>(
+                    final yes = await showModalBottomSheet<bool>(
                       context: context,
-                      builder:
-                          (c) => AlertDialog(
-                            title: const Text('Log out?'),
-                            content: const Text(
-                              'You will return to the login page.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(c, false),
-                                child: const Text('Cancel'),
-                              ),
-                              FilledButton(
-                                onPressed: () => Navigator.pop(c, true),
-                                child: const Text('Log Out'),
-                              ),
-                            ],
-                          ),
+                      isScrollControlled: true,
+                      useRootNavigator: true,
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      barrierColor: const Color(0x88000000),
+                      builder: (c) => const _LogoutConfirmSheet(),
                     );
                     if (yes == true) {
                       s.logout();
                     }
                   },
-                  icon: const Icon(Icons.power_settings_new, size: 18),
-                  label: const Text('Log Out'),
+                  child: const Text('Keluar'),
                 ),
               ),
             ],
@@ -804,15 +445,15 @@ class _ShiftCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: Colors.white.withAlpha(190),
-      borderRadius: BorderRadius.circular(16),
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(icon, size: 16, color: brand),
+            Icon(icon, size: 16, color: mint),
             const SizedBox(width: 5),
             Expanded(
               child: Text(
@@ -840,6 +481,134 @@ class _ShiftCard extends StatelessWidget {
   );
 }
 
+class _LogoutConfirmSheet extends StatelessWidget {
+  const _LogoutConfirmSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.topCenter,
+          children: [
+            // 1. Karakter Staf 3D di belakang box putih, menyembul keluar ke atas
+            Positioned(
+              top: 0,
+              child: IgnorePointer(
+                child: SizedBox(
+                  width: 270,
+                  height: 270,
+                  child: Image.asset(
+                    'assets/images/logout_staff.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
+
+            // 2. Box Putih Konten Modal
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 150),
+              padding: EdgeInsets.fromLTRB(24, 20, 24, 24 + bottomInset),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x1a000000),
+                    blurRadius: 24,
+                    offset: Offset(0, -6),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Handle bar
+                  Container(
+                    width: 38,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 18),
+                    decoration: BoxDecoration(
+                      color: const Color(0xffcbd5e1),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const Text(
+                    'Yakin Ingin Keluar?',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.3,
+                      color: brandInk,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 48,
+                          child: OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: brandSlate,
+                              side: const BorderSide(
+                                color: Color(0xffcbd5e1),
+                                width: 1.3,
+                              ),
+                              shape: const StadiumBorder(),
+                            ),
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text(
+                              'Batal',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SizedBox(
+                          height: 48,
+                          child: FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: danger,
+                              foregroundColor: Colors.white,
+                              shape: const StadiumBorder(),
+                            ),
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text(
+                              'Ya, Keluar',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class EditProfile extends StatefulWidget {
   const EditProfile({super.key});
   @override
@@ -848,7 +617,7 @@ class EditProfile extends StatefulWidget {
 
 class _EditProfileState extends State<EditProfile> {
   final form = GlobalKey<FormState>();
-  late TextEditingController name, phone, emergency;
+  late TextEditingController name;
   String? saveError;
 
   @override
@@ -856,27 +625,12 @@ class _EditProfileState extends State<EditProfile> {
     super.initState();
     final staff = context.read<WarehouseState>().staff;
     name = TextEditingController(text: staff.name);
-    phone = TextEditingController(text: staff.phone);
-    emergency = TextEditingController(text: staff.emergency);
   }
 
   @override
   void dispose() {
     name.dispose();
-    phone.dispose();
-    emergency.dispose();
     super.dispose();
-  }
-
-  String? validatePhone(String? value, {bool optional = false}) {
-    final input = (value ?? '').trim();
-    if (optional && input.isEmpty) {
-      return null;
-    }
-    if (!RegExp(r'^\+?[0-9]{8,15}$').hasMatch(input)) {
-      return 'Use 8–15 digits, optionally starting with +.';
-    }
-    return null;
   }
 
   void save() {
@@ -884,7 +638,7 @@ class _EditProfileState extends State<EditProfile> {
       return;
     }
     final state = context.read<WarehouseState>();
-    final error = state.updateStaff(name.text, phone.text, emergency.text);
+    final error = state.updateStaff(name.text);
     if (error != null) {
       setState(() => saveError = error);
       return;
@@ -893,14 +647,14 @@ class _EditProfileState extends State<EditProfile> {
     final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
     messenger.showSnackBar(
-      const SnackBar(content: Text('Profile updated successfully.')),
+      const SnackBar(content: Text('Profil berhasil diperbarui.')),
     );
   }
 
   @override
   Widget build(BuildContext context) => FlowBody(
-    title: 'Edit Staff Profile',
-    subtitle: 'Update your personal contact information',
+    title: 'Edit Profil Staf',
+    subtitle: 'Perbarui nama staf Anda',
     children: [
       Form(
         key: form,
@@ -910,45 +664,21 @@ class _EditProfileState extends State<EditProfile> {
             TextFormField(
               controller: name,
               textCapitalization: TextCapitalization.words,
-              textInputAction: TextInputAction.next,
+              textInputAction: TextInputAction.done,
               decoration: const InputDecoration(
-                labelText: 'Full Name',
+                labelText: 'Nama Lengkap',
                 prefixIcon: Icon(Icons.person_outline),
               ),
               validator:
                   (value) =>
                       value == null || value.trim().isEmpty
-                          ? 'Enter your full name.'
+                          ? 'Masukkan nama lengkap.'
                           : null,
-            ),
-            const SizedBox(height: 15),
-            TextFormField(
-              controller: phone,
-              keyboardType: TextInputType.phone,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Phone Number',
-                hintText: '081234567890',
-                prefixIcon: Icon(Icons.phone_outlined),
-              ),
-              validator: (value) => validatePhone(value),
-            ),
-            const SizedBox(height: 15),
-            TextFormField(
-              controller: emergency,
-              keyboardType: TextInputType.phone,
-              textInputAction: TextInputAction.done,
-              decoration: const InputDecoration(
-                labelText: 'Emergency Contact',
-                hintText: 'Optional contact number',
-                prefixIcon: Icon(Icons.emergency_outlined),
-              ),
-              validator: (value) => validatePhone(value, optional: true),
               onFieldSubmitted: (_) => save(),
             ),
             const SizedBox(height: 14),
             const Text(
-              'Internal staff email, badge ID, shift and warehouse assignments are managed by your manager.',
+              'Email staf, ID staf, dan jadwal shift dikelola langsung oleh manajer gudang.',
               style: TextStyle(fontSize: 12, color: muted, height: 1.4),
             ),
             if (saveError != null)
@@ -964,15 +694,14 @@ class _EditProfileState extends State<EditProfile> {
                 ),
               ),
             const SizedBox(height: 22),
-            FilledButton.icon(
+            FilledButton(
               onPressed: save,
-              icon: const Icon(Icons.save_outlined, size: 18),
-              label: const Text('Save Profile'),
+              child: const Text('Simpan Profil'),
             ),
             const SizedBox(height: 7),
             OutlinedButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: const Text('Batal'),
             ),
           ],
         ),

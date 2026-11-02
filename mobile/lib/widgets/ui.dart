@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../core/app_theme.dart';
 import '../models/models.dart';
 
@@ -7,24 +8,42 @@ class Panel extends StatelessWidget {
   final Color? tint;
   final EdgeInsets padding;
   final Color border;
+  final VoidCallback? onTap;
   const Panel({
     super.key,
     required this.child,
     this.tint,
     this.padding = const EdgeInsets.all(14),
     this.border = Colors.transparent,
+    this.onTap,
   });
   @override
   Widget build(BuildContext context) => Container(
     margin: const EdgeInsets.only(bottom: 12),
-    padding: padding,
     decoration: BoxDecoration(
       color: tint ?? Colors.white,
       borderRadius: BorderRadius.circular(20),
       border: Border.all(color: border),
       boxShadow: brandCardShadow,
     ),
-    child: child,
+    child: Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(20),
+      child: onTap != null
+          ? InkWell(
+              borderRadius: BorderRadius.circular(20),
+              focusColor: Colors.transparent,
+              hoverColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              splashColor: brand.withAlpha(20),
+              onTap: () {
+                FocusScope.of(context).unfocus();
+                onTap!();
+              },
+              child: Padding(padding: padding, child: child),
+            )
+          : Padding(padding: padding, child: child),
+    ),
   );
 }
 
@@ -225,7 +244,14 @@ class StockCard extends StatelessWidget {
   final StockItem item;
   final Widget? actions;
   final bool compact;
-  const StockCard(this.item, {super.key, this.actions, this.compact = false});
+  final VoidCallback? onTap;
+  const StockCard(
+    this.item, {
+    super.key,
+    this.actions,
+    this.compact = false,
+    this.onTap,
+  });
   @override
   Widget build(BuildContext context) {
     final color = statusColor(item.status);
@@ -236,6 +262,7 @@ class StockCard extends StatelessWidget {
       StockStatus.safe => 'SAFE STOCK',
     };
     return Panel(
+      onTap: onTap,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -245,7 +272,7 @@ class StockCard extends StatelessWidget {
               Tag(
                 label,
                 color: color,
-                solid: item.status == StockStatus.critical,
+                solid: true,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -258,7 +285,13 @@ class StockCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (!compact && item.status == StockStatus.critical)
+              if (onTap != null)
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 13,
+                  color: muted,
+                )
+              else if (!compact && item.status == StockStatus.critical)
                 const Icon(Icons.flag, size: 16, color: Color(0xff94a3b8)),
             ],
           ),
@@ -319,12 +352,13 @@ class StockCard extends StatelessWidget {
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'CURRENT FLOOR COUNT',
+                            'STOK SAAT INI',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
@@ -347,9 +381,9 @@ class StockCard extends StatelessWidget {
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
-                                const TextSpan(
-                                  text: ' Units',
-                                  style: TextStyle(
+                                TextSpan(
+                                  text: ' ${item.unit}',
+                                  style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                     color: muted,
@@ -364,7 +398,8 @@ class StockCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           const Text(
-                            'SAFE MIN REQUIRED',
+                            'BATAS MINIMUM',
+                            textAlign: TextAlign.right,
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
@@ -372,13 +407,26 @@ class StockCard extends StatelessWidget {
                               letterSpacing: .4,
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 5),
                           Text(
-                            '${item.minimum} Units',
+                            '${item.minimum} ${item.unit}',
+                            textAlign: TextAlign.right,
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
                               color: brandInk,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            item.price > 0
+                                ? '${formatRupiah(item.price)} / ${item.unit}'
+                                : 'Satuan: ${item.unit}',
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: muted,
                             ),
                           ),
                         ],
@@ -399,34 +447,18 @@ class StockCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          switch (item.status) {
-                            StockStatus.critical =>
-                              '↓ -18.4 units/hr pick rate',
-                            StockStatus.anomaly => '● +180% Outbound Spike',
-                            StockStatus.discrepancy =>
-                              'Log differs by -5 units',
-                            StockStatus.safe => '✓ Buffer Maintained',
-                          },
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: color,
-                          ),
-                        ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      item.quantity < item.minimum
+                          ? 'Stok Kurang dari Batas Minimum'
+                          : 'Stok Memenuhi Kuota',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: color,
                       ),
-                      Text(
-                        '${item.daysLeft.toStringAsFixed(1)} days buffer',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: muted,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),
@@ -469,6 +501,51 @@ class CountControl extends StatelessWidget {
     required this.onChanged,
     this.system,
   });
+
+  // Dialog untuk mengetik jumlah langsung. Dibatasi 6 digit supaya angka
+  // tetap muat di layar.
+  Future<void> _type(BuildContext context) async {
+    final field = TextEditingController(text: '$value');
+    field.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: field.text.length,
+    );
+    final result = await showDialog<int>(
+      context: context,
+      builder:
+          (c) => AlertDialog(
+            title: const Text('Enter quantity'),
+            content: TextField(
+              controller: field,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(6),
+              ],
+              decoration: const InputDecoration(hintText: 'Units'),
+              onSubmitted: (v) => Navigator.pop(c, int.tryParse(v)),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, int.tryParse(field.text)),
+                child: const Text('Set'),
+              ),
+            ],
+          ),
+    );
+    // Menunggu animasi tutup dialog selesai sebelum controller dibuang.
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    field.dispose();
+    if (result != null) {
+      onChanged(result);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Column(
     children: [
@@ -492,20 +569,37 @@ class CountControl extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Column(
-              children: [
-                Text(
-                  '$value',
-                  style: const TextStyle(
-                    fontSize: 42,
-                    fontWeight: FontWeight.w800,
-                  ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => _type(context),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '$value',
+                        style: const TextStyle(
+                          fontSize: 42,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'UNITS',
+                          style: TextStyle(fontSize: 11, color: muted),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(Icons.edit_outlined, size: 12, color: muted),
+                      ],
+                    ),
+                  ],
                 ),
-                const Text(
-                  'UNITS',
-                  style: TextStyle(fontSize: 11, color: muted),
-                ),
-              ],
+              ),
             ),
           ),
           IconButton(
@@ -618,12 +712,13 @@ class StockCountBox extends StatelessWidget {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'CURRENT FLOOR COUNT',
+                    'STOK SAAT INI',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
@@ -633,7 +728,7 @@ class StockCountBox extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    '${item.quantity} Units',
+                    '${item.quantity} ${item.unit}',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w900,
@@ -646,7 +741,8 @@ class StockCountBox extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   const Text(
-                    'SAFE MIN REQUIRED',
+                    'BATAS MINIMUM',
+                    textAlign: TextAlign.right,
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
@@ -654,13 +750,26 @@ class StockCountBox extends StatelessWidget {
                       letterSpacing: .4,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 5),
                   Text(
-                    '${item.minimum} Units',
+                    '${item.minimum} ${item.unit}',
+                    textAlign: TextAlign.right,
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
                       color: brandInk,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.price > 0
+                        ? '${formatRupiah(item.price)} / ${item.unit}'
+                        : 'Satuan: ${item.unit}',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: muted,
                     ),
                   ),
                 ],
@@ -678,26 +787,18 @@ class StockCountBox extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '↓ Physical floor telemetry',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              item.quantity < item.minimum
+                  ? 'Stok Kurang dari Batas Minimum'
+                  : 'Stok Memenuhi Kuota',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: color,
               ),
-              Text(
-                '${item.daysLeft.toStringAsFixed(1)} days buffer',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: muted,
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),

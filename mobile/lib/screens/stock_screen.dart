@@ -14,7 +14,7 @@ class StockScreen extends StatefulWidget {
 
 class _StockScreenState extends State<StockScreen> {
   late TextEditingController search;
-  bool flaggedOnly = false, notifiedOnly = false;
+
   @override
   void initState() {
     super.initState();
@@ -30,25 +30,8 @@ class _StockScreenState extends State<StockScreen> {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<WarehouseState>();
-    final items =
-        s.filteredItems
-            .where(
-              (i) =>
-                  (!flaggedOnly ||
-                      s.activities.any(
-                        (a) =>
-                            a.title == 'Stock discrepancy reported' &&
-                            a.detail.contains(i.sku),
-                      )) &&
-                  (!notifiedOnly ||
-                      s.alerts.any(
-                        (a) =>
-                            a.title == 'Discrepancy awaiting manager review' &&
-                            a.message.contains(i.sku),
-                      )),
-            )
-            .toList();
-    final hasFilter = s.filter.active || flaggedOnly || notifiedOnly;
+    final items = s.filteredItems;
+    final hasFilter = s.filter.active;
     return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
@@ -58,61 +41,49 @@ class _StockScreenState extends State<StockScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Judul halaman sudah ada di top bar, jadi di sini cukup
-                // keterangan singkat + badge mode.
                 const Padding(
-                  padding: EdgeInsets.only(bottom: 14),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Floor Staff View • Inventory',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: brandSlate,
-                          ),
-                        ),
-                      ),
-                      _AuditMode(),
-                    ],
+                  padding: EdgeInsets.only(top: 8, bottom: 16),
+                  child: Text(
+                    'Stok & Rak Gudang',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.3,
+                      color: brandInk,
+                    ),
                   ),
                 ),
 
                 // Ringkasan stok hari ini
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _StockMetric(
-                        'Safe Stock',
-                        '${s.safePercent.toStringAsFixed(1)}%',
-                        '• Safe Limits',
-                        mint,
-                        Icons.inventory_2_outlined,
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: _StockMetric(
+                          'Safe Stock',
+                          '${s.safePercent.toStringAsFixed(1)}%',
+                          mint,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _StockMetric(
-                        'Today Inflow',
-                        s.inflow == 0 ? '0' : '+${s.inflow}',
-                        '• Units Received',
-                        mint,
-                        Icons.arrow_downward,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _StockMetric(
+                          'Putaway',
+                          '${s.inflow}',
+                          mint,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _StockMetric(
-                        'Today Outflow',
-                        s.outflow == 0 ? '0' : '-${s.outflow}',
-                        '• Dispatched',
-                        danger,
-                        Icons.arrow_upward,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _StockMetric(
+                          'Dispatching',
+                          '${s.outflow}',
+                          danger,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 4),
 
@@ -188,19 +159,7 @@ class _StockScreenState extends State<StockScreen> {
                           ),
                           shape: const CircleBorder(),
                         ),
-                        onPressed:
-                            () => flowSheet(
-                              context,
-                              FilterFlow(
-                                flaggedInitial: flaggedOnly,
-                                notifiedInitial: notifiedOnly,
-                                onExtraFilters:
-                                    (flags) => setState(() {
-                                      flaggedOnly = flags.$1;
-                                      notifiedOnly = flags.$2;
-                                    }),
-                              ),
-                            ),
+                        onPressed: () => flowSheet(context, const FilterFlow()),
                         child: Stack(
                           clipBehavior: Clip.none,
                           children: [
@@ -222,75 +181,9 @@ class _StockScreenState extends State<StockScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    // Tombol scan: lingkaran hijau (aksi utama)
-                    SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: FilledButton(
-                        style: FilledButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: Size.zero,
-                          backgroundColor: brand,
-                          foregroundColor: Colors.white,
-                          shape: const CircleBorder(),
-                        ),
-                        onPressed: () => openStockScan(context),
-                        child: const Icon(Icons.qr_code_scanner, size: 22),
-                      ),
-                    ),
                   ],
                 ),
-                const SizedBox(height: 14),
-
-                if (!hasFilter)
-                  Panel(
-                    tint: const Color(0xfffffbeb),
-                    border: const Color(0xfffde68a),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(7),
-                          decoration: BoxDecoration(
-                            color: amber.withAlpha(30),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.warning_amber_rounded,
-                            size: 20,
-                            color: amber,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'AI Priority Alert: ${s.criticalCount} SKUs require immediate floor intervention due to low threshold & sudden pick spikes.',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xff513a16),
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.4,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              const Text(
-                                '• Updated 3m ago',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: muted,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                const SizedBox(height: 10),
                 if (hasFilter)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
@@ -307,14 +200,8 @@ class _StockScreenState extends State<StockScreen> {
                           ),
                         ),
                         TextButton(
-                          onPressed: () {
-                            setState(() {
-                              flaggedOnly = false;
-                              notifiedOnly = false;
-                            });
-                            s.applyFilter(const StockFilter());
-                          },
-                          child: const Text('Clear Filters'),
+                          onPressed: () => s.applyFilter(const StockFilter()),
+                          child: const Text('Hapus Filter'),
                         ),
                       ],
                     ),
@@ -325,7 +212,7 @@ class _StockScreenState extends State<StockScreen> {
         ),
         if (items.isEmpty)
           const SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 100),
             sliver: SliverToBoxAdapter(
               child: Panel(
                 child: Text('No products match your search and filters.'),
@@ -334,117 +221,14 @@ class _StockScreenState extends State<StockScreen> {
           )
         else
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
             sliver: SliverList.builder(
               itemCount: items.length,
               itemBuilder: (context, index) {
                 final i = items[index];
                 return StockCard(
                   i,
-                  actions: switch (i.status) {
-                    StockStatus.critical => Row(
-                      children: [
-                        Expanded(
-                          child: SizedBox(
-                            height: 48,
-                            child: FilledButton.icon(
-                              style: FilledButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                ),
-                              ),
-                              onPressed: () => openRack(context, i.sku),
-                              icon: const Icon(Icons.check, size: 16),
-                              label: const Text(
-                                'Verify Rack Count',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: SizedBox(
-                            height: 48,
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                ),
-                              ),
-                              onPressed: () => openDiscrepancy(context, i.sku),
-                              icon: const Icon(
-                                Icons.notifications_none,
-                                size: 16,
-                              ),
-                              label: const Text(
-                                'Notify Manager',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    StockStatus.anomaly => SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(backgroundColor: danger),
-                        onPressed: () => openDiscrepancy(context, i.sku),
-                        icon: const Icon(Icons.trending_up, size: 16),
-                        label: const Text('Flag Audit Scan'),
-                      ),
-                    ),
-                    StockStatus.discrepancy => SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(backgroundColor: amber),
-                        onPressed:
-                            () => openStockScan(context, demoCode: i.sku),
-                        icon: const Icon(Icons.qr_code_scanner, size: 16),
-                        label: const Text('Scan Barcode'),
-                      ),
-                    ),
-                    StockStatus.safe => Align(
-                      alignment: Alignment.centerLeft,
-                      child: SizedBox(
-                        height: 44,
-                        child: TextButton.icon(
-                          style: TextButton.styleFrom(
-                            backgroundColor: brandSoft,
-                            foregroundColor: brand,
-                            shape: const StadiumBorder(),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                          ),
-                          icon: const Icon(Icons.info_outline, size: 16),
-                          onPressed:
-                              () => flowSheet(context, _StockDetail(sku: i.sku)),
-                          label: const Text(
-                            'Details',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  },
+                  onTap: () => flowSheet(context, _StockDetail(sku: i.sku)),
                 );
               },
             ),
@@ -454,43 +238,18 @@ class _StockScreenState extends State<StockScreen> {
   }
 }
 
-class _AuditMode extends StatelessWidget {
-  const _AuditMode();
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-    decoration: BoxDecoration(
-      color: brandSoft,
-      border: Border.all(color: brandSoftBorder),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: const Text(
-      '◎ Audit Mode',
-      style: TextStyle(fontSize: 11, color: brand, fontWeight: FontWeight.w800),
-    ),
-  );
-}
-
 class _StockMetric extends StatelessWidget {
-  final String label, value, foot;
+  final String label, value;
   final Color color;
-  final IconData icon;
-  const _StockMetric(this.label, this.value, this.foot, this.color, this.icon);
+  const _StockMetric(this.label, this.value, this.color);
+
   @override
   Widget build(BuildContext context) => Panel(
-    padding: const EdgeInsets.all(12),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: color.withAlpha(24),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, size: 16, color: color),
-        ),
-        const SizedBox(height: 10),
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
@@ -498,33 +257,25 @@ class _StockMetric extends StatelessWidget {
             value,
             maxLines: 1,
             style: TextStyle(
-              fontSize: 20,
-              letterSpacing: -0.3,
-              color: label == 'Safe Stock' ? brandInk : color,
+              fontSize: 26,
+              letterSpacing: -0.5,
+              color: color,
               fontWeight: FontWeight.w900,
             ),
           ),
         ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: brandSlate,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          foot,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: label == 'Safe Stock' ? mint : muted,
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            label,
+            maxLines: 1,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: brandSlate,
+            ),
           ),
         ),
       ],
@@ -540,14 +291,8 @@ class _StockDetail extends StatelessWidget {
 }
 
 class FilterFlow extends StatefulWidget {
-  final bool flaggedInitial, notifiedInitial;
-  final ValueChanged<(bool, bool)>? onExtraFilters;
-  const FilterFlow({
-    super.key,
-    this.flaggedInitial = false,
-    this.notifiedInitial = false,
-    this.onExtraFilters,
-  });
+  const FilterFlow({super.key});
+
   @override
   State<FilterFlow> createState() => _FilterFlowState();
 }
@@ -555,8 +300,7 @@ class FilterFlow extends StatefulWidget {
 class _FilterFlowState extends State<FilterFlow> {
   late Set<StockStatus> statuses;
   late String zone, sort;
-  late bool pending;
-  late bool flagged, notified;
+
   @override
   void initState() {
     super.initState();
@@ -564,91 +308,69 @@ class _FilterFlowState extends State<FilterFlow> {
     statuses = {...f.statuses};
     zone = f.zone;
     sort = f.sort;
-    pending = f.pendingOnly;
-    flagged = widget.flaggedInitial;
-    notified = widget.notifiedInitial;
   }
 
   @override
   Widget build(BuildContext context) => FlowBody(
-    title: 'Filter Stock and\nAssets',
-    subtitle: '',
+    title: 'Filter Stok Barang',
+    subtitle: 'Saring stok berdasarkan status dan lokasi rak',
     children: [
-      Align(
-        alignment: Alignment.centerRight,
-        child: TextButton(
-          onPressed:
-              () => setState(() {
-                statuses.clear();
-                zone = 'All Zones';
-                sort = 'Urgency';
-                pending = false;
-                flagged = false;
-                notified = false;
-              }),
-          child: const Tag('RESET FILTERS', color: danger),
-        ),
-      ),
       const _FilterLabel(
-        'STOCK HEALTH STATUS',
+        'STATUS KESEHATAN STOK',
         Icons.health_and_safety_outlined,
       ),
-      GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 9,
-        childAspectRatio: 4.2,
-        children:
-            [
-              StockStatus.critical,
-              StockStatus.anomaly,
-              StockStatus.discrepancy,
-              StockStatus.safe,
-            ].map((status) {
-              final selected = statuses.contains(status);
-              final label = switch (status) {
-                StockStatus.critical => 'Critical Stockout',
-                StockStatus.anomaly => 'Velocity Anomaly',
-                StockStatus.discrepancy => 'Stock Discrepancy',
-                StockStatus.safe => 'Safe Stock',
-              };
-              return OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  minimumSize: Size.zero,
-                  backgroundColor:
-                      selected
-                          ? statusColor(status).withAlpha(18)
-                          : Colors.white,
-                  side: BorderSide(
-                    color: selected ? statusColor(status) : line,
-                    width: 1.4,
-                  ),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          StockStatus.critical,
+          StockStatus.discrepancy,
+          StockStatus.safe,
+        ].map((status) {
+          final selected = statuses.contains(status);
+          final label = switch (status) {
+            StockStatus.critical => 'Kritis / Menipis',
+            StockStatus.discrepancy => 'Selisih Stok',
+            StockStatus.safe => 'Stok Aman',
+            _ => '',
+          };
+          return SizedBox(
+            width: 157,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 42),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                backgroundColor:
+                    selected ? statusColor(status).withAlpha(18) : Colors.white,
+                side: BorderSide(
+                  color: selected ? statusColor(status) : line,
+                  width: 1.4,
                 ),
-                onPressed:
-                    () => setState(() {
-                      if (selected) {
-                        statuses.remove(status);
-                      } else {
-                        statuses.add(status);
-                      }
-                    }),
-                child: Text(
-                  '${selected ? '✓ ' : ''}$label',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: selected ? statusColor(status) : muted,
-                  ),
+              ),
+              onPressed: () => setState(() {
+                if (selected) {
+                  statuses.remove(status);
+                } else {
+                  statuses.add(status);
+                }
+              }),
+              child: Text(
+                '${selected ? '✓ ' : ''}$label',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? statusColor(status) : muted,
                 ),
-              );
-            }).toList(),
+              ),
+            ),
+          );
+        }).toList(),
       ),
-      const SizedBox(height: 22),
+      const SizedBox(height: 20),
       const _FilterLabel(
-        'WAREHOUSE ZONE / LOCATION',
+        'ZONA / LOKASI RAK',
         Icons.location_on_outlined,
       ),
       Wrap(
@@ -661,7 +383,7 @@ class _FilterFlowState extends State<FilterFlow> {
                     width: 157,
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(0, 44),
+                        minimumSize: const Size(0, 42),
                         backgroundColor: zone == z ? brand : Colors.white,
                         side: BorderSide(
                           color: zone == z ? brand : line,
@@ -682,64 +404,11 @@ class _FilterFlowState extends State<FilterFlow> {
                 )
                 .toList(),
       ),
-      const SizedBox(height: 22),
-      const _FilterLabel('ACTION REQUIRED', Icons.fact_check_outlined),
-      Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: line),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: CheckboxListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 6),
-          dense: true,
-          activeColor: brand,
-          value: pending,
-          controlAffinity: ListTileControlAffinity.leading,
-          title: const Text(
-            'Pending Physical Verification',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-          ),
-          onChanged: (v) => setState(() => pending = v ?? false),
-        ),
-      ),
-      const SizedBox(height: 9),
-      ...[(false, 'Flagged for Audit Scan'), (true, 'Notified Floor Lead')].map(
-        (entry) => Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            border: Border.all(color: line),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: CheckboxListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 6),
-            dense: true,
-            activeColor: brand,
-            value: entry.$1 ? notified : flagged,
-            controlAffinity: ListTileControlAffinity.leading,
-            title: Text(
-              entry.$2,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            onChanged:
-                (value) => setState(() {
-                  if (entry.$1) {
-                    notified = value ?? false;
-                  } else {
-                    flagged = value ?? false;
-                  }
-                }),
-          ),
-        ),
-      ),
       const SizedBox(height: 20),
-      const _FilterLabel('SORT STOCK PRIORITY', Icons.sort),
+      const _FilterLabel('URUTKAN BERDASARKAN', Icons.sort),
       ...[
-        ('Urgency', 'Highest AI Urgency'),
-        ('Days Left', 'Lowest Buffer Days Remaining'),
-        ('SKU', 'SKU / Item Name (A - Z)'),
+        ('Urgency', 'Paling Kritis / Mendesak'),
+        ('SKU', 'Nama / SKU Barang (A - Z)'),
       ].map(
         (v) => Container(
           margin: const EdgeInsets.only(bottom: 8),
@@ -772,25 +441,72 @@ class _FilterFlowState extends State<FilterFlow> {
           ),
         ),
       ),
-      FilledButton.icon(
-        onPressed: () {
-          widget.onExtraFilters?.call((flagged, notified));
-          context.read<WarehouseState>().applyFilter(
-            StockFilter(
-              statuses: {...statuses},
-              zone: zone,
-              pendingOnly: pending,
-              sort: sort,
+      const SizedBox(height: 14),
+      Row(
+        children: [
+          Expanded(
+            flex: 1,
+            child: SizedBox(
+              height: 48,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: const Color(0xfffff1f2),
+                  foregroundColor: danger,
+                  side: const BorderSide(color: danger, width: 1.4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                ),
+                onPressed: () => setState(() {
+                  statuses.clear();
+                  zone = 'All Zones';
+                  sort = 'Urgency';
+                }),
+                icon: const Icon(Icons.restart_alt_rounded, size: 16),
+                label: const Text(
+                  'Reset',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
             ),
-          );
-          Navigator.pop(context);
-        },
-        icon: const Icon(Icons.check, size: 16),
-        label: const Text('Apply Filters'),
-      ),
-      OutlinedButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Dismiss and Cancel', style: TextStyle(fontSize: 12)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: SizedBox(
+              height: 48,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: brand,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                ),
+                onPressed: () {
+                  context.read<WarehouseState>().applyFilter(
+                    StockFilter(
+                      statuses: {...statuses},
+                      zone: zone,
+                      sort: sort,
+                    ),
+                  );
+                  Navigator.pop(context);
+                },
+                child: const Text(
+                  'Terapkan Filter',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     ],
   );

@@ -22,7 +22,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/images/warehouse_staff.png
+    - assets/images/
 
   fonts:
     - family: PlusJakartaSans

@@ -43,57 +43,7 @@ class WarehouseState extends ChangeNotifier {
 
   StockFilter filter = const StockFilter();
   String search = '';
-  final List<StockItem> _items = [
-    StockItem(
-      sku: 'SKU-9249',
-      name: 'Heavy-Duty Industrial Bearings 45mm',
-      rack: 'RACK-A4-02-B',
-      zone: 'Zone A',
-      quantity: 142,
-      minimum: 500,
-      dailyUsage: 79,
-      pendingVerification: true,
-    ),
-    StockItem(
-      sku: 'SKU-1844',
-      name: 'High-Density Polyethylene Drum 200L',
-      rack: 'RACK-B2-01-C',
-      zone: 'Zone B',
-      quantity: 96,
-      minimum: 450,
-      dailyUsage: 38,
-      anomaly: true,
-    ),
-    StockItem(
-      sku: 'SKU-482',
-      name: 'Micro-Controller Integrated Board v2',
-      rack: 'RACK-C1-03-A',
-      zone: 'Zone C',
-      quantity: 380,
-      minimum: 450,
-      dailyUsage: 106,
-      discrepancy: true,
-      pendingVerification: true,
-    ),
-    StockItem(
-      sku: 'SKU-911',
-      name: 'Lithium-Ion Battery Pack 48V 100Ah',
-      rack: 'RACK-D2-02-A',
-      zone: 'Zone D',
-      quantity: 640,
-      minimum: 250,
-      dailyUsage: 35,
-    ),
-    StockItem(
-      sku: 'SKU-610',
-      name: 'Hydraulic Seal Gasket Nitrile 80 A',
-      rack: 'RACK-A1-01-A',
-      zone: 'Zone A',
-      quantity: 7238,
-      minimum: 450,
-      dailyUsage: 111,
-    ),
-  ];
+  final List<StockItem> _items = [];
 
   // Master data and attendance lists from backend
   List<Map<String, dynamic>> locations = [];
@@ -119,19 +69,22 @@ class WarehouseState extends ChangeNotifier {
     final normalized = sku.trim().toUpperCase();
     return _items.firstWhere(
       (i) => i.sku.toUpperCase() == normalized,
-      orElse: () => _items.isNotEmpty
-          ? _items.first
-          : StockItem(
-              sku: sku,
-              name: 'Unknown Item',
-              rack: 'RACK-A1-01-A',
-              zone: 'Zone A',
-              quantity: 0,
-              minimum: 0,
-              dailyUsage: 0,
-            ),
+      orElse:
+          () =>
+              _items.isNotEmpty
+                  ? _items.first
+                  : StockItem(
+                    sku: sku,
+                    name: 'Unknown Item',
+                    rack: 'RACK-A1-01-A',
+                    zone: 'Zone A',
+                    quantity: 0,
+                    minimum: 0,
+                    dailyUsage: 0,
+                  ),
     );
   }
+
   StockItem? resolve(String code) {
     final normalized = code.trim().toUpperCase();
     for (final i in _items) {
@@ -149,10 +102,13 @@ class WarehouseState extends ChangeNotifier {
     }
     return RegExp(r'^RACK-[A-D][0-9]+-[0-9]+-[A-Z]$').hasMatch(normalized);
   }
+
   double get safePercent =>
-      _items.where((i) => i.status == StockStatus.safe).length /
-      _items.length *
-      100;
+      _items.isEmpty
+          ? 0.0
+          : (_items.where((i) => i.status == StockStatus.safe).length /
+              _items.length *
+              100);
   int get criticalCount => _items.where((i) => i.quantity < i.minimum).length;
   int get pendingCount => _items.where((i) => i.pendingVerification).length;
   int get inflow => _todayTotal(MovementKind.stockIn);
@@ -160,12 +116,12 @@ class WarehouseState extends ChangeNotifier {
 
   List<double> get weeklyInflow {
     final now = DateTime.now();
-    return List.generate(6, (index) {
+    return List.generate(7, (index) {
       final targetDate = DateTime(
         now.year,
         now.month,
         now.day,
-      ).subtract(Duration(days: 5 - index));
+      ).subtract(Duration(days: 6 - index));
       return _activities
           .where(
             (a) =>
@@ -180,12 +136,12 @@ class WarehouseState extends ChangeNotifier {
 
   List<double> get weeklyOutflow {
     final now = DateTime.now();
-    return List.generate(6, (index) {
+    return List.generate(7, (index) {
       final targetDate = DateTime(
         now.year,
         now.month,
         now.day,
-      ).subtract(Duration(days: 5 - index));
+      ).subtract(Duration(days: 6 - index));
       return _activities
           .where(
             (a) =>
@@ -211,10 +167,24 @@ class WarehouseState extends ChangeNotifier {
         .fold(0, (sum, a) => sum + a.quantity);
   }
 
-  int get totalStockUnits =>
-      _items.fold<int>(0, (sum, i) => sum + i.quantity);
+  int _todayCount(MovementKind kind) {
+    final now = DateTime.now();
+    return _activities
+        .where(
+          (a) =>
+              a.kind == kind &&
+              a.time.year == now.year &&
+              a.time.month == now.month &&
+              a.time.day == now.day,
+        )
+        .length;
+  }
+
+  int get totalStockUnits => _items.fold<int>(0, (sum, i) => sum + i.quantity);
   int get inboundTotal => inflow;
   int get outboundTotal => outflow;
+  int get inboundTxCount => _todayCount(MovementKind.stockIn);
+  int get outboundTxCount => _todayCount(MovementKind.stockOut);
   List<StockItem> get filteredItems {
     final q = search.trim().toLowerCase();
     final list =
@@ -270,8 +240,7 @@ class WarehouseState extends ChangeNotifier {
           staff.role = user['role'] ?? 'staf';
           final userIdNum = staff.id ?? 1;
           staff.staffId = 'STF-${userIdNum.toString().padLeft(3, '0')}';
-          staff.badge =
-              'WH-${staff.role.toUpperCase()}-${userIdNum.toString().padLeft(3, '0')}';
+          staff.badge = '';
         }
         loggedIn = true;
         page = 0;
@@ -322,6 +291,19 @@ class WarehouseState extends ChangeNotifier {
   Future<void> loadFromApi() async {
     if (token == null) return;
     try {
+      // Ambil master data lokasi, kategori, dan supplier untuk sinkronisasi
+      final locs = await api.getLocations(token!);
+      if (locs != null) locations = locs;
+
+      final cats = await api.getCategories(token!);
+      if (cats != null) categories = cats;
+
+      final sups = await api.getSuppliers(token!);
+      if (sups != null) suppliers = sups;
+
+      final catMap = {for (final c in categories) _parseInt(c['id']): c['name']?.toString()};
+      final supMap = {for (final s in suppliers) _parseInt(s['id']): s['name']?.toString()};
+
       final products = await api.getProducts(token!);
       if (products != null) {
         _items.clear();
@@ -338,6 +320,11 @@ class WarehouseState extends ChangeNotifier {
           final qty = _parseInt(p['stock_quantity']);
           final prc = _parseDouble(p['price']);
           final id = _parseInt(p['id']);
+          final catId = p['category_id'] == null ? null : _parseInt(p['category_id']);
+          final supId = p['supplier_id'] == null ? null : _parseInt(p['supplier_id']);
+          final catName = catId != null ? catMap[catId] : null;
+          final supName = supId != null ? supMap[supId] : null;
+
           _items.add(
             StockItem(
               id: id,
@@ -350,6 +337,8 @@ class WarehouseState extends ChangeNotifier {
               dailyUsage: 0.0,
               price: prc,
               unit: (p['unit'] ?? 'pcs').toString(),
+              category: catName,
+              supplier: supName,
             ),
           );
         }
@@ -380,16 +369,6 @@ class WarehouseState extends ChangeNotifier {
           );
         }
       }
-
-      // Ambil master data lokasi, kategori, dan supplier untuk sinkronisasi
-      final locs = await api.getLocations(token!);
-      if (locs != null) locations = locs;
-
-      final cats = await api.getCategories(token!);
-      if (cats != null) categories = cats;
-
-      final sups = await api.getSuppliers(token!);
-      if (sups != null) suppliers = sups;
 
       // Ambil jadwal shift aktual milik staf
       final shifts = await api.getMyShifts(token!);
@@ -462,15 +441,17 @@ class WarehouseState extends ChangeNotifier {
   }
 
   Future<String?> checkIn() async {
+    final hasShift =
+        currentShift.isNotEmpty && currentShift != 'Belum ada jadwal shift';
+    if (token != null && !hasShift) {
+      return 'Anda belum memiliki jadwal shift aktif';
+    }
     if (token == null) {
       isCheckedIn = true;
       lastAttendanceTime = DateTime.now();
       _activities.insert(
         0,
-        Activity(
-          'Check-in Masuk',
-          'Absensi staf • ${clock(DateTime.now())}',
-        ),
+        Activity('Check-in Masuk', 'Absensi staf • ${clock(DateTime.now())}'),
       );
       notifyListeners();
       return null;
@@ -483,10 +464,7 @@ class WarehouseState extends ChangeNotifier {
         await loadAttendances();
         _activities.insert(
           0,
-          Activity(
-            'Check-in Masuk',
-            'Absensi staf • ${clock(DateTime.now())}',
-          ),
+          Activity('Check-in Masuk', 'Absensi staf • ${clock(DateTime.now())}'),
         );
         notifyListeners();
         return null;
@@ -503,10 +481,7 @@ class WarehouseState extends ChangeNotifier {
       lastAttendanceTime = DateTime.now();
       _activities.insert(
         0,
-        Activity(
-          'Check-out Pulang',
-          'Absensi staf • ${clock(DateTime.now())}',
-        ),
+        Activity('Check-out Pulang', 'Absensi staf • ${clock(DateTime.now())}'),
       );
       notifyListeners();
       return null;
@@ -626,7 +601,9 @@ class WarehouseState extends ChangeNotifier {
     required int quantity,
     required MovementKind kind,
     String? rack,
+    String? label,
   }) {
+    final tag = label ?? kind.name;
     if (quantity <= 0) return 'Quantity must be greater than zero.';
     final item = bySku(sku);
     final location = (rack ?? item.rack).toUpperCase();
@@ -662,7 +639,7 @@ class WarehouseState extends ChangeNotifier {
     _activities.insert(
       0,
       Activity(
-        '${kind.name} • ${item.name}',
+        '$tag • ${item.name}',
         '${item.sku} • $location • ${staff.name}',
         kind: kind,
         quantity: quantity,
@@ -678,7 +655,7 @@ class WarehouseState extends ChangeNotifier {
             productId: item.id!,
             type: kind == MovementKind.stockIn ? 'in' : 'out',
             quantity: quantity,
-            notes: '${kind.name} from mobile at $location',
+            notes: '$tag from mobile at $location',
           );
           if (res['success'] == true) {
             await loadFromApi();
@@ -752,15 +729,16 @@ class WarehouseState extends ChangeNotifier {
     return null;
   }
 
-  String? updateStaff(String name, String phone, String emergency) {
-    if (name.trim().isEmpty) return 'Name cannot be empty.';
-    if (!RegExp(r'^\+?[0-9]{8,15}$').hasMatch(phone.trim())) {
-      return 'Phone number is invalid.';
-    }
+  String? updateStaff(String name, [String? phone, String? emergency]) {
+    if (name.trim().isEmpty) return 'Nama tidak boleh kosong.';
     staff.name = name.trim();
-    staff.phone = phone.trim();
-    staff.emergency = emergency.trim();
-    _activities.insert(0, Activity('Profile updated', staff.name));
+    if (phone != null && phone.trim().isNotEmpty) {
+      staff.phone = phone.trim();
+    }
+    if (emergency != null && emergency.trim().isNotEmpty) {
+      staff.emergency = emergency.trim();
+    }
+    _activities.insert(0, Activity('Profil diperbarui', staff.name));
     notifyListeners();
     return null;
   }

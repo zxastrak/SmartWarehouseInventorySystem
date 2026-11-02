@@ -22,7 +22,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
     state.readAlert(alert.id);
     switch (alert.action) {
       case 'receiving':
-        state.openScanner(alert.sku, mode: ScanMode.single);
+        state.openScanner(alert.sku, mode: ScanMode.putaway);
         break;
       case 'putaway':
         state.openScanner(alert.sku, mode: ScanMode.putaway);
