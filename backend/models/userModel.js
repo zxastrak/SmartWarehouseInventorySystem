@@ -40,6 +40,12 @@ const UserModel = {
     return result;
   },
 
+  updateName: async (id, name) => {
+    const sql = 'UPDATE users SET name = ? WHERE id = ?';
+    const [result] = await db.query(sql, [name, id]);
+    return result;
+  },
+
   setActive: async (id, isActive) => {
     const sql = 'UPDATE users SET is_active = ? WHERE id = ?';
     const [result] = await db.query(sql, [isActive ? 1 : 0, id]);

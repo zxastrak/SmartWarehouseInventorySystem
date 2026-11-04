@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 require('./config/db');
 
 const { apiLimiter } = require('./middlewares/rateLimiter');

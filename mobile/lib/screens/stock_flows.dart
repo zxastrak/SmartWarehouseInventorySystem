@@ -410,10 +410,11 @@ class _RackCountFlowState extends State<RackCountFlow> {
     count = item.rackCounts[item.rack] ?? 0;
   }
 
-  void save() {
+  Future<void> save() async {
     final s = context.read<WarehouseState>();
 
-    final error = s.saveRackCount(widget.sku, count, physicallyChecked);
+    final error = await s.saveRackCount(widget.sku, count, physicallyChecked);
+    if (!mounted) return;
 
     if (error != null) {
       message(context, error);
@@ -678,12 +679,13 @@ class _DiscrepancyFlowState extends State<DiscrepancyFlow> {
     super.dispose();
   }
 
-  void submit() {
-    final error = context.read<WarehouseState>().report(
+  Future<void> submit() async {
+    final error = await context.read<WarehouseState>().report(
       widget.sku,
       physical,
       reason.text,
     );
+    if (!mounted) return;
     if (error != null) {
       message(context, error);
       return;

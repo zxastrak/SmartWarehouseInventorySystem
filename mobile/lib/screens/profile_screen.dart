@@ -633,21 +633,28 @@ class _EditProfileState extends State<EditProfile> {
     super.dispose();
   }
 
-  void save() {
-    if (!form.currentState!.validate()) {
+  bool isSaving = false;
+
+  Future<void> save() async {
+    if (!form.currentState!.validate() || isSaving) {
       return;
     }
+    setState(() => isSaving = true);
     final state = context.read<WarehouseState>();
-    final error = state.updateStaff(name.text);
+    final error = await state.updateStaff(name.text);
+    if (!mounted) return;
     if (error != null) {
-      setState(() => saveError = error);
+      setState(() {
+        saveError = error;
+        isSaving = false;
+      });
       return;
     }
     FocusScope.of(context).unfocus();
     final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
     messenger.showSnackBar(
-      const SnackBar(content: Text('Profil berhasil diperbarui.')),
+      const SnackBar(content: Text('Profil berhasil diperbarui di database.')),
     );
   }
 

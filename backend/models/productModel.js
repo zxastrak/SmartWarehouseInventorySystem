@@ -58,6 +58,20 @@ const productModel = {
     return result;
   },
 
+  // Update lokasi rak produk (Putaway)
+  updateLocation: async (id, zone_location, location_id = null) => {
+    let locId = location_id;
+    if (!locId && zone_location) {
+      const [locRows] = await db.query('SELECT id FROM locations WHERE location_code = ?', [zone_location]);
+      if (locRows.length > 0) {
+        locId = locRows[0].id;
+      }
+    }
+    const sql = 'UPDATE products SET zone_location = ?, location_id = ? WHERE id = ?';
+    const [result] = await db.query(sql, [zone_location, locId, id]);
+    return result;
+  },
+
   // Khusus buat SKU IN/OUT — update stock_quantity doang, nggak perlu kirim semua field
   updateStock: async (id, newQuantity) => {
     const sql = 'UPDATE products SET stock_quantity = ? WHERE id = ?';

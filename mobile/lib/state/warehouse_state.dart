@@ -645,20 +645,29 @@ class WarehouseState extends ChangeNotifier {
         quantity: quantity,
       ),
     );
-    if (token != null &&
-        item.id != null &&
-        (kind == MovementKind.stockIn || kind == MovementKind.stockOut)) {
+    if (token != null && item.id != null) {
       () async {
         try {
-          final res = await api.createStockTransaction(
-            token: token!,
-            productId: item.id!,
-            type: kind == MovementKind.stockIn ? 'in' : 'out',
-            quantity: quantity,
-            notes: '$tag from mobile at $location',
-          );
-          if (res['success'] == true) {
-            await loadFromApi();
+          if (kind == MovementKind.stockIn || kind == MovementKind.stockOut) {
+            final res = await api.createStockTransaction(
+              token: token!,
+              productId: item.id!,
+              type: kind == MovementKind.stockIn ? 'in' : 'out',
+              quantity: quantity,
+              notes: '$tag from mobile at $location',
+            );
+            if (res['success'] == true) {
+              await loadFromApi();
+            }
+          } else if (kind == MovementKind.putaway && rack != null) {
+            final res = await api.updateProductLocation(
+              token: token!,
+              productId: item.id!,
+              location: location,
+            );
+            if (res['success'] == true) {
+              await loadFromApi();
+            }
           }
         } catch (_) {}
       }();
@@ -675,7 +684,7 @@ class WarehouseState extends ChangeNotifier {
     return null;
   }
 
-  String? saveRackCount(String sku, int quantity, bool checked) {
+  Future<String?> saveRackCount(String sku, int quantity, bool checked) async {
     if (!checked) return 'Confirm that you physically counted all units.';
     if (quantity < 0) return 'Count cannot be negative.';
     final item = bySku(sku);
@@ -694,11 +703,24 @@ class WarehouseState extends ChangeNotifier {
         quantity: quantity,
       ),
     );
+    if (token != null && item.id != null) {
+      try {
+        final res = await api.adjustStock(
+          token: token!,
+          productId: item.id!,
+          physicalQuantity: quantity,
+          notes: 'Opname fisik rak ${item.rack} oleh ${staff.name}',
+        );
+        if (res['success'] == true) {
+          await loadFromApi();
+        }
+      } catch (_) {}
+    }
     notifyListeners();
     return null;
   }
 
-  String? report(String sku, int physical, String reason) {
+  Future<String?> report(String sku, int physical, String reason) async {
     final item = bySku(sku);
     if (physical < 0) return 'Physical count cannot be negative.';
     if (physical == item.quantity) return 'No quantity discrepancy was found.';
@@ -725,13 +747,33 @@ class WarehouseState extends ChangeNotifier {
         action: 'rack',
       ),
     );
+    if (token != null) {
+      try {
+        final res = await api.reportDiscrepancy(
+          token: token!,
+          sku: sku,
+          physicalQuantity: physical,
+          reason: reason.trim(),
+        );
+        if (res['success'] == true) {
+          await loadFromApi();
+        }
+      } catch (_) {}
+    }
     notifyListeners();
     return null;
   }
 
-  String? updateStaff(String name, [String? phone, String? emergency]) {
-    if (name.trim().isEmpty) return 'Nama tidak boleh kosong.';
-    staff.name = name.trim();
+  Future<String?> updateStaff(String name, [String? phone, String? emergency]) async {
+    final trimmedName = name.trim();
+    if (trimmedName.isEmpty) return 'Nama tidak boleh kosong.';
+    if (token != null) {
+      final res = await api.updateProfile(token: token!, name: trimmedName);
+      if (res['success'] != true) {
+        return res['message'] ?? 'Gagal memperbarui profil di server';
+      }
+    }
+    staff.name = trimmedName;
     if (phone != null && phone.trim().isNotEmpty) {
       staff.phone = phone.trim();
     }

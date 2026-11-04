@@ -44,6 +44,34 @@ const userController = {
     }
   },
 
+  // Staf atau manajer mengupdate nama profilnya sendiri
+  updateProfile: async (req, res) => {
+    try {
+      const { name } = req.body || {};
+      if (!name || typeof name !== 'string' || name.trim().length === 0) {
+        return res.status(400).json({ message: 'Nama lengkap wajib diisi' });
+      }
+
+      await userModel.updateName(req.user.id, name.trim());
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'USER_PROFILE_UPDATED',
+        table_affected: 'users',
+        record_id: req.user.id,
+      });
+
+      const users = await userModel.findById(req.user.id);
+      res.status(200).json({
+        message: 'Profil berhasil diperbarui',
+        user: users[0] || { id: req.user.id, name: name.trim() },
+      });
+    } catch (err) {
+      console.error('[ERROR updateProfile]', err);
+      res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
+    }
+  },
+
   update: async (req, res) => {
     try {
       const { id } = req.params;

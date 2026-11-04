@@ -401,4 +401,111 @@ class ApiService {
     } catch (_) {}
     return null;
   }
+
+  Future<Map<String, dynamic>> updateProfile({
+    required String token,
+    required String name,
+  }) async {
+    try {
+      final response = await _client
+          .put(
+            Uri.parse(ApiConfig.updateProfile),
+            headers: _headers(token: token),
+            body: jsonEncode({'name': name.trim()}),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      final data = jsonDecode(response.body);
+      return {
+        'success': response.statusCode == 200,
+        'message': data['message'],
+        'user': data['user'],
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal memperbarui profil: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> updateProductLocation({
+    required String token,
+    required int productId,
+    required String location,
+  }) async {
+    try {
+      final response = await _client
+          .patch(
+            Uri.parse(ApiConfig.productLocation(productId)),
+            headers: _headers(token: token),
+            body: jsonEncode({'location': location.trim().toUpperCase()}),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      final data = jsonDecode(response.body);
+      return {
+        'success': response.statusCode == 200,
+        'message': data['message'],
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal update lokasi rak: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> adjustStock({
+    required String token,
+    required int productId,
+    required int physicalQuantity,
+    String? notes,
+  }) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse(ApiConfig.productAdjustStock(productId)),
+            headers: _headers(token: token),
+            body: jsonEncode({
+              'physical_quantity': physicalQuantity,
+              if (notes != null && notes.isNotEmpty) 'notes': notes,
+            }),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      final data = jsonDecode(response.body);
+      return {
+        'success': response.statusCode == 200,
+        'message': data['message'],
+        'stock_quantity': data['stock_quantity'],
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal verifikasi stok fisik: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> reportDiscrepancy({
+    required String token,
+    required String sku,
+    required int physicalQuantity,
+    required String reason,
+  }) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse(ApiConfig.taskDiscrepancy),
+            headers: _headers(token: token),
+            body: jsonEncode({
+              'sku': sku.trim(),
+              'physical_quantity': physicalQuantity,
+              'reason': reason.trim(),
+            }),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      final data = jsonDecode(response.body);
+      return {
+        'success': response.statusCode == 201 || response.statusCode == 200,
+        'message': data['message'],
+        'taskId': data['taskId'],
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal mengirim laporan selisih: $e'};
+    }
+  }
 }

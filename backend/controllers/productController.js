@@ -1,4 +1,5 @@
 const productModel = require('../models/productModel');
+const stockTransactionModel = require('../models/stockTransactionModel');
 const logAudit = require('../utils/audit');
 
 const productController = {
@@ -27,7 +28,6 @@ const productController = {
 
       res.status(201).json({ message: 'Produk berhasil dibuat', productId: result.insertId });
     } catch (err) {
-      // Kode error khusus kalau SKU-nya udah dipake (kolom sku itu UNIQUE)
       if (err.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ message: 'SKU sudah terdaftar' });
       }
@@ -71,6 +71,91 @@ const productController = {
 
       res.status(200).json(product[0]);
     } catch (err) {
+      res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
+    }
+  },
+
+  // Putaway / Relokasi rak oleh staf gudang atau manajer
+  updateLocation: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { location } = req.body || {};
+
+      if (!location || typeof location !== 'string' || location.trim().length === 0) {
+        return res.status(400).json({ message: 'Lokasi rak tujuan wajib diisi' });
+      }
+
+      const products = await productModel.getById(id);
+      if (products.length === 0) {
+        return res.status(404).json({ message: 'Produk tidak ditemukan' });
+      }
+
+      const targetLoc = location.trim().toUpperCase();
+      await productModel.updateLocation(id, targetLoc);
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'PUTAWAY_RELOCATION',
+        table_affected: 'products',
+        record_id: Number(id),
+      });
+
+      res.status(200).json({
+        message: 'Lokasi rak berhasil diperbarui (Putaway sukses)',
+        zone_location: targetLoc,
+      });
+    } catch (err) {
+      console.error('[ERROR updateLocation]', err);
+      res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
+    }
+  },
+
+  // Penyesuaian stok opname / verifikasi fisik di rak
+  adjustStock: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { physical_quantity, notes } = req.body || {};
+
+      if (physical_quantity === undefined || physical_quantity === null || isNaN(Number(physical_quantity)) || Number(physical_quantity) < 0) {
+        return res.status(400).json({ message: 'Jumlah fisik valid wajib diisi (minimal 0)' });
+      }
+
+      const products = await productModel.getById(id);
+      if (products.length === 0) {
+        return res.status(404).json({ message: 'Produk tidak ditemukan' });
+      }
+
+      const currentStock = products[0].stock_quantity;
+      const newStock = Number(physical_quantity);
+      const diff = newStock - currentStock;
+
+      if (diff !== 0) {
+        const type = diff > 0 ? 'in' : 'out';
+        const qty = Math.abs(diff);
+        const note = notes ? notes.trim() : `Penyesuaian stok opname rak (Sistem: ${currentStock} -> Fisik: ${newStock})`;
+
+        await stockTransactionModel.processStockMovement({
+          product_id: Number(id),
+          user_id: req.user.id,
+          type: type,
+          quantity: qty,
+          notes: note,
+        });
+      }
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'RACK_STOCK_VERIFIED',
+        table_affected: 'products',
+        record_id: Number(id),
+      });
+
+      res.status(200).json({
+        message: 'Hasil hitung stok fisik berhasil diverifikasi dan disinkronkan ke database',
+        stock_quantity: newStock,
+      });
+    } catch (err) {
+      console.error('[ERROR adjustStock]', err);
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
     }
   },

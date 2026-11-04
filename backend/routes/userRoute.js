@@ -5,6 +5,9 @@ const authMiddleware = require('../middlewares/authMiddleware');
 
 const managerOnly = [authMiddleware.verifyToken, authMiddleware.authorizeRole('manager')];
 
+// Endpoint untuk staf atau manajer mengupdate profilnya sendiri
+router.put('/profile', authMiddleware.verifyToken, userController.updateProfile);
+
 router.get('/', ...managerOnly, userController.getAll);
 router.get('/:id', ...managerOnly, userController.getById);
 router.put('/:id', ...managerOnly, userController.update);
