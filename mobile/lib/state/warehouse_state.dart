@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
@@ -25,6 +26,52 @@ class WarehouseState extends ChangeNotifier {
   String? token;
   String currentShift = 'Belum ada jadwal shift';
   List<Map<String, dynamic>> tasks = [];
+  List<Map<String, dynamic>> notifications = [];
+  final Set<int> readNotificationIds = {};
+  Timer? _notificationTimer;
+
+  int get unreadNotificationCount {
+    return notifications.where((n) {
+      final id = _parseInt(n['id']);
+      final st = (n['status'] ?? '').toString().toLowerCase();
+      return !readNotificationIds.contains(id) && st != 'completed' && st != 'cancelled';
+    }).length;
+  }
+
+  void markNotificationsRead() {
+    for (final n in notifications) {
+      final id = _parseInt(n['id']);
+      if (id > 0) readNotificationIds.add(id);
+    }
+    notifyListeners();
+  }
+
+  void markNotificationRead(int id) {
+    readNotificationIds.add(id);
+    notifyListeners();
+  }
+
+  Future<void> loadNotifications() async {
+    if (token == null) return;
+    try {
+      final list = await api.getTaskNotifications(token!);
+      if (list != null) {
+        notifications = list;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('loadNotifications error: $e');
+    }
+  }
+
+  void _startNotificationTimer() {
+    _notificationTimer?.cancel();
+    _notificationTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (loggedIn && token != null) {
+        loadNotifications();
+      }
+    });
+  }
   int page = 0;
   String? scanSku;
   ScanMode scanMode = ScanMode.single;
@@ -246,6 +293,7 @@ class WarehouseState extends ChangeNotifier {
         page = 0;
         isLoading = false;
         await loadFromApi();
+        _startNotificationTimer();
         notifyListeners();
         return null;
       }
@@ -410,6 +458,9 @@ class WarehouseState extends ChangeNotifier {
         }
       }
 
+      // Ambil notifikasi tugas aktual dari manager
+      await loadNotifications();
+
       // Ambil riwayat absensi aktual milik staf
       await loadAttendances();
     } catch (e, st) {
@@ -562,6 +613,10 @@ class WarehouseState extends ChangeNotifier {
   }
 
   void logout() {
+    _notificationTimer?.cancel();
+    _notificationTimer = null;
+    notifications = [];
+    readNotificationIds.clear();
     token = null;
     isBackendConnected = false;
     currentShift = 'Belum ada jadwal shift';
@@ -801,5 +856,11 @@ class WarehouseState extends ChangeNotifier {
         break;
     }
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _notificationTimer?.cancel();
+    super.dispose();
   }
 }

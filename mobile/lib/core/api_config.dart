@@ -36,6 +36,7 @@ class ApiConfig {
   static String get shiftsMe => '$baseUrl/shifts/me';
   static String shiftsMeDate(String date) => '$baseUrl/shifts/me?date=$date';
   static String get tasks => '$baseUrl/tasks';
+  static String get taskNotifications => '$baseUrl/tasks/notifications';
   static String get taskDiscrepancy => '$baseUrl/tasks/discrepancy';
   static String taskStatus(int id) => '$baseUrl/tasks/$id/status';
   static String taskReassign(int id) => '$baseUrl/tasks/$id/reassign';

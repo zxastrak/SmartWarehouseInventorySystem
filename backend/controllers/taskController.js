@@ -16,6 +16,22 @@ const taskController = {
     }
   },
 
+  // Notifikasi khusus untuk staf yang sedang login
+  getNotifications: async (req, res) => {
+    try {
+      const notifications = await taskModel.getNotificationsByUserId(req.user.id);
+      const pendingCount = notifications.filter(n => n.status === 'pending').length;
+      res.status(200).json({
+        notifications,
+        total: notifications.length,
+        pending: pendingCount,
+      });
+    } catch (err) {
+      console.error('[ERROR getNotifications]', err);
+      res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
+    }
+  },
+
   getById: async (req, res) => {
     try {
       const task = await taskModel.getById(req.params.id);

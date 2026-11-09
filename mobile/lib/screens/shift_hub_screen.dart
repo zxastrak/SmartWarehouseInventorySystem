@@ -12,50 +12,12 @@ class ShiftHubScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<WarehouseState>();
+    final topPadding = MediaQuery.paddingOf(context).top + 72;
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+      padding: EdgeInsets.fromLTRB(16, topPadding, 16, 100),
       children: [
-        // Header Branding SUSUNO
-        Padding(
-          padding: const EdgeInsets.only(top: 8, bottom: 20),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Image.asset(
-                'assets/images/susuno_logo.png',
-                width: 44,
-                height: 44,
-                fit: BoxFit.contain,
-              ),
-              const SizedBox(width: 12),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'SUSUNO',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.6,
-                      color: brandInk,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Warehouse & Inventory System',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: muted,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
 
         // 1. Hero: operator + shift + check-in
         _ShiftHeroCard(state: s),

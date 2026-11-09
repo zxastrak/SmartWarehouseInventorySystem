@@ -39,64 +39,8 @@ class _BarcodeInputState extends State<BarcodeInput> {
     widget.onResult(code.trim());
   }
 
-  static bool _privacyConsentGiven = false;
-
   Future<void> activateCamera() async {
-    if (_privacyConsentGiven) {
-      if (mounted) setState(() => camera = true);
-      return;
-    }
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Izin Privasi Kamera',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-        ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Aplikasi SUSUNO memerlukan akses kamera hanya untuk memindai barcode barang atau kode rak gudang secara langsung.',
-              style: TextStyle(fontSize: 13, height: 1.4, color: brandSlate),
-            ),
-            SizedBox(height: 14),
-            _PrivacyCheckRow(
-              icon: Icons.shield_outlined,
-              text: 'Pemindaian barcode diproses lokal di perangkat.',
-            ),
-            SizedBox(height: 8),
-            _PrivacyCheckRow(
-              icon: Icons.no_photography_outlined,
-              text: 'Tidak ada foto atau rekaman video yang disimpan.',
-            ),
-            SizedBox(height: 8),
-            _PrivacyCheckRow(
-              icon: Icons.cloud_off_outlined,
-              text: 'Tidak ada rekaman visual yang diunggah ke server.',
-            ),
-          ],
-        ),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c, false),
-            child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w700)),
-          ),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(c, true),
-            icon: const Icon(Icons.check, size: 18),
-            label: const Text('Izinkan & Buka'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && mounted) {
-      _privacyConsentGiven = true;
+    if (mounted) {
       setState(() => camera = true);
     }
   }
@@ -552,29 +496,4 @@ class _CameraState extends State<_Camera> with WidgetsBindingObserver {
   );
 }
 
-class _PrivacyCheckRow extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  const _PrivacyCheckRow({required this.icon, required this.text});
 
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 16, color: forest),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: brandInk,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}

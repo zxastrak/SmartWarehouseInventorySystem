@@ -508,4 +508,23 @@ class ApiService {
       return {'success': false, 'message': 'Gagal mengirim laporan selisih: $e'};
     }
   }
+
+  Future<List<Map<String, dynamic>>?> getTaskNotifications(String token) async {
+    try {
+      final response = await _client
+          .get(
+            Uri.parse(ApiConfig.taskNotifications),
+            headers: _headers(token: token),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['notifications'] is List) {
+          return List<Map<String, dynamic>>.from(decoded['notifications']);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
 }

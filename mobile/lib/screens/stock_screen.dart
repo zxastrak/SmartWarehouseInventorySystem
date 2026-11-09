@@ -32,11 +32,12 @@ class _StockScreenState extends State<StockScreen> {
     final s = context.watch<WarehouseState>();
     final items = s.filteredItems;
     final hasFilter = s.filter.active;
+    final topPadding = MediaQuery.paddingOf(context).top + 72;
     return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: EdgeInsets.fromLTRB(16, topPadding, 16, 8),
           sliver: SliverToBoxAdapter(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

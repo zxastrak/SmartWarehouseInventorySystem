@@ -62,6 +62,35 @@ const taskModel = {
     return rows;
   },
 
+  // Notifikasi khusus tugas yang didelegasikan/ditugaskan ke user terkait
+  getNotificationsByUserId: async (userId) => {
+    const sql = `
+      SELECT 
+        t.*,
+        creator.name AS creator_name,
+        creator.role AS creator_role,
+        l.location_code AS location_code,
+        l.zone AS location_zone,
+        p.sku AS sku,
+        p.name AS product_name
+      FROM tasks t
+      LEFT JOIN users creator ON creator.id = t.created_by
+      LEFT JOIN locations l ON l.id = t.location_id
+      LEFT JOIN products p ON p.id = t.related_product_id
+      WHERE t.current_assignee_id = ?
+      ORDER BY 
+        CASE 
+          WHEN t.status = 'pending' THEN 1
+          WHEN t.status = 'in_progress' THEN 2
+          ELSE 3
+        END ASC,
+        t.created_at DESC
+      LIMIT 30
+    `;
+    const [rows] = await db.query(sql, [userId]);
+    return rows;
+  },
+
   // Bikin task baru + assignment pertama, atomic
   create: async (taskData) => {
     const { title, description, location_id, related_product_id, current_assignee_id, created_by } = taskData;
