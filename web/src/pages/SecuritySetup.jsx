@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import BrandPanel from '../components/BrandPanel.jsx';
 import SignUpSteps from '../components/SignUpSteps.jsx';
 import FormField from '../components/FormField.jsx';
+import { authApi } from '../utils/api.js';
 
 function PasswordField({ name, label, error, ...inputProps }) {
   const [visible, setVisible] = useState(false);
@@ -94,7 +95,15 @@ export default function SecuritySetup({ initialData, onBack, email, onChangeEmai
   }
 
   if (verifying) {
-    return <EmailVerification email={email} onChangeEmail={() => onChangeEmail?.(values)} onVerified={() => setComplete(true)} />;
+    return (
+      <EmailVerification
+        email={email}
+        password={values.password}
+        manager={manager}
+        onChangeEmail={() => onChangeEmail?.(values)}
+        onVerified={() => setComplete(true)}
+      />
+    );
   }
 
   return (
@@ -153,17 +162,32 @@ export default function SecuritySetup({ initialData, onBack, email, onChangeEmai
   );
 }
 
-function EmailVerification({ email, onChangeEmail, onVerified }) {
+function EmailVerification({ email, password, manager, onChangeEmail, onVerified }) {
   const [digits, setDigits] = useState(Array(6).fill(''));
-  const [expiresAt, setExpiresAt] = useState(() => Date.now() + 600000);
-  const [remaining, setRemaining] = useState(600);
+  const [expiresAt, setExpiresAt] = useState(() => Date.now() + 300000);
+  const [remaining, setRemaining] = useState(300);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState('Mengirim kode OTP ke email...');
+  const [loading, setLoading] = useState(false);
   const inputs = useRef([]);
 
   useEffect(() => {
     inputs.current[0]?.focus();
-  }, []);
+    // Otomatis kirim kode OTP ke email saat layar verifikasi pendaftaran dibuka
+    authApi.sendOtp(email, 'register')
+      .then(res => {
+        if (res.success) {
+          setNotice(`Kode OTP telah dikirim ke ${email}. Silakan cek kotak masuk atau folder spam.`);
+        } else {
+          setError(res.message || 'Gagal mengirim kode OTP.');
+          setNotice('');
+        }
+      })
+      .catch(err => {
+        setError(err.message || 'Gagal menghubungi server pengirim email.');
+        setNotice('');
+      });
+  }, [email]);
 
   useEffect(() => {
     const tick = () => setRemaining(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
@@ -185,37 +209,76 @@ function EmailVerification({ email, onChangeEmail, onVerified }) {
     if (numbers) inputs.current[Math.min(index + numbers.length, 5)]?.focus();
   }
 
-  function verify(event) {
+  async function verify(event) {
     event.preventDefault();
     setNotice('');
     if (Date.now() >= expiresAt) {
-      setError('This code has expired. Please request a new code.');
+      setError('Kode verifikasi telah kedaluwarsa. Silakan kirim ulang kode.');
       return;
     }
     const empty = digits.findIndex(digit => !digit);
     if (empty !== -1) {
-      setError('Enter all six digits.');
+      setError('Masukkan lengkap 6 digit kode OTP.');
       inputs.current[empty]?.focus();
       return;
     }
     setError('');
-    // FRONTEND DEMO ONLY. Replace this comparison with the server verification API.
-    // Show WorkspaceReady in production only after the server confirms registration.
-    if (digits.join('') !== '123456') {
-      setError('Demo code is 123456. Please enter it to preview the next screen.');
-      inputs.current[0]?.focus();
-      return;
+    setLoading(true);
+
+    try {
+      const otpCode = digits.join('');
+      // 1. Verifikasi kode OTP ke backend
+      const verifyRes = await authApi.verifyOtp(email, otpCode);
+      if (!verifyRes.success) {
+        setError(verifyRes.message || 'Kode OTP salah atau tidak valid.');
+        setLoading(false);
+        return;
+      }
+
+      // 2. Daftarkan akun Manager ke database
+      const regRes = await authApi.registerManager({
+        name: manager?.fullName || 'Manager',
+        email,
+        password,
+        resetToken: verifyRes.resetToken,
+      });
+
+      if (!regRes.success && regRes.status !== 409) {
+        setError(regRes.message || 'Gagal menyimpan akun Manager ke database.');
+        setLoading(false);
+        return;
+      }
+
+      onVerified?.();
+    } catch (err) {
+      setError(err.message || 'Terjadi kesalahan sistem saat memproses verifikasi.');
+    } finally {
+      setLoading(false);
     }
-    onVerified?.();
   }
 
-  function resend() {
-    // Demo only: replace this with the resend API and its server-provided expiry.
+  async function resend() {
     setDigits(Array(6).fill(''));
-    setExpiresAt(Date.now() + 600000);
+    setExpiresAt(Date.now() + 300000);
     setError('');
-    setNotice('Demo timer restarted. No email has been sent; the resend API is not connected yet.');
-    inputs.current[0]?.focus();
+    setNotice('Mengirim ulang kode OTP...');
+    setLoading(true);
+
+    try {
+      const res = await authApi.sendOtp(email, 'register');
+      if (res.success) {
+        setNotice(`Kode OTP baru telah dikirimkan ke ${email}.`);
+      } else {
+        setError(res.message || 'Gagal mengirim ulang kode OTP.');
+        setNotice('');
+      }
+    } catch (err) {
+      setError(err.message || 'Gagal menghubungi server.');
+      setNotice('');
+    } finally {
+      setLoading(false);
+      inputs.current[0]?.focus();
+    }
   }
 
   const countdown = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`;
@@ -226,9 +289,9 @@ function EmailVerification({ email, onChangeEmail, onVerified }) {
       <section className="form-panel verify-panel" aria-labelledby="verify-title">
         <div className="signup-content">
           <header className="signup-header">
-            <p className="form-eyebrow">VERIFY YOUR EMAIL</p>
-            <h2 id="verify-title">Enter verification code</h2>
-            <p className="form-description">We sent a six-digit code to {email}.</p>
+            <p className="form-eyebrow">VERIFIKASI EMAIL MANAGER</p>
+            <h2 id="verify-title">Masukkan Kode OTP</h2>
+            <p className="form-description">Kode verifikasi 6 digit dikirimkan ke <strong>{email}</strong>.</p>
           </header>
           <SignUpSteps activeStep={3} />
           <form className="verify-form" noValidate onSubmit={verify}>
@@ -238,8 +301,9 @@ function EmailVerification({ email, onChangeEmail, onVerified }) {
                   key={index} ref={element => { inputs.current[index] = element; }}
                   type="text" inputMode="numeric" pattern="[0-9]*"
                   autoComplete={index === 0 ? 'one-time-code' : 'off'}
-                  aria-label={`Code digit ${index + 1}`} aria-invalid={Boolean(error)}
+                  aria-label={`Digit ke-${index + 1}`} aria-invalid={Boolean(error)}
                   value={digit}
+                  disabled={loading}
                   onChange={event => updateDigits(index, event.target.value)}
                   onFocus={event => event.target.select()}
                   onPaste={event => {
@@ -261,12 +325,13 @@ function EmailVerification({ email, onChangeEmail, onVerified }) {
               ))}
             </div>
             {error && <p className="field-error" id="otp-error" role="alert">{error}</p>}
-            <p className="code-countdown">{remaining > 0 ? `Code expires in ${countdown}` : 'Code expired'}</p>
-            <button type="submit" className="continue-button verify-button">Verify Email</button>
-            <p className="resend-prompt">Did not receive it? <button type="button" className="text-button" onClick={resend}>Resend code</button></p>
-            <button type="button" className="text-button change-email" onClick={onChangeEmail}>← Change email address</button>
-            {notice && <p className="form-notice verification-notice" role="status">{notice}</p>}
-            <p className="verification-demo">Frontend demo — use code 123456. No verification email has been sent.</p>
+            {notice && !error && <p className="form-notice verification-notice" role="status" style={{ color: '#5c732b', background: '#f0f4ea', padding: '0.6rem', borderRadius: '6px' }}>{notice}</p>}
+            <p className="code-countdown">{remaining > 0 ? `Kode kedaluwarsa dalam ${countdown}` : 'Kode kedaluwarsa'}</p>
+            <button type="submit" className="continue-button verify-button" disabled={loading || digits.some(d => !d)}>
+              {loading ? 'Memverifikasi...' : 'Verifikasi Email & Buat Akun'}
+            </button>
+            <p className="resend-prompt">Belum menerima kode? <button type="button" className="text-button" disabled={loading} onClick={resend}>Kirim ulang kode</button></p>
+            <button type="button" className="text-button change-email" onClick={onChangeEmail}>← Ganti alamat email</button>
           </form>
         </div>
       </section>

@@ -1,3 +1,4 @@
+import { typeOf } from "./productTypes.js";
 function download(bytes, name, type) {
   const url = URL.createObjectURL(new Blob([bytes], { type }));
   const link = document.createElement("a");
@@ -60,7 +61,7 @@ function zip(files) {
   }
   return result;
 }
-export function xlsx(rows, sheetName = "Stock Movements") {
+function xlsx(rows, sheetName = "Stock Movements") {
   const sheet = rows.map((row, index) => `<row r="${index + 1}">${row.map((value) => typeof value === "number" ? `<c><v>${value}</v></c>` : `<c t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`).join("")}</row>`).join("");
   return zip([
     ["[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'],
@@ -70,9 +71,10 @@ export function xlsx(rows, sheetName = "Stock Movements") {
     ["xl/worksheets/sheet1.xml", `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${sheet}</sheetData></worksheet>`]
   ]);
 }
-export function exportMovements(rows, columns, format) {
-  const exportColumns = columns.some(([key]) => key === "sku") ? columns : [["sku", "SKU"], ...columns];
-  const matrix = [exportColumns.map(([, label]) => label), ...rows.map((row) => exportColumns.map(([key]) => key === "rack" ? `${row.warehouse} / ${row.rack}` : row[key]))];
+function exportMovements(rows, columns, format) {
+  const typedColumns = columns.some(([key]) => key === "category") ? columns : [["category", "Product Type"], ...columns];
+  const exportColumns = typedColumns.some(([key]) => key === "sku") ? typedColumns : [["sku", "SKU"], ...typedColumns];
+  const matrix = [exportColumns.map(([, label]) => label), ...rows.map((row) => exportColumns.map(([key]) => key === "category" ? typeOf(row) : key === "rack" ? `${row.warehouse} / ${row.rack}` : row[key]))];
   if (format === "csv") {
     const safe = (value) => {
       let text = String(value ?? "");
@@ -90,3 +92,7 @@ export function exportMovements(rows, columns, format) {
     popup.print();
   }
 }
+export {
+  exportMovements,
+  xlsx
+};

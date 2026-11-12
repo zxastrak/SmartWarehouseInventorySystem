@@ -2,6 +2,7 @@ import React from 'react';
 
 const paths = {
   grid: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
+  map: <><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" /><line x1="9" y1="3" x2="9" y2="18" /><line x1="15" y1="6" x2="15" y2="21" /></>,
   box: <><path d="m12 2 10 5v10l-10 5-10-5V7Z" /><path d="m2 7 10 5 10-5M12 12v10M7 4.5l10 5" /></>,
   inbound: <><path d="M3 6V4a2 2 0 0 1 2-2h4l3 4h8a2 2 0 0 1 2 2v12H3v-4M2 11h10m-4-4 4 4-4 4" /></>,
   outbound: <><path d="M3 6V4a2 2 0 0 1 2-2h4l3 4h8a2 2 0 0 1 2 2v12H3v-4M12 11H2m4-4-4 4 4 4" /></>,

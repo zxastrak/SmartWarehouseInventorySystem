@@ -878,3 +878,184 @@
     min-height: 480px;
   }
 }
+
+/* Keep grouped stock quantities readable in compact cards. */
+.report-metrics .metric-card strong{font-size:clamp(18px,1.7vw,29px);overflow-wrap:anywhere;line-height:1.25}
+
+/* Product Photo & Thumbnail Styles (docs/design.md Compliant) */
+.inventory-product-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 180px;
+}
+.inventory-thumb {
+  width: 42px;
+  height: 42px;
+  border-radius: 9px;
+  border: 1px solid #dfe4d9;
+  background: #edf4e4;
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.inventory-thumb:hover {
+  transform: scale(1.08);
+  border-color: #5c732b;
+  box-shadow: 0 3px 8px rgba(92, 115, 43, 0.2);
+}
+.inventory-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.inventory-thumb-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5c732b;
+}
+.inventory-product-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.inventory-product-meta {
+  font-size: 11px;
+  font-family: monospace;
+  font-weight: 600;
+  color: #737b6c;
+}
+
+/* Detail Panel Product Thumbnail */
+.product-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.product-panel-header .product-thumbnail {
+  width: 68px;
+  height: 68px;
+  border-radius: 12px;
+  border: 1.5px solid #dfe4d9;
+  background: #edf4e4;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.product-thumbnail-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.product-thumbnail-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5c732b;
+}
+
+/* Product Edit Photo Section */
+.inventory-image-edit-section {
+  margin: 16px 0 20px;
+  padding: 16px;
+  background: #f8f9f5;
+  border: 1px solid #dfe4d9;
+  border-radius: 12px;
+}
+.inventory-image-edit-section h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #191d17;
+  margin: 0 0 10px;
+}
+.inventory-image-edit-wrap {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.inventory-image-preview-box {
+  width: 80px;
+  height: 80px;
+  border-radius: 10px;
+  border: 2px dashed #cbd5e1;
+  background: #ffffff;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.03);
+}
+.inventory-image-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.inventory-image-preview-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #737b6c;
+  font-size: 10px;
+  font-weight: 600;
+  gap: 4px;
+  text-align: center;
+  padding: 6px;
+}
+.inventory-image-inputs {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+}
+.inventory-upload-btn {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.inventory-upload-btn:hover {
+  background: #f1f5f9;
+  border-color: #5c732b;
+  color: #5c732b;
+}
+.inventory-url-input-wrap input {
+  width: 100%;
+  height: 36px;
+  font-size: 12px;
+  border: 1px solid #dfe4d9;
+  border-radius: 8px;
+  padding: 6px 12px;
+  background: #ffffff;
+}
+.inventory-clear-photo {
+  align-self: flex-start;
+  font-size: 11.5px;
+  color: #e11d48;
+  cursor: pointer;
+}
+
+

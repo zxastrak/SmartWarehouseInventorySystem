@@ -1,10 +1,73 @@
 const taskModel = require('../models/taskModel');
 const userModel = require('../models/userModel');
+const productModel = require('../models/productModel');
 const logAudit = require('../utils/audit');
 
 const VALID_STATUS = ['pending', 'in_progress', 'done'];
 
 const taskController = {
+  getNotifications: async (req, res) => {
+    try {
+      const notifications = await taskModel.getNotificationsByUserId(req.user.id);
+      const pendingCount = notifications.filter((n) => n.status === 'pending').length;
+      res.status(200).json({
+        notifications,
+        total: notifications.length,
+        pending: pendingCount,
+      });
+    } catch (err) {
+      console.error('[ERROR getNotifications]', err);
+      res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
+    }
+  },
+
+  reportDiscrepancy: async (req, res) => {
+    try {
+      const { sku, physical_quantity, reason } = req.body;
+      if (!sku) {
+        return res.status(400).json({ message: 'SKU produk wajib diisi' });
+      }
+
+      const products = await productModel.findBySku(sku);
+      if (!products || products.length === 0) {
+        return res.status(404).json({ message: `Produk dengan SKU ${sku} tidak ditemukan` });
+      }
+      const product = products[0];
+      const reporterId = req.user.id;
+      const systemStock = product.stock_quantity ?? 0;
+      const physicalQty = physical_quantity !== undefined ? Number(physical_quantity) : 0;
+      const diff = physicalQty - systemStock;
+      const diffText = diff > 0 ? `+${diff}` : `${diff}`;
+
+      const title = `[SELISIH STOK] ${product.name} (${product.sku})`;
+      const description = `Laporan selisih stok fisik oleh staf (ID: ${reporterId}). Stok sistem: ${systemStock}, Stok fisik: ${physicalQty} (Selisih: ${diffText}). Alasan/Catatan: ${reason || '-'}`;
+
+      const result = await taskModel.create({
+        title,
+        description,
+        location_id: product.location_id || null,
+        related_product_id: product.id,
+        current_assignee_id: reporterId,
+        created_by: reporterId,
+      });
+
+      await logAudit({
+        user_id: reporterId,
+        action: 'TASK_CREATED',
+        table_affected: 'tasks',
+        record_id: result.taskId,
+      });
+
+      res.status(201).json({
+        message: 'Laporan selisih stok berhasil dibuat sebagai tugas',
+        taskId: result.taskId,
+      });
+    } catch (err) {
+      console.error('[ERROR reportDiscrepancy]', err);
+      res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
+    }
+  },
+
   getAll: async (req, res) => {
     try {
       const tasks = await taskModel.getAll();

@@ -1,92 +1,408 @@
-import WarehouseHeader from '../components/WarehouseHeader.jsx';
-import React, { useEffect, useRef, useState } from 'react';
-import DashboardSidebar from '../components/DashboardSidebar.jsx';
-import Icon from '../components/DashboardIcon.jsx';
-import { stockStatus } from '../data/inventory.js';
-import { metrics, stockItems, stockHistory } from '../data/dashboard.js';
-import '../styles/dashboard.css';
+import { typeOf } from "../utils/productTypes.js";
+import { formatNumber } from "../utils/formatters.js";
+import WarehouseHeader from "../components/WarehouseHeader.jsx";
+import React, { useEffect, useRef, useState, useMemo } from "react";
+import DashboardSidebar from "../components/DashboardSidebar.jsx";
+import Icon from "../components/DashboardIcon.jsx";
+import { stockStatus } from "../data/inventory.js";
+import { stockHistory } from "../data/dashboard.js";
+import "../styles/dashboard.css";
 
 function StockFlow({ period, onPeriodChange }) {
-  const rows = period === '7' ? stockHistory.slice(-7) : stockHistory;
+  const rows = period === "7" ? stockHistory.slice(-7) : stockHistory;
   const [selected, setSelected] = useState(null);
+
+  if (!rows || rows.length === 0) {
+    return (
+      <section className="dashboard-card flow-card" aria-labelledby="stock-flow-title">
+        <div className="card-heading">
+          <div>
+            <h2 id="stock-flow-title">Stock Flow</h2>
+            <p>Total inventory movement (in units)</p>
+          </div>
+          <label>
+            <span className="sr-only">Stock flow period</span>
+            <select value={period} onChange={(event) => onPeriodChange(event.target.value)}>
+              <option value="14">Last 14 days</option>
+              <option value="7">Last 7 days</option>
+            </select>
+          </label>
+        </div>
+        <div style={{ padding: "3rem 1.5rem", textAlign: "center", color: "#737b6c" }}>
+          <p>Belum ada riwayat pergerakan stok.</p>
+        </div>
+      </section>
+    );
+  }
+
   const left = 48, right = 738, top = 32, bottom = 204;
-  const point = (row, index, key) => [left + index * (right - left) / (rows.length - 1), bottom - row[key] / 1200 * (bottom - top)];
-  const line = key => {
-    const points = rows.map((row,index) => point(row,index,key));
-    return points.reduce((path,current,index) => {
-      if (!index) return `M${current.join(',')}`;
-      const previous = points[index-1], before = points[Math.max(0,index-2)], after = points[Math.min(points.length-1,index+1)];
-      const c1 = [previous[0]+(current[0]-before[0])/6, previous[1]+(current[1]-before[1])/6];
-      const c2 = [current[0]-(after[0]-previous[0])/6, current[1]-(after[1]-previous[1])/6];
-      return `${path} C${c1.join(',')} ${c2.join(',')} ${current.join(',')}`;
-    }, '');
+  const maxVal = Math.max(100, ...rows.map((r) => Math.max(r.incoming || 0, r.outgoing || 0)));
+  const point = (row, index, key) => [
+    left + (index * (right - left)) / Math.max(1, rows.length - 1),
+    bottom - ((row[key] || 0) / maxVal) * (bottom - top),
+  ];
+  const line = (key) => {
+    const points = rows.map((row, index) => point(row, index, key));
+    return points.reduce((path, current, index) => {
+      if (!index) return `M${current.join(",")}`;
+      const previous = points[index - 1],
+        before = points[Math.max(0, index - 2)],
+        after = points[Math.min(points.length - 1, index + 1)];
+      const c1 = [previous[0] + (current[0] - before[0]) / 6, previous[1] + (current[1] - before[1]) / 6];
+      const c2 = [current[0] - (after[0] - previous[0]) / 6, current[1] - (after[1] - previous[1]) / 6];
+      return `${path} C${c1.join(",")} ${c2.join(",")} ${current.join(",")}`;
+    }, "");
   };
-  const area = key => `${line(key)} L${right},${bottom} L${left},${bottom} Z`;
-  const peakIndex = rows.findIndex(row => row.outgoing === Math.max(...rows.map(item => item.outgoing)));
-  const activeIndex = selected === null ? peakIndex : Math.min(selected, rows.length - 1);
-  const active = rows[activeIndex];
-  const [px,py] = point(active,activeIndex,'outgoing');
-  return <section className="dashboard-card flow-card" aria-labelledby="stock-flow-title">
-    <div className="card-heading"><div><h2 id="stock-flow-title">Stock Flow</h2><p>Total inventory movement (in units)</p></div><label><span className="sr-only">Stock flow period</span><select value={period} onChange={event => { setSelected(null); onPeriodChange(event.target.value); }}><option value="14">Last 14 days</option><option value="7">Last 7 days</option></select></label></div>
-    <div className="flow-legend"><span><i className="in-dot" />In</span><span><i className="out-dot" />Out</span></div>
-    <svg className="flow-chart" viewBox="0 0 780 240" role="img" aria-label={`Stock movement over ${rows.length} days. Latest incoming ${rows.at(-1).incoming}, outgoing ${rows.at(-1).outgoing} units.`}>
-      <defs><linearGradient id="incoming-area" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#dcebd9" stopOpacity=".8" /><stop offset="1" stopColor="#dcebd9" stopOpacity="0" /></linearGradient><linearGradient id="outgoing-area" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#f3c5c1" stopOpacity=".9" /><stop offset="1" stopColor="#f3c5c1" stopOpacity="0" /></linearGradient></defs>
-      {[0,300,600,900,1200].map(value => <g key={value}><line x1={left} x2={right} y1={bottom-value/1200*(bottom-top)} y2={bottom-value/1200*(bottom-top)} stroke="#e2e7dd" strokeDasharray="3 4" /><text x="25" y={bottom-value/1200*(bottom-top)+4} textAnchor="end" fill="#737b6c" fontSize="10">{value.toLocaleString('en-US')}</text></g>)}
-      <path d={area('incoming')} fill="url(#incoming-area)" /><path d={area('outgoing')} fill="url(#outgoing-area)" />
-      <path d={line('incoming')} fill="none" stroke="#5c732b" strokeWidth="2.3" strokeLinejoin="round" /><path d={line('outgoing')} fill="none" stroke="#8a5a5b" strokeWidth="2.3" strokeLinejoin="round" />
-      <line x1={px} x2={px} y1={py} y2={bottom} stroke="#8a5a5b" strokeDasharray="4 4" /><circle cx={px} cy={py} r="5" fill="#8a5a5b" stroke="white" strokeWidth="2" />
-      <g transform={`translate(${Math.max(50,Math.min(px-60,620))},${Math.max(0,py-60)})`}><rect width="120" height="40" rx="7" fill="#8a5a5b" /><text x="60" y="16" textAnchor="middle" fill="white" fontSize="10">{selected === null ? 'Stockout predicted' : `${active.day}: Out ${active.outgoing}`}</text><text x="60" y="29" textAnchor="middle" fill="white" fontSize="10">{selected === null ? 'in 4 days' : `In ${active.incoming} units`}</text></g>
-      {rows.filter((_,index) => (index % Math.ceil(rows.length/6) === 0 && index < rows.length-2) || index === rows.length-1).map(row => <text key={row.day} x={point(row,rows.indexOf(row),'incoming')[0]} y="226" textAnchor="middle" fontSize="10" fill="#191d17">{row.day}, 2026</text>)}
-      {['incoming','outgoing'].map((key,index) => <g key={key} transform={`translate(736,${point(rows.at(-1),rows.length-1,key)[1]-10})`}><rect width="40" height="21" rx="6" fill={index ? '#8a5a5b' : '#5c732b'} /><text x="20" y="14" fill="white" textAnchor="middle" fontSize="11">{rows.at(-1)[key]}</text></g>)}
-    </svg>
-    <div className="flow-day-controls" aria-label="Inspect daily stock flow">{rows.map((row,index) => <button key={row.day} aria-label={`Inspect ${row.day}`} title={`${row.day}: In ${row.incoming}, Out ${row.outgoing}`} onClick={() => setSelected(index)} aria-pressed={selected === index}>{index+1}</button>)}</div>
-  </section>;
+  const area = (key) => `${line(key)} L${right},${bottom} L${left},${bottom} Z`;
+  const peakIndex = rows.findIndex((row) => row.outgoing === Math.max(...rows.map((item) => item.outgoing || 0)));
+  const activeIndex = selected === null ? (peakIndex >= 0 ? peakIndex : 0) : Math.min(selected, rows.length - 1);
+  const active = rows[activeIndex] || { day: "Today", incoming: 0, outgoing: 0 };
+  const [px, py] = point(active, activeIndex, "outgoing");
+
+  return (
+    <section className="dashboard-card flow-card" aria-labelledby="stock-flow-title">
+      <div className="card-heading">
+        <div>
+          <h2 id="stock-flow-title">Stock Flow</h2>
+          <p>Total inventory movement (in units)</p>
+        </div>
+        <label>
+          <span className="sr-only">Stock flow period</span>
+          <select
+            value={period}
+            onChange={(event) => {
+              setSelected(null);
+              onPeriodChange(event.target.value);
+            }}
+          >
+            <option value="14">Last 14 days</option>
+            <option value="7">Last 7 days</option>
+          </select>
+        </label>
+      </div>
+      <div className="flow-legend">
+        <span><i className="in-dot" />In</span>
+        <span><i className="out-dot" />Out</span>
+      </div>
+      <svg className="flow-chart" viewBox="0 0 780 240" role="img" aria-label="Stock movement">
+        <defs>
+          <linearGradient id="incoming-area" x1="0" y1="0" x2="0" y2="1">
+            <stop stopColor="#dcebd9" stopOpacity=".8" />
+            <stop offset="1" stopColor="#dcebd9" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="outgoing-area" x1="0" y1="0" x2="0" y2="1">
+            <stop stopColor="#f3c5c1" stopOpacity=".9" />
+            <stop offset="1" stopColor="#f3c5c1" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {[0, Math.round(maxVal / 2), maxVal].map((value) => (
+          <g key={value}>
+            <line x1={left} x2={right} y1={bottom - (value / maxVal) * (bottom - top)} y2={bottom - (value / maxVal) * (bottom - top)} stroke="#e2e7dd" strokeDasharray="3 4" />
+            <text x="25" y={bottom - (value / maxVal) * (bottom - top) + 4} textAnchor="end" fill="#737b6c" fontSize="10">
+              {formatNumber(value)}
+            </text>
+          </g>
+        ))}
+        <path d={area("incoming")} fill="url(#incoming-area)" />
+        <path d={area("outgoing")} fill="url(#outgoing-area)" />
+        <path d={line("incoming")} fill="none" stroke="#5c732b" strokeWidth="2.3" strokeLinejoin="round" />
+        <path d={line("outgoing")} fill="none" stroke="#8a5a5b" strokeWidth="2.3" strokeLinejoin="round" />
+        <line x1={px} x2={px} y1={py} y2={bottom} stroke="#8a5a5b" strokeDasharray="4 4" />
+        <circle cx={px} cy={py} r="5" fill="#8a5a5b" stroke="white" strokeWidth="2" />
+        <g transform={`translate(${Math.max(50, Math.min(px - 60, 620))},${Math.max(0, py - 60)})`}>
+          <rect width="120" height="40" rx="7" fill="#8a5a5b" />
+          <text x="60" y="16" textAnchor="middle" fill="white" fontSize="10">
+            {selected === null ? "Stock Flow" : `${active.day}: Out ${active.outgoing}`}
+          </text>
+          <text x="60" y="29" textAnchor="middle" fill="white" fontSize="10">
+            {`In ${active.incoming} units`}
+          </text>
+        </g>
+      </svg>
+    </section>
+  );
 }
 
-export default function Dashboard({ manager, warehouse, onSignOut, onNavigate, inventory, isBackendConnected, syncStatus, onSync }) {
-  const [search, setSearch] = useState('');
-  const [period, setPeriod] = useState('14');
+function Dashboard({ manager, warehouse, onSignOut, onNavigate, inventory = [], shipments = [] }) {
+  const [search, setSearch] = useState("");
+  const [period, setPeriod] = useState("14");
   const [navOpen, setNavOpen] = useState(false);
   const [dialog, setDialog] = useState(null);
   const searchRef = useRef(null);
   const dialogRef = useRef(null);
-  const firstName = manager?.fullName?.trim().split(/\s+/)[0] || 'Naura';
-  const warehouseName = warehouse?.warehouseName || 'Main Warehouse';
-  const liveStockItems = stockItems.map(item => { const product=inventory?.find(product => product.sku===({1111:"WH-3382",2222:"WH-7621",3333:"WH-1209",4444:"WH-4450"})[item.code]); return product ? {...item, name:product.name, current:product.current, reorder:product.reorder, rack:product.rack, status:stockStatus(product)} : item; }).filter(item => item.current < item.reorder);
-  const filtered = liveStockItems.filter(item => `${item.code} ${item.name} ${item.rack}`.toLowerCase().includes(search.toLowerCase().trim()));
-  useEffect(() => { if (dialog && !dialogRef.current.open) dialogRef.current.showModal(); }, [dialog]);
-  function preview(title, description = 'This page will be connected after its design is implemented.') { if(title==='View Reports'){onNavigate?.('reports');return;}setDialog({ title, description }); }
-  function navigate(label) { if (label === 'Reports' || label === 'Audit Trail') onNavigate?.(label === 'Reports'?'reports':'audit-trail');
-    else if (label === 'Purchase Orders') onNavigate?.('purchase-orders');
-    else if (label === 'AI Insight') onNavigate?.('ai-insight');
-    else if (label === 'Inventory' || label === 'Inbound' || label === 'Outbound') onNavigate?.(label.toLowerCase());
-    else if (label !== 'Dashboard') preview(label); }
-  const date = new Intl.DateTimeFormat('en-US',{ weekday:'long', year:'numeric', month:'long', day:'numeric' }).format(new Date());
-  return <div className="dashboard-layout">
-    <DashboardSidebar warehouseName={warehouseName} onNavigate={navigate} open={navOpen} onClose={() => setNavOpen(false)} />
-    <div className="dashboard-main">
-      <WarehouseHeader manager={manager} search={search} onSearch={setSearch} searchRef={searchRef} onMenu={() => setNavOpen(true)} onSignOut={onSignOut} onAlerts={() => preview('Inventory alerts', 'Wireless Scanner, Safety Helmet and Pallet Jack need restocking.')} onViewProfile={() => preview('Manager profile', `Manager: ${manager?.fullName || firstName}. Warehouse: ${warehouseName}.`)} isBackendConnected={isBackendConnected} syncStatus={syncStatus} onSync={onSync} />
-      <main className="dashboard-content">
-        <div className="dashboard-intro"><div><p>GOOD MORNING</p><h1>Here’s what’s happening<br />in your warehouse</h1></div><div className="dashboard-date"><p>{date}</p><p>{warehouseName}</p></div></div>
-        <div className="dashboard-columns">
-          <div className="dashboard-left-column">
-            <section className="dashboard-metrics" aria-label="Stock summary">{metrics.map(metric => <div key={metric.label} className={`metric-card metric-${metric.tone}`}><Icon name={metric.icon} size={38} /><div><h2>{metric.label}</h2><strong>{metric.value}</strong><p><span>▲ {metric.trend}</span> vs. last month</p></div></div>)}</section>
-            <StockFlow period={period} onPeriodChange={setPeriod} />
-            <section className="dashboard-card low-stock-card" aria-labelledby="low-stock-title"><div className="card-heading"><h2 id="low-stock-title">Low Stock Items</h2><button className="dashboard-link" onClick={() => onNavigate?.('inventory')} >View all <Icon name="arrow" size={20} /></button></div><div className="stock-table-wrap"><table><thead><tr>{['Code','Product Name','Rack','Current','Reorder Level','Days Left','Status','Action'].map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>{filtered.map(item => <tr key={item.code}><td>{item.code}</td><td>{item.name}</td><td>{item.rack}</td><td className={item.current<10 ? 'critical-text' : ''}>{item.current}</td><td>{item.reorder}</td><td className={item.days<5 ? 'critical-text' : ''}>{item.days}</td><td><span className={`stock-status status-${item.status.toLowerCase()}`}>{item.status}</span></td><td><button className="dashboard-link" onClick={() => preview(`Review ${item.name}`,`Code ${item.code} · Rack ${item.rack} · Current ${item.current} · Reorder level ${item.reorder} · ${item.days} days left. Sample data.`)}>Review</button></td></tr>)}{!filtered.length && <tr><td colSpan="8" className="empty-stock">No sample items match “{search}”.</td></tr>}</tbody></table></div></section>
+  const displayName = manager?.fullName || manager?.name || "Manager";
+  const firstName = displayName.trim().split(/\s+/)[0] || "Manager";
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "GOOD MORNING" : hour < 18 ? "GOOD AFTERNOON" : "GOOD EVENING";
+  const warehouseName = warehouse?.warehouseName || "Main Warehouse";
+
+  // Dynamic live stock items based on REAL inventory
+  const liveStockItems = useMemo(() => {
+    return (inventory || [])
+      .filter((item) => (Number(item.current) || 0) < (Number(item.reorder) || 15))
+      .map((item) => ({
+        code: item.sku,
+        name: item.name,
+        category: item.category || "General",
+        rack: item.rack || "A-01",
+        current: Number(item.current) || 0,
+        reorder: Number(item.reorder) || 15,
+        days: item.current > 0 ? Math.ceil(item.current / 3) : 0,
+        status: stockStatus(item),
+      }));
+  }, [inventory]);
+
+  const filtered = liveStockItems.filter((item) =>
+    `${item.code} ${item.name} ${item.rack}`.toLowerCase().includes(search.toLowerCase().trim())
+  );
+
+  // Dynamic metrics calculated from REAL inventory
+  const liveMetrics = useMemo(() => {
+    const totalItems = inventory.length;
+    const inStock = inventory.filter((item) => (Number(item.current) || 0) >= (Number(item.reorder) || 15)).length;
+    const lowStock = inventory.filter((item) => (Number(item.current) || 0) > 0 && (Number(item.current) || 0) < (Number(item.reorder) || 15)).length;
+    const outOfStock = inventory.filter((item) => (Number(item.current) || 0) === 0).length;
+
+    return [
+      { label: "Total Products", value: formatNumber(totalItems), trend: "Aktif", icon: "box", tone: "green" },
+      { label: "In Stock", value: formatNumber(inStock), trend: "Cukup", icon: "box", tone: "green" },
+      { label: "Low Stock", value: formatNumber(lowStock), trend: "Perlu Reorder", icon: "warning", tone: "rose" },
+      { label: "Out of Stock", value: formatNumber(outOfStock), trend: "Habis", icon: "close", tone: "rose" },
+    ];
+  }, [inventory]);
+
+  // Capacity calculations
+  const totalUnits = useMemo(() => {
+    return inventory.reduce((sum, item) => sum + (Number(item.current) || 0), 0);
+  }, [inventory]);
+  const maxCapacity = 5000;
+  const usedPercent = Math.min(100, Math.round((totalUnits / maxCapacity) * 100));
+  const availableCapacity = Math.max(0, maxCapacity - totalUnits);
+
+  useEffect(() => {
+    if (dialog && !dialogRef.current?.open) dialogRef.current?.showModal();
+  }, [dialog]);
+
+  function preview(title, description = "") {
+    if (title === "View Reports") {
+      onNavigate?.("reports");
+      return;
+    }
+    setDialog({ title, description });
+  }
+
+  function navigate(label) {
+    if (label === "Suppliers") {
+      onNavigate?.("suppliers");
+      return;
+    }
+    if (label === "Staff Management" || label === "Settings") {
+      onNavigate?.(label === "Settings" ? "settings" : "staff-management");
+      return;
+    }
+    if (label === "Reports" || label === "Audit Trail") onNavigate?.(label === "Reports" ? "reports" : "audit-trail");
+    else if (label === "Purchase Orders") onNavigate?.("purchase-orders");
+    else if (label === "AI Insight") onNavigate?.("ai-insight");
+    else if (label === "Inventory" || label === "Inbound" || label === "Outbound") onNavigate?.(label.toLowerCase());
+    else if (label !== "Dashboard") preview(label);
+  }
+
+  const date = new Intl.DateTimeFormat("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
+
+  return (
+    <div className="dashboard-layout">
+      <DashboardSidebar warehouseName={warehouseName} onNavigate={navigate} open={navOpen} onClose={() => setNavOpen(false)} />
+      <div className="dashboard-main">
+        <WarehouseHeader
+          onViewProfile={() => onNavigate("settings-profile")}
+          manager={manager}
+          search={search}
+          onSearch={setSearch}
+          searchRef={searchRef}
+          onMenu={() => setNavOpen(true)}
+          onSignOut={onSignOut}
+          onNavigate={onNavigate}
+          shipments={shipments}
+          onAlerts={() => preview("Inventory Alerts", liveStockItems.length ? `${liveStockItems.length} produk memerlukan restock.` : "Semua stok dalam kondisi optimal.")}
+        />
+        <main className="dashboard-content">
+          <div className="dashboard-intro">
+            <div>
+              <p>{greeting}, {firstName.toUpperCase()}</p>
+              <h1>Here’s what’s happening<br />in your warehouse</h1>
+            </div>
+            <div className="dashboard-date">
+              <p>{date}</p>
+              <p>{warehouseName}</p>
+            </div>
           </div>
-          <div className="dashboard-right-column">
-            <section className="dashboard-card action-card"><div className="card-heading"><h2>Action Required <span className="action-count">3</span></h2><button className="dashboard-link" onClick={() => preview('All actions','Demo: approval requests, predicted stockout, and restock review.')} >View all <Icon name="arrow" size={20} /></button></div>{[
-              ['box','3 items require approval','New purchase requests pending review','rose'],
-              ['warning','Stockout predicted in 4 days','S12345 • Wireless Scanner','rose'],
-              ['refresh','Review restock','12 items below reorder point','green'],
-            ].map(([icon,title,description,tone]) => <button key={title} className={`action-row action-${tone}`} onClick={() => preview(title,`${description}. This is a demo alert.`)}><Icon name={icon} size={34} /><span><strong>{title}</strong><small>{description}</small></span><Icon name="chevron" size={18} /></button>)}</section>
-            <section className="dashboard-card capacity-card"><h2>Warehouse Capacity</h2><div className="capacity-value"><progress value="3420" max="5000" aria-label="Warehouse capacity used" /><strong>68%</strong></div><div className="capacity-details"><span><i className="in-dot" />Used <strong>3,420</strong></span><span><i className="available-dot" />Available <strong>1,580</strong></span><span>Total <strong>5,000</strong></span></div></section>
-            <section className="dashboard-card quick-card"><h2>Quick Actions</h2><div className="quick-grid">{[['box','New Purchase Request','Request new stock','primary'],['transfer','Transfer Stock','Move between racks','green'],['report','View Reports','Inventory & movement','neutral'],['chart','Scan Item','Add or update stock','neutral']].map(([icon,title,description,tone]) => <button key={title} className={`quick-action quick-${tone}`} onClick={() => preview(title)}><Icon name={icon} size={34} /><span><strong>{title}</strong><small>{description}</small></span><Icon name="chevron" size={16} /></button>)}</div></section>
+          <div className="dashboard-columns">
+            <div className="dashboard-left-column">
+              <section className="dashboard-metrics" aria-label="Stock summary">
+                {liveMetrics.map((metric) => (
+                  <div key={metric.label} className={`metric-card metric-${metric.tone}`}>
+                    <Icon name={metric.icon} size={38} />
+                    <div>
+                      <h2>{metric.label}</h2>
+                      <strong>{metric.value}</strong>
+                      <p>{metric.trend}</p>
+                    </div>
+                  </div>
+                ))}
+              </section>
+              <StockFlow period={period} onPeriodChange={setPeriod} />
+              <section className="dashboard-card low-stock-card" aria-labelledby="low-stock-title">
+                <div className="card-heading">
+                  <h2 id="low-stock-title">Low Stock Items</h2>
+                  <button className="dashboard-link" onClick={() => onNavigate?.("inventory")}>
+                    View all <Icon name="arrow" size={20} />
+                  </button>
+                </div>
+                <div className="stock-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        {["Code", "Product Name", "Rack", "Current", "Reorder Level", "Days Left", "Status", "Action"].map((label) => (
+                          <th key={label}>{label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((item) => (
+                        <tr key={item.code}>
+                          <td>{item.code}</td>
+                          <td>
+                            {item.name}
+                            <small>Type: {typeOf(item)}</small>
+                          </td>
+                          <td>{item.rack}</td>
+                          <td className={item.current < 10 ? "critical-text" : ""}>{item.current}</td>
+                          <td>{item.reorder}</td>
+                          <td className={item.days < 5 ? "critical-text" : ""}>{item.days}</td>
+                          <td>
+                            <span className={`stock-status status-${item.status.toLowerCase().replace(/\s+/g, "-")}`}>
+                              {item.status}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              className="dashboard-link"
+                              onClick={() => onNavigate?.("inventory")}
+                            >
+                              Review
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {!filtered.length && (
+                        <tr>
+                          <td colSpan="8" className="empty-stock">
+                            {inventory.length === 0
+                              ? "Belum ada produk yang didaftarkan dalam inventaris."
+                              : "Tidak ada produk dengan stok menipis."}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+            <div className="dashboard-right-column">
+              <section className="dashboard-card action-card">
+                <div className="card-heading">
+                  <h2>
+                    Action Required <span className="action-count">{liveStockItems.length}</span>
+                  </h2>
+                  <button className="dashboard-link" onClick={() => onNavigate?.("inventory")}>
+                    View all <Icon name="arrow" size={20} />
+                  </button>
+                </div>
+                {liveStockItems.length > 0 ? (
+                  liveStockItems.slice(0, 3).map((item) => (
+                    <button
+                      key={item.code}
+                      className="action-row action-rose"
+                      onClick={() => onNavigate?.("inventory")}
+                    >
+                      <Icon name="warning" size={34} />
+                      <span>
+                        <strong>{item.name}</strong>
+                        <small>Stok: {item.current} (Batas: {item.reorder})</small>
+                      </span>
+                      <Icon name="chevron" size={18} />
+                    </button>
+                  ))
+                ) : (
+                  <p style={{ color: "#737b6c", fontSize: "0.85rem", padding: "1rem" }}>
+                    Semua operasional gudang berjalan lancar. Tidak ada tindakan mendesak.
+                  </p>
+                )}
+              </section>
+              <section className="dashboard-card capacity-card">
+                <div className="card-heading">
+                  <h2>Warehouse Capacity</h2>
+                  <button className="dashboard-link" onClick={() => onNavigate?.("inventory")}>
+                    Inventory <Icon name="arrow" size={16} />
+                  </button>
+                </div>
+                <div className="capacity-value">
+                  <progress value={totalUnits} max={maxCapacity} aria-label="Warehouse capacity used" />
+                  <strong>{usedPercent}%</strong>
+                </div>
+                <div className="capacity-details">
+                  <span>
+                    <i className="in-dot" />Used <strong>{formatNumber(totalUnits)}</strong>
+                  </span>
+                  <span>
+                    <i className="available-dot" />Available <strong>{formatNumber(availableCapacity)}</strong>
+                  </span>
+                  <span>Total <strong>{formatNumber(maxCapacity)}</strong></span>
+                </div>
+              </section>
+              <section className="dashboard-card quick-card">
+                <h2>Quick Actions</h2>
+                <div className="quick-grid">
+                  {[
+                    ["box", "Purchase Orders", "Kelola pesanan barang", "primary", () => onNavigate?.("purchase-orders")],
+                    ["transfer", "Inbound Shipments", "Penerimaan stok barang", "green", () => onNavigate?.("inbound")],
+                    ["report", "View Reports", "Laporan stok & mutasi", "neutral", () => onNavigate?.("reports")],
+                    ["chart", "Product Catalog", "Katalog & stok produk", "neutral", () => onNavigate?.("inventory")],
+                  ].map(([icon, title, description, tone, action]) => (
+                    <button key={title} className={`quick-action quick-${tone}`} onClick={action}>
+                      <Icon name={icon} size={34} />
+                      <span>
+                        <strong>{title}</strong>
+                        <small>{description}</small>
+                      </span>
+                      <Icon name="chevron" size={16} />
+                    </button>
+                  ))}
+                </div>
+              </section>
+            </div>
           </div>
-        </div>
-        <p className="dashboard-demo">Frontend demo · Stock, alerts, capacity and predictions are sample data.</p>
-      </main>
+        </main>
+      </div>
+      <dialog ref={dialogRef} className="dashboard-dialog" onCancel={() => setDialog(null)} onClose={() => setDialog(null)} aria-labelledby="dashboard-dialog-title">
+        {dialog && (
+          <>
+            <h2 id="dashboard-dialog-title">{dialog.title}</h2>
+            <p>{dialog.description}</p>
+            <button
+              className="continue-button"
+              onClick={() => {
+                dialogRef.current?.close();
+                setDialog(null);
+              }}
+            >
+              Close
+            </button>
+          </>
+        )}
+      </dialog>
     </div>
-    <dialog ref={dialogRef} className="dashboard-dialog" onCancel={() => setDialog(null)} onClose={() => setDialog(null)} aria-labelledby="dashboard-dialog-title">{dialog && <><h2 id="dashboard-dialog-title">{dialog.title}</h2><p>{dialog.description}</p><button className="continue-button" onClick={() => { dialogRef.current.close(); setDialog(null); }}>Close</button></>}</dialog>
-  </div>;
+  );
 }
+
+export { Dashboard as default };

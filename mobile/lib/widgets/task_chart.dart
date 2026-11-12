@@ -1,8 +1,17 @@
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../core/app_theme.dart';
 
-class TaskChart extends StatelessWidget {
+// Warna seri bar chart: hijau untuk masuk, koral/merah untuk keluar, teal untuk rata-rata.
+const _inflowColor = mintLogo;
+const _outflowColor = Color(0xffe98686);
+const _avgColor = brand;
+const _axisText = Color(0xff94a3b8);
+
+enum ChartFilter { all, inflow, outflow, average }
+
+class TaskChart extends StatefulWidget {
   final bool bars;
   final int inflow, outflow;
   final List<double>? inflowSeries;
@@ -10,7 +19,7 @@ class TaskChart extends StatelessWidget {
 
   const TaskChart({
     super.key,
-    this.bars = false,
+    this.bars = true,
     this.inflow = 0,
     this.outflow = 0,
     this.inflowSeries,
@@ -18,18 +27,25 @@ class TaskChart extends StatelessWidget {
   });
 
   @override
+  State<TaskChart> createState() => _TaskChartState();
+}
+
+class _TaskChartState extends State<TaskChart> {
+  ChartFilter _filter = ChartFilter.all;
+
+  @override
   Widget build(BuildContext context) {
     final a =
-        inflowSeries ??
-        List.generate(6, (i) => i == 5 ? inflow.toDouble() : 0.0);
+        widget.inflowSeries ??
+        List.generate(7, (i) => i == 6 ? widget.inflow.toDouble() : 0.0);
     final b =
-        outflowSeries ??
-        List.generate(6, (i) => i == 5 ? outflow.toDouble() : 0.0);
+        widget.outflowSeries ??
+        List.generate(7, (i) => i == 6 ? widget.outflow.toDouble() : 0.0);
     final hasData = a.any((v) => v > 0) || b.any((v) => v > 0);
 
     if (!hasData) {
       return Container(
-        height: bars ? 240 : 200,
+        height: 240,
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         child: Column(
@@ -37,31 +53,36 @@ class TaskChart extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xff5f7f61).withAlpha(20),
+              padding: const EdgeInsets.all(12),
+              decoration: const BoxDecoration(
+                color: brandSoft,
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.query_stats_outlined,
-                size: 24,
-                color: Color(0xff5f7f61),
+                size: 26,
+                color: brand,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             const Text(
               'Belum Ada Aktivitas Telemetri',
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xff333333),
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: brandInk,
               ),
             ),
             const SizedBox(height: 4),
             const Text(
               'Grafik pergerakan stok harian akan tampil saat ada transaksi stok masuk/keluar di database.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 10, color: Color(0xff888888)),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: muted,
+                height: 1.4,
+              ),
             ),
           ],
         ),
@@ -69,220 +90,316 @@ class TaskChart extends StatelessWidget {
     }
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Filter Bar Chart Chips
+        Row(
+          children: [
+            _ChartFilterChip(
+              label: 'Semua',
+              isSelected: _filter == ChartFilter.all,
+              activeColor: brand,
+              onTap: () => setState(() => _filter = ChartFilter.all),
+            ),
+            const SizedBox(width: 6),
+            _ChartFilterChip(
+              label: 'Stok Masuk',
+              isSelected: _filter == ChartFilter.inflow,
+              activeColor: _inflowColor,
+              onTap: () => setState(() => _filter = ChartFilter.inflow),
+            ),
+            const SizedBox(width: 6),
+            _ChartFilterChip(
+              label: 'Stok Keluar',
+              isSelected: _filter == ChartFilter.outflow,
+              activeColor: _outflowColor,
+              onTap: () => setState(() => _filter = ChartFilter.outflow),
+            ),
+            const SizedBox(width: 6),
+            _ChartFilterChip(
+              label: 'Rata-rata',
+              isSelected: _filter == ChartFilter.average,
+              activeColor: _avgColor,
+              onTap: () => setState(() => _filter = ChartFilter.average),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        // Bar Chart Canvas (Murni Bar Chart tanpa Line Chart)
         SizedBox(
-          height: bars ? 278 : 225,
+          height: 250,
           width: double.infinity,
           child: CustomPaint(
-            painter: _ChartPainter(bars, inflow, outflow, a, b),
+            painter: _BarChartPainter(a, b, _filter),
           ),
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 12),
+        // Legenda Seri Dinamis
         Wrap(
           alignment: WrapAlignment.center,
-          spacing: 15,
-          children:
-              bars
-                  ? [
-                    legend(const Color(0xff83d3c3), 'Stok Masuk'),
-                    legend(const Color(0xfff69a9a), 'Stok Keluar'),
-                    legend(const Color(0xff5f7f61), 'Rata-rata', stroke: true),
-                  ]
-                  : [
-                    legend(
-                      const Color(0xff5cc5a9),
-                      'Inbound (Masuk)',
-                      stroke: true,
-                    ),
-                    legend(
-                      const Color(0xffff865f),
-                      'Outbound (Keluar)',
-                      stroke: true,
-                    ),
-                  ],
+          spacing: 16,
+          runSpacing: 6,
+          children: _buildLegends(),
         ),
       ],
     );
   }
 
-  Widget legend(Color color, String label, {bool stroke = false}) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Container(width: 9, height: stroke ? 2 : 9, color: color),
-      const SizedBox(width: 4),
-      Text(
-        label,
-        style: const TextStyle(fontSize: 9, color: Color(0xff777777)),
-      ),
-    ],
-  );
+  List<Widget> _buildLegends() {
+    switch (_filter) {
+      case ChartFilter.all:
+        return [
+          _legendItem(_inflowColor, 'Stok Masuk'),
+          _legendItem(_outflowColor, 'Stok Keluar'),
+          _legendItem(_avgColor, 'Rata-rata'),
+        ];
+      case ChartFilter.inflow:
+        return [_legendItem(_inflowColor, 'Stok Masuk')];
+      case ChartFilter.outflow:
+        return [_legendItem(_outflowColor, 'Stok Keluar')];
+      case ChartFilter.average:
+        return [_legendItem(_avgColor, 'Rata-rata')];
+    }
+  }
+
+  Widget _legendItem(Color color, String label) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: brandSlate,
+            ),
+          ),
+        ],
+      );
 }
 
-class _ChartPainter extends CustomPainter {
-  final bool bars;
-  final int inflow, outflow;
+class _ChartFilterChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final Color activeColor;
+  final VoidCallback onTap;
+
+  const _ChartFilterChip({
+    required this.label,
+    required this.isSelected,
+    required this.activeColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected ? activeColor : const Color(0xfff1f5f9),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? activeColor : const Color(0xffe2e8f0),
+              width: 1,
+            ),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+              color: isSelected ? Colors.white : brandSlate,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BarChartPainter extends CustomPainter {
   final List<double> a;
   final List<double> b;
-  _ChartPainter(this.bars, this.inflow, this.outflow, this.a, this.b);
+  final ChartFilter filter;
+
+  _BarChartPainter(this.a, this.b, this.filter);
 
   @override
   void paint(Canvas c, Size size) {
-    final box = Rect.fromLTRB(27, 30, size.width - 25, size.height - 23);
-    final maxVal = [...a, ...b].fold<double>(0.0, (m, v) => math.max(m, v));
+    final count = a.length;
+    final box = Rect.fromLTRB(32, 16, size.width - 16, size.height - 26);
+
+    // Hitung seri rata-rata
+    final avg = List.generate(count, (i) => (a[i] + b[i]) / 2);
+
+    // Tentukan nilai maksimum untuk skala sumbu Y berdasarkan filter aktif
+    double maxVal = 0.0;
+    switch (filter) {
+      case ChartFilter.all:
+        maxVal = [...a, ...b, ...avg].fold(0.0, math.max);
+        break;
+      case ChartFilter.inflow:
+        maxVal = a.fold(0.0, math.max);
+        break;
+      case ChartFilter.outflow:
+        maxVal = b.fold(0.0, math.max);
+        break;
+      case ChartFilter.average:
+        maxVal = avg.fold(0.0, math.max);
+        break;
+    }
     final maximum = math.max(10.0, maxVal * 1.15);
 
-    void label(String text, Offset pos, {TextAlign align = TextAlign.left}) {
+    void drawLabel(String text, Offset pos, {bool center = false, bool rightAlign = false}) {
       final painter = TextPainter(
         text: TextSpan(
           text: text,
-          style: const TextStyle(fontSize: 9, color: Color(0xff999999)),
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: _axisText,
+            fontFamily: appFont,
+          ),
         ),
         textDirection: TextDirection.ltr,
-        textAlign: align,
       )..layout();
-      painter.paint(c, pos);
+
+      double dx = pos.dx;
+      if (center) {
+        dx = pos.dx - painter.width / 2;
+      } else if (rightAlign) {
+        dx = pos.dx - painter.width;
+      }
+      painter.paint(c, Offset(dx, pos.dy - painter.height / 2));
     }
 
-    for (int n = 0; n < 6; n++) {
-      final y = box.bottom - box.height * n / 5;
+    // Gridline horizontal & angka sumbu Y di sisi kiri (5 garis)
+    for (int n = 0; n <= 4; n++) {
+      final y = box.bottom - box.height * n / 4;
       c.drawLine(
         Offset(box.left, y),
         Offset(box.right, y),
         Paint()
-          ..color = const Color(0xffeeeeee)
-          ..strokeWidth = .6,
+          ..color = const Color(0xfff1f5f9)
+          ..strokeWidth = 1,
       );
-      label('${(maximum * n / 5).round()}', Offset(0, y - 5));
-      if (bars) {
-        label('${(maximum * n / 5).round()}', Offset(box.right + 5, y - 5));
-      }
+      final val = (maximum * n / 4).round();
+      drawLabel('$val', Offset(box.left - 6, y), rightAlign: true);
     }
-    final step = box.width / 6;
-    final xs = List.generate(6, (n) => box.left + step * (n + .5));
+
+    final step = box.width / count;
+    final xs = List.generate(count, (n) => box.left + step * (n + .5));
     final now = DateTime.now();
-    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final labels = List.generate(6, (n) {
-      final d = now.subtract(Duration(days: 5 - n));
+    const dayNames = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+    final labels = List.generate(count, (n) {
+      final d = now.subtract(Duration(days: count - 1 - n));
       return dayNames[d.weekday - 1];
     });
 
-    for (int n = 0; n < 6; n++) {
-      if (bars) {
-        c.drawRect(
-          Rect.fromLTWH(box.left + n * step, box.top, step * .58, box.height),
-          Paint()..color = const Color(0xfff4f4f4),
-        );
-      }
-      label(labels[n], Offset(xs[n] - 9, box.bottom + 6));
-    }
-    void series(List<double> vals, Color color, double offset) {
-      if (bars) {
-        for (int i = 0; i < vals.length; i++) {
-          final height = vals[i] / maximum * box.height;
-          c.drawRect(
-            Rect.fromLTWH(
-              xs[i] + offset,
-              box.bottom - height,
-              step * .25,
-              height,
-            ),
-            Paint()..color = color,
-          );
-        }
-      } else {
-        final points = List.generate(
-          6,
-          (n) => Offset(xs[n], box.bottom - vals[n] / maximum * box.height),
-        );
-        final path = Path()..moveTo(points.first.dx, points.first.dy);
-        for (int i = 1; i < points.length; i++) {
-          final prev = points[i - 1], next = points[i];
-          final middle = (prev.dx + next.dx) / 2;
-          path.cubicTo(middle, prev.dy, middle, next.dy, next.dx, next.dy);
-        }
-        final fill =
-            Path.from(path)
-              ..lineTo(points.last.dx, box.bottom)
-              ..lineTo(points.first.dx, box.bottom)
-              ..close();
-        c.drawPath(
-          fill,
-          Paint()
-            ..shader = LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [color.withAlpha(80), color.withAlpha(2)],
-            ).createShader(box),
-        );
-        c.drawPath(
-          path,
-          Paint()
-            ..color = color
-            ..strokeWidth = 1.3
-            ..style = PaintingStyle.stroke,
-        );
-        for (final point in points) {
-          c.drawCircle(point, 2.2, Paint()..color = Colors.white);
-          c.drawCircle(
-            point,
-            2.2,
-            Paint()
-              ..color = color
-              ..strokeWidth = .8
-              ..style = PaintingStyle.stroke,
-          );
-        }
-      }
+    // Dimensi pilar latar belakang abu-abu
+    final bgWidth = step * 0.72;
+
+    for (int n = 0; n < count; n++) {
+      // Wadah pilar abu-abu tepat di tengah kolom hari
+      c.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(xs[n] - bgWidth / 2, box.top, bgWidth, box.height),
+          const Radius.circular(8),
+        ),
+        Paint()..color = const Color(0xfff8fafc),
+      );
+
+      // Label teks nama hari
+      drawLabel(labels[n], Offset(xs[n], box.bottom + 12), center: true);
     }
 
-    series(
-      a,
-      bars ? const Color(0xff83d3c3) : const Color(0xff5cc5a9),
-      -step * .28,
-    );
-    series(
-      b,
-      bars ? const Color(0xfff69a9a) : const Color(0xffff865f),
-      step * .03,
-    );
-    if (bars) {
-      final average = List.generate(6, (i) => (a[i] + b[i]) / 2);
-      final path = Path();
-      for (int i = 0; i < 6; i++) {
-        final p = Offset(xs[i], box.bottom - average[i] / maximum * box.height);
-        if (i == 0) {
-          path.moveTo(p.dx, p.dy);
-        } else {
-          path.lineTo(p.dx, p.dy);
-        }
-      }
-      c.drawPath(
-        path,
-        Paint()
-          ..color = const Color(0xff5f7f61)
-          ..strokeWidth = 1.4
-          ..style = PaintingStyle.stroke,
+    void drawSingleBar(double val, Color color, double left, double width) {
+      if (val <= 0) return;
+      final height = math.max(3.0, val / maximum * box.height);
+      c.drawRRect(
+        RRect.fromRectAndCorners(
+          Rect.fromLTWH(left, box.bottom - height, width, height),
+          topLeft: const Radius.circular(4),
+          topRight: const Radius.circular(4),
+        ),
+        Paint()..color = color,
       );
-      for (int i = 0; i < 6; i++) {
-        final p = Offset(xs[i], box.bottom - average[i] / maximum * box.height);
-        c.drawCircle(p, 3, Paint()..color = Colors.white);
-        c.drawCircle(
-          p,
-          3,
-          Paint()
-            ..color = const Color(0xff5f7f61)
-            ..strokeWidth = 1
-            ..style = PaintingStyle.stroke,
-        );
+    }
+
+    if (filter == ChartFilter.all) {
+      // Jika mode Semua: gambar 3 batang berdampingan (Masuk, Keluar, Rata-rata)
+      final barWidth = step * 0.18;
+      final barGap = step * 0.03;
+
+      for (int i = 0; i < count; i++) {
+        // Batang 1: Stok Masuk (kiri)
+        drawBar(a[i], _inflowColor, xs[i] - 1.5 * barWidth - barGap, barWidth, maximum, box, c);
+        // Batang 2: Stok Keluar (tengah)
+        drawBar(b[i], _outflowColor, xs[i] - 0.5 * barWidth, barWidth, maximum, box, c);
+        // Batang 3: Rata-rata (kanan)
+        drawBar(avg[i], _avgColor, xs[i] + 0.5 * barWidth + barGap, barWidth, maximum, box, c);
+      }
+    } else {
+      // Jika filter dipilih satu jenis: gambar 1 batang lebar di tengah pilar
+      final barWidth = step * 0.36;
+      for (int i = 0; i < count; i++) {
+        switch (filter) {
+          case ChartFilter.inflow:
+            drawSingleBar(a[i], _inflowColor, xs[i] - barWidth / 2, barWidth);
+            break;
+          case ChartFilter.outflow:
+            drawSingleBar(b[i], _outflowColor, xs[i] - barWidth / 2, barWidth);
+            break;
+          case ChartFilter.average:
+            drawSingleBar(avg[i], _avgColor, xs[i] - barWidth / 2, barWidth);
+            break;
+          case ChartFilter.all:
+            break;
+        }
       }
     }
   }
 
+  void drawBar(
+    double val,
+    Color color,
+    double left,
+    double width,
+    double maximum,
+    Rect box,
+    Canvas c,
+  ) {
+    if (val <= 0) return;
+    final height = math.max(3.0, val / maximum * box.height);
+    c.drawRRect(
+      RRect.fromRectAndCorners(
+        Rect.fromLTWH(left, box.bottom - height, width, height),
+        topLeft: const Radius.circular(4),
+        topRight: const Radius.circular(4),
+      ),
+      Paint()..color = color,
+    );
+  }
+
   @override
-  bool shouldRepaint(covariant _ChartPainter old) =>
-      old.bars != bars ||
-      old.inflow != inflow ||
-      old.outflow != outflow ||
+  bool shouldRepaint(covariant _BarChartPainter old) =>
+      old.filter != filter ||
       !listEquals(old.a, a) ||
       !listEquals(old.b, b);
 }

@@ -20,6 +20,16 @@ const auditLogController = {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
     }
   },
+
+  // Staf/User: ambil riwayat audit milik akun sendiri yang sedang login
+  getMyLogs: async (req, res) => {
+    try {
+      const logs = await auditLogModel.getByUserId(req.user.id);
+      res.status(200).json(logs);
+    } catch (err) {
+      res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
+    }
+  },
 };
 
 module.exports = auditLogController;

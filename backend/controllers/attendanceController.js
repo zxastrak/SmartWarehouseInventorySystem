@@ -1,4 +1,5 @@
 const attendanceModel = require('../models/attendanceModel');
+const logAudit = require('../utils/audit');
 
 const attendanceController = {
   checkIn: async (req, res) => {
@@ -9,6 +10,14 @@ const attendanceController = {
       }
 
       const result = await attendanceModel.checkIn(req.user.id);
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'ATTENDANCE_CHECK_IN',
+        table_affected: 'attendance_logs',
+        record_id: result.insertId,
+      }).catch(() => {});
+
       res.status(201).json({ message: 'Check-in berhasil', attendanceId: result.insertId });
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
@@ -23,6 +32,14 @@ const attendanceController = {
       }
 
       const result = await attendanceModel.checkOut(req.user.id);
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'ATTENDANCE_CHECK_OUT',
+        table_affected: 'attendance_logs',
+        record_id: result.insertId,
+      }).catch(() => {});
+
       res.status(201).json({ message: 'Check-out berhasil', attendanceId: result.insertId });
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });

@@ -56,6 +56,104 @@ button.scheduled-modal-footer { color: #5c732b; }
   .scheduled-information dl { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 22px; }
   .scheduled-grid { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; }
 }
+.scheduled-timeline-top {
+  margin-bottom: 24px;
+  min-height: auto;
+  padding: 24px 28px;
+}
+.scheduled-timeline-top .scheduled-timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.scheduled-timeline-top .scheduled-timeline-desc {
+  font-size: 13px;
+  color: #737b6c;
+  margin: 4px 0 0;
+}
+.scheduled-timeline-top .scheduled-timeline-header button {
+  min-width: 160px;
+}
+.scheduled-timeline-top ol {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.scheduled-timeline-top li {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  min-height: auto;
+}
+.scheduled-timeline-top li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 11px;
+  left: 23px;
+  right: -20px;
+  height: 3px;
+  width: auto;
+  bottom: auto;
+  background: #e1e6de;
+  z-index: 0;
+}
+.scheduled-timeline-top .scheduled-event-complete:not(:last-child)::after {
+  background: #5c732b;
+}
+.scheduled-timeline-top li > span {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #b8c2b1;
+  border-radius: 50%;
+  background: white;
+  flex-shrink: 0;
+  z-index: 1;
+}
+.scheduled-timeline-top .scheduled-event-complete > span {
+  background: #5c732b;
+  border-color: #5c732b;
+}
+.scheduled-timeline-top li > div {
+  z-index: 1;
+}
+.scheduled-timeline-top strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #191d17;
+  display: block;
+}
+.scheduled-timeline-top li p {
+  font-size: 11px;
+  color: #737b6c;
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+.scheduled-items-full {
+  margin-top: 24px;
+  min-height: auto;
+}
+@media (max-width: 900px) {
+  .scheduled-timeline-top ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+  .scheduled-timeline-top li:not(:last-child)::after {
+    display: none;
+  }
+  .scheduled-timeline-top .scheduled-timeline-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .scheduled-timeline-top .scheduled-timeline-header button {
+    width: 100%;
+  }
+}
 @media (max-width: 800px) {
   .scheduled-edit { position: static; display: block; margin: 0 0 18px auto; }
   .scheduled-information { padding: 20px; }

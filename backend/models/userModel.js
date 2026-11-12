@@ -1,18 +1,28 @@
 const db = require('../config/db');
 
-const SAFE_COLUMNS = 'id, name, email, role, is_active, created_at, updated_at';
+const SAFE_COLUMNS = 'id, name, email, role, role_title, warehouse, photo, is_active, created_at, updated_at';
 
 const UserModel = {
   create: async (userData) => {
-    const { name, email, password, role } = userData;
-    const sql = 'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)';
-    const [result] = await db.query(sql, [name, email, password, role]);
+    const { name, email, password, role, role_title, warehouse } = userData;
+    const sql = 'INSERT INTO users (name, email, password, role, role_title, warehouse) VALUES (?, ?, ?, ?, ?, ?)';
+    const [result] = await db.query(sql, [
+      name,
+      email,
+      password,
+      role || 'staf',
+      role_title || null,
+      warehouse || null,
+    ]);
     return result;
   },
 
   findByEmail: async (email) => {
-    const sql = 'SELECT * FROM users WHERE email = ?';
-    const [rows] = await db.query(sql, [email]);
+    const raw = String(email || '').trim().toLowerCase();
+    const withCom = raw.endsWith('.com') ? raw : `${raw}.com`;
+    const withoutCom = raw.replace(/\.com$/, '');
+    const sql = 'SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(email) = ? OR LOWER(email) = ?';
+    const [rows] = await db.query(sql, [raw, withCom, withoutCom]);
     return rows;
   },
 
@@ -33,10 +43,42 @@ const UserModel = {
     return rows;
   },
 
+  updateName: async (id, name) => {
+    const sql = 'UPDATE users SET name = ? WHERE id = ?';
+    const [result] = await db.query(sql, [name, id]);
+    return result;
+  },
+
   update: async (id, userData) => {
-    const { name, email } = userData;
-    const sql = 'UPDATE users SET name = ?, email = ? WHERE id = ?';
-    const [result] = await db.query(sql, [name, email, id]);
+    const fields = [];
+    const values = [];
+
+    if (userData.name !== undefined) {
+      fields.push('name = ?');
+      values.push(userData.name);
+    }
+    if (userData.email !== undefined) {
+      fields.push('email = ?');
+      values.push(userData.email);
+    }
+    if (userData.role_title !== undefined) {
+      fields.push('role_title = ?');
+      values.push(userData.role_title);
+    }
+    if (userData.warehouse !== undefined) {
+      fields.push('warehouse = ?');
+      values.push(userData.warehouse);
+    }
+    if (userData.photo !== undefined) {
+      fields.push('photo = ?');
+      values.push(userData.photo);
+    }
+
+    if (fields.length === 0) return { affectedRows: 0 };
+
+    values.push(id);
+    const sql = `UPDATE users SET ${fields.join(', ')} WHERE id = ?`;
+    const [result] = await db.query(sql, values);
     return result;
   },
 

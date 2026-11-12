@@ -4,6 +4,12 @@ const taskController = require('../controllers/taskController');
 const authMiddleware = require('../middlewares/authMiddleware');
 
 router.get('/', authMiddleware.verifyToken, taskController.getAll);
+
+// Notifikasi tugas khusus untuk staf yang sedang login
+router.get('/notifications', authMiddleware.verifyToken, taskController.getNotifications);
+
+// Laporan selisih stok dari staf lapangan ke manajer
+router.post('/discrepancy', authMiddleware.verifyToken, taskController.reportDiscrepancy);
 router.get('/:id', authMiddleware.verifyToken, taskController.getById);
 router.get('/:id/history', authMiddleware.verifyToken, taskController.getHistory);
 

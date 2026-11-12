@@ -192,10 +192,14 @@ class ApiService {
     }
   }
 
-  Future<List<Map<String, dynamic>>?> getMyShifts(String token) async {
+  Future<List<Map<String, dynamic>>?> getMyShifts(
+    String token, {
+    String? date,
+  }) async {
     try {
+      final url = date != null ? ApiConfig.shiftsMeDate(date) : ApiConfig.shiftsMe;
       final response = await _client
-          .get(Uri.parse(ApiConfig.shiftsMe), headers: _headers(token: token))
+          .get(Uri.parse(url), headers: _headers(token: token))
           .timeout(const Duration(seconds: 6));
 
       if (response.statusCode == 200) {
@@ -212,6 +216,98 @@ class ApiService {
     try {
       final response = await _client
           .get(Uri.parse(ApiConfig.tasks), headers: _headers(token: token))
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return List<Map<String, dynamic>>.from(decoded);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<Map<String, dynamic>>?> getLocations(String token) async {
+    try {
+      final response = await _client
+          .get(Uri.parse(ApiConfig.locations), headers: _headers(token: token))
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return List<Map<String, dynamic>>.from(decoded);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<Map<String, dynamic>>?> getCategories(String token) async {
+    try {
+      final response = await _client
+          .get(Uri.parse(ApiConfig.categories), headers: _headers(token: token))
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return List<Map<String, dynamic>>.from(decoded);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<Map<String, dynamic>>?> getSuppliers(String token) async {
+    try {
+      final response = await _client
+          .get(Uri.parse(ApiConfig.suppliers), headers: _headers(token: token))
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return List<Map<String, dynamic>>.from(decoded);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<Map<String, dynamic>>?> getProductTransactions(
+    String token,
+    int productId,
+  ) async {
+    try {
+      final response = await _client
+          .get(
+            Uri.parse(ApiConfig.productTransactions(productId)),
+            headers: _headers(token: token),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return List<Map<String, dynamic>>.from(decoded);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<Map<String, dynamic>>?> getTaskHistory(
+    String token,
+    int taskId,
+  ) async {
+    try {
+      final response = await _client
+          .get(
+            Uri.parse(ApiConfig.taskHistory(taskId)),
+            headers: _headers(token: token),
+          )
           .timeout(const Duration(seconds: 6));
 
       if (response.statusCode == 200) {
@@ -294,6 +390,233 @@ class ApiService {
     try {
       final response = await _client
           .get(Uri.parse(ApiConfig.attendanceMe), headers: _headers(token: token))
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return List<Map<String, dynamic>>.from(decoded);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<Map<String, dynamic>>?> getInboundShipments(String token) async {
+    try {
+      final response = await _client
+          .get(Uri.parse(ApiConfig.inbound), headers: _headers(token: token))
+          .timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return List<Map<String, dynamic>>.from(decoded);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> inspectInboundShipment(
+    String token,
+    dynamic shipmentId,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse(ApiConfig.inboundInspect(shipmentId)),
+            headers: _headers(token: token),
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+      return {
+        'success': response.statusCode == 200 || response.statusCode == 201,
+        'message': data['message'] ?? (response.statusCode == 200 ? 'Inspeksi berhasil' : 'Gagal mengirim inspeksi'),
+        'data': data,
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal mengirim inspeksi: $e'};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>?> getOutboundShipments(String token) async {
+    try {
+      final response = await _client
+          .get(Uri.parse(ApiConfig.outbound), headers: _headers(token: token))
+          .timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return List<Map<String, dynamic>>.from(decoded);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> inspectOutboundShipment(
+    String token,
+    dynamic shipmentId,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse(ApiConfig.outboundInspect(shipmentId)),
+            headers: _headers(token: token),
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+      return {
+        'success': response.statusCode == 200 || response.statusCode == 201,
+        'message': data['message'] ?? (response.statusCode == 200 ? 'Pemeriksaan outbound berhasil' : 'Gagal mengirim pemeriksaan outbound'),
+        'data': data,
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal mengirim pemeriksaan outbound: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> updateProfile({
+    required String token,
+    required String name,
+  }) async {
+    try {
+      final response = await _client
+          .put(
+            Uri.parse(ApiConfig.updateProfile),
+            headers: _headers(token: token),
+            body: jsonEncode({'name': name.trim()}),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      final data = jsonDecode(response.body);
+      return {
+        'success': response.statusCode == 200,
+        'message': data['message'],
+        'user': data['user'],
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal memperbarui profil: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> updateProductLocation({
+    required String token,
+    required int productId,
+    required String location,
+  }) async {
+    try {
+      final response = await _client
+          .patch(
+            Uri.parse(ApiConfig.productLocation(productId)),
+            headers: _headers(token: token),
+            body: jsonEncode({'location': location.trim().toUpperCase()}),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      final data = jsonDecode(response.body);
+      return {
+        'success': response.statusCode == 200,
+        'message': data['message'],
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal update lokasi rak: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> adjustStock({
+    required String token,
+    required int productId,
+    required int physicalQuantity,
+    String? notes,
+  }) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse(ApiConfig.productAdjustStock(productId)),
+            headers: _headers(token: token),
+            body: jsonEncode({
+              'physical_quantity': physicalQuantity,
+              if (notes != null && notes.isNotEmpty) 'notes': notes,
+            }),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      final data = jsonDecode(response.body);
+      return {
+        'success': response.statusCode == 200,
+        'message': data['message'],
+        'stock_quantity': data['stock_quantity'],
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal verifikasi stok fisik: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> reportDiscrepancy({
+    required String token,
+    required String sku,
+    required int physicalQuantity,
+    required String reason,
+  }) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse(ApiConfig.taskDiscrepancy),
+            headers: _headers(token: token),
+            body: jsonEncode({
+              'sku': sku.trim(),
+              'physical_quantity': physicalQuantity,
+              'reason': reason.trim(),
+            }),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      final data = jsonDecode(response.body);
+      return {
+        'success': response.statusCode == 201 || response.statusCode == 200,
+        'message': data['message'],
+        'taskId': data['taskId'],
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal mengirim laporan selisih: $e'};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>?> getTaskNotifications(String token) async {
+    try {
+      final response = await _client
+          .get(
+            Uri.parse(ApiConfig.taskNotifications),
+            headers: _headers(token: token),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['notifications'] is List) {
+          return List<Map<String, dynamic>>.from(decoded['notifications']);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<Map<String, dynamic>>?> getAuditLogsMe(String token) async {
+    try {
+      final response = await _client
+          .get(
+            Uri.parse(ApiConfig.auditLogsMe),
+            headers: _headers(token: token),
+          )
           .timeout(const Duration(seconds: 6));
 
       if (response.statusCode == 200) {
