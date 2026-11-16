@@ -3,17 +3,24 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'dev_qr_bypass.dart';
 import 'web_camera_helper.dart';
 
 /// Format barcode standar industri gudang SUSUNO:
 /// Mendukung 1D Barcode (Code 128, Code 39, EAN-13) dan 2D Barcode (QR Code, DataMatrix).
+/// Mendukung 1D Barcode (Code 128, Code 39, Code 93, EAN-13, EAN-8, UPC-A, UPC-E)
+/// dan 2D Barcode (QR Code, DataMatrix, Aztec, PDF417).
 const List<BarcodeFormat> defaultWarehouseFormats = [
   BarcodeFormat.qrCode,
   BarcodeFormat.code128,
   BarcodeFormat.code39,
+  BarcodeFormat.code93,
   BarcodeFormat.ean13,
+  BarcodeFormat.ean8,
+  BarcodeFormat.upcA,
+  BarcodeFormat.upcE,
   BarcodeFormat.dataMatrix,
+  BarcodeFormat.aztec,
+  BarcodeFormat.pdf417,
 ];
 
 /// Modul Barcode & QR Scanner Mandiri (Self-Contained Scanner Module)
@@ -45,12 +52,13 @@ class QrScannerScreen extends StatefulWidget {
   }) {
     return Navigator.of(context).push<String>(
       MaterialPageRoute(
-        builder: (_) => QrScannerScreen(
-          title: title,
-          hintText: hintText,
-          demoCode: demoCode,
-          formats: formats,
-        ),
+        builder:
+            (_) => QrScannerScreen(
+              title: title,
+              hintText: hintText,
+              demoCode: demoCode,
+              formats: formats,
+            ),
       ),
     );
   }
@@ -60,7 +68,8 @@ class QrScannerScreen extends StatefulWidget {
 }
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
-  final GlobalKey<QrScannerViewState> _scannerKey = GlobalKey<QrScannerViewState>();
+  final GlobalKey<QrScannerViewState> _scannerKey =
+      GlobalKey<QrScannerViewState>();
   bool _torchOn = false;
 
   void resetScan() => _scannerKey.currentState?.resetScan();
@@ -69,17 +78,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     await _scannerKey.currentState?.stopCamera();
     if (mounted) {
       Navigator.of(context).pop();
-    }
-  }
-
-  Future<void> _handleSkipBarcode() async {
-    final code = DevQrBypass.generateBarcode(
-      title: widget.title,
-      demoCode: widget.demoCode,
-    );
-    await _scannerKey.currentState?.stopCamera();
-    if (mounted) {
-      Navigator.of(context).pop(code);
     }
   }
 
@@ -99,7 +97,11 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           elevation: 0,
           leading: IconButton(
             tooltip: 'Tutup Kamera',
-            icon: const Icon(Icons.close_rounded, size: 28, color: Colors.white),
+            icon: const Icon(
+              Icons.close_rounded,
+              size: 28,
+              color: Colors.white,
+            ),
             onPressed: _handleClose,
           ),
           title: Text(
@@ -107,28 +109,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
           ),
           actions: [
-            // === DEV SKIP BARCODE: Tombol di AppBar (Hapus saat produksi) ===
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: TextButton.icon(
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xfff59e0b),
-                  backgroundColor: Colors.black54,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: const BorderSide(color: Color(0xfff59e0b), width: 1.2),
-                  ),
-                ),
-                onPressed: _handleSkipBarcode,
-                icon: const Icon(Icons.bolt, size: 16, color: Color(0xfff59e0b)),
-                label: const Text(
-                  'Skip Barcode',
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
             IconButton(
               tooltip: _torchOn ? 'Matikan Senter' : 'Nyalakan Senter',
               icon: Icon(
@@ -425,16 +405,23 @@ class QrScannerViewState extends State<QrScannerView>
                         animation: _animPosition,
                         builder: (context, child) {
                           return Align(
-                            alignment: Alignment(0, -1.0 + (_animPosition.value * 2.0)),
+                            alignment: Alignment(
+                              0,
+                              -1.0 + (_animPosition.value * 2.0),
+                            ),
                             child: Container(
                               height: 2.5,
-                              margin: const EdgeInsets.symmetric(horizontal: 12),
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
                               decoration: BoxDecoration(
                                 color: widget.scanLineColor,
                                 borderRadius: BorderRadius.circular(2),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: widget.scanLineColor.withValues(alpha: 0.8),
+                                    color: widget.scanLineColor.withValues(
+                                      alpha: 0.8,
+                                    ),
                                     blurRadius: 10,
                                     spreadRadius: 2,
                                   ),
@@ -457,7 +444,10 @@ class QrScannerViewState extends State<QrScannerView>
               right: 24,
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.65),
                     borderRadius: BorderRadius.circular(20),
@@ -481,40 +471,9 @@ class QrScannerViewState extends State<QrScannerView>
             if (_isFlashing)
               Positioned.fill(
                 child: IgnorePointer(
-                  child: Container(
-                    color: Colors.white.withValues(alpha: 0.85),
-                  ),
+                  child: Container(color: Colors.white.withValues(alpha: 0.85)),
                 ),
               ),
-
-            // === DEV SKIP BARCODE: Tombol melayang di atas kontrol kamera ===
-            Positioned(
-              bottom: 122,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xffd97706),
-                  foregroundColor: Colors.white,
-                  elevation: 6,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    side: const BorderSide(color: Color(0xfffde68a), width: 1.5),
-                  ),
-                ),
-                onPressed: () {
-                  final code = DevQrBypass.generateBarcode(
-                    title: widget.hintText,
-                    demoCode: widget.demoCode,
-                  );
-                  widget.onScanned(code);
-                },
-                icon: const Icon(Icons.bolt, size: 18),
-                label: const Text(
-                  '⚡ Skip Barcode',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                ),
-              ),
-            ),
 
             // Bar Kontrol Bawah (Flashlight, Tombol Shutter Ambil Foto & Putar Kamera)
             if (widget.showControls)
@@ -534,9 +493,7 @@ class QrScannerViewState extends State<QrScannerView>
                         label: 'Flash',
                         onTap: toggleTorch,
                       ),
-                      _ShutterCaptureButton(
-                        onTap: _takePhotoSnapshot,
-                      ),
+                      _ShutterCaptureButton(onTap: _takePhotoSnapshot),
                       _RoundControlButton(
                         icon: Icons.flip_camera_ios,
                         isActive: false,
@@ -575,7 +532,11 @@ class _ShutterCaptureButton extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 4),
               boxShadow: const [
-                BoxShadow(color: Color(0x66000000), blurRadius: 10, offset: Offset(0, 2)),
+                BoxShadow(
+                  color: Color(0x66000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 2),
+                ),
               ],
             ),
             child: Container(
@@ -635,7 +596,8 @@ class _RoundControlButton extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: isActive ? Colors.white : Colors.black.withValues(alpha: 0.6),
+              color:
+                  isActive ? Colors.white : Colors.black.withValues(alpha: 0.6),
               shape: BoxShape.circle,
               border: Border.all(
                 color: isActive ? Colors.white : Colors.white30,
@@ -668,10 +630,7 @@ class _CutoutOverlayPainter extends CustomPainter {
   final double cutoutSize;
   final Color overlayColor;
 
-  _CutoutOverlayPainter({
-    required this.cutoutSize,
-    required this.overlayColor,
-  });
+  _CutoutOverlayPainter({required this.cutoutSize, required this.overlayColor});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -683,10 +642,11 @@ class _CutoutOverlayPainter extends CustomPainter {
       height: cutoutSize,
     );
 
-    final path = Path()
-      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(16)))
-      ..fillType = PathFillType.evenOdd;
+    final path =
+        Path()
+          ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
+          ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(16)))
+          ..fillType = PathFillType.evenOdd;
 
     canvas.drawPath(path, paint);
   }
@@ -711,11 +671,12 @@ class _QrCornerPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+    final paint =
+        Paint()
+          ..color = color
+          ..strokeWidth = strokeWidth
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round;
 
     final w = size.width;
     final h = size.height;

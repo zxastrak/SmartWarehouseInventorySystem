@@ -85,7 +85,7 @@ const userController = {
         name: name !== undefined ? name : target.user.name,
         email: email !== undefined ? email : target.user.email,
         photo,
-        role_title,
+        role_title: role_title !== undefined ? (role_title && role_title.trim() ? role_title.trim() : 'Staf') : (target.user.role_title || 'Staf'),
         warehouse,
       });
 

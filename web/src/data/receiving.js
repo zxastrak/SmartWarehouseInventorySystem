@@ -5,6 +5,8 @@ export function shipmentProducts(shipment, inventory = []) {
     return scannerShipmentProducts.map((row) => ({ ...row }));
   }
 
+  const isInspected = shipment.status === "Inspected" || shipment.status === "Received";
+
   // 1. Ambil dari shipment.products jika ada
   if (Array.isArray(shipment.products) && shipment.products.length > 0) {
     return shipment.products.map((row) => {
@@ -19,22 +21,27 @@ export function shipmentProducts(shipment, inventory = []) {
       if (!Array.isArray(safeBarcodes) && typeof rawBarcodes === 'string') {
         try { safeBarcodes = JSON.parse(rawBarcodes); } catch (_) {}
       }
-      const actualReceived = received !== undefined ? received : ordered;
+      const actualReceived = received !== undefined ? received : (isInspected ? ordered : 0);
       const inv = (inventory || []).find((item) => item.sku === code || item.name === name);
       const category = row.category || inv?.category || (/scanner|light|cord/i.test(name) ? "Electronics" : /label|tape/i.test(name) ? "Accessories" : "General");
       const effectiveBarcodes = safeBarcodes.length > 0
         ? safeBarcodes
-        : Array.from({ length: Math.max(0, actualReceived) }, (_, idx) => `${code}-${String(idx + 1).padStart(3, '0')}`);
+        : (isInspected ? Array.from({ length: Math.max(0, actualReceived) }, (_, idx) => `${code}-${String(idx + 1).padStart(3, '0')}`) : []);
 
       return {
         sku: code || `SKU-${Math.random().toString(36).substring(7)}`,
         name,
         ordered,
-        received,
-        damaged,
+        received: received !== undefined ? received : (isInspected ? ordered : 0),
+        damaged: damaged !== undefined ? damaged : 0,
         rejected,
         barcodes: effectiveBarcodes,
         category,
+        unit: row.unit || inv?.unit || "pcs",
+        rack: row.rack || inv?.rack || "Dock Staging",
+        image_url: row.image_url || inv?.image_url || null,
+        assigned_staff: row.assigned_staff || row.staff || shipment.assigned_staff || shipment.staff || "Semua Staf Lapangan",
+        notes: row.notes || inv?.description || "",
       };
     });
   }
@@ -56,20 +63,25 @@ export function shipmentProducts(shipment, inventory = []) {
       if (!Array.isArray(safeBarcodes) && typeof rawBarcodes === 'string') {
         try { safeBarcodes = JSON.parse(rawBarcodes); } catch (_) {}
       }
-      const actualReceived = received !== undefined ? received : ordered;
+      const actualReceived = received !== undefined ? received : (isInspected ? ordered : 0);
       const effectiveBarcodes = safeBarcodes.length > 0
         ? safeBarcodes
-        : Array.from({ length: Math.max(0, actualReceived) }, (_, idx) => `${code}-${String(idx + 1).padStart(3, '0')}`);
+        : (isInspected ? Array.from({ length: Math.max(0, actualReceived) }, (_, idx) => `${code}-${String(idx + 1).padStart(3, '0')}`) : []);
 
       return {
         sku: code,
         name,
         ordered,
-        received,
-        damaged,
+        received: received !== undefined ? received : (isInspected ? ordered : 0),
+        damaged: damaged !== undefined ? damaged : 0,
         rejected,
         barcodes: effectiveBarcodes,
         category,
+        unit: row.unit || inv?.unit || "pcs",
+        rack: row.rack || inv?.rack || "Dock Staging",
+        image_url: row.image_url || inv?.image_url || null,
+        assigned_staff: row.assigned_staff || row.staff || shipment.assigned_staff || shipment.staff || "Semua Staf Lapangan",
+        notes: row.notes || inv?.description || "",
       };
     });
   }
@@ -86,6 +98,7 @@ export function shipmentProducts(shipment, inventory = []) {
       name: item.name,
       ordered: unitsPerItem + (index === 0 ? (totalUnits % chosen.length) : 0),
       category: item.category || "General",
+      unit: item.unit || "pcs",
     }));
   }
 
@@ -97,6 +110,7 @@ export function shipmentProducts(shipment, inventory = []) {
     name: `${shipment.supplier || 'Supplier'} item ${index + 1}`,
     category: "General",
     ordered: Math.floor(units / count) + (index < units % count ? 1 : 0),
+    unit: "pcs",
   }));
 }
 

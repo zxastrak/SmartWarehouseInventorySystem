@@ -60,7 +60,7 @@ const shiftController = {
         return res.status(200).json(shift);
       }
       const shifts = await shiftModel.getAll();
-      const mine = shifts.filter((s) => s.user_id === req.user.id);
+      const mine = shifts.filter((s) => Number(s.user_id) === Number(req.user.id));
       res.status(200).json(mine);
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });

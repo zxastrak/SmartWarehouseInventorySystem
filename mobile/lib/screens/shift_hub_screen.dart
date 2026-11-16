@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../state/warehouse_state.dart';
 import '../models/models.dart';
 import '../core/app_theme.dart';
-import '../widgets/ui.dart';
 import 'stock_flows.dart';
 
 class ShiftHubScreen extends StatelessWidget {
@@ -13,6 +12,128 @@ class ShiftHubScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = context.watch<WarehouseState>();
     final topPadding = MediaQuery.paddingOf(context).top + 72;
+    final myStaffName = s.staff.name.trim();
+    final myStaffId = s.staff.id;
+
+    bool isStaffMe(String? assignedStaff, dynamic assignedId) {
+      if (assignedId != null && assignedId == myStaffId) return true;
+      if (assignedStaff != null && assignedStaff.trim().isNotEmpty) {
+        final a = assignedStaff.trim().toLowerCase();
+        final me = myStaffName.toLowerCase();
+        if (me.isNotEmpty && (a == me || a.contains(me) || me.contains(a))) return true;
+      }
+      return false;
+    }
+
+    // Filter tugas database agar TIDAK menduplikasi kartu inspeksi Inbound/Outbound dan TIDAK memunculkan tugas khusus Manager
+    final displayedDbTasks = s.pendingTasks.where((t) {
+      final title = (t['title'] ?? '').toString();
+      final desc = (t['description'] ?? '').toString();
+      final titleUpper = title.toUpperCase();
+      final descUpper = desc.toUpperCase();
+
+      // 1. DILARANG menampilkan tugas khusus Review & ACC Manager di aplikasi mobile staf
+      if (titleUpper.contains('REVIEW') ||
+          titleUpper.contains('ACC') ||
+          descUpper.contains('REVIEW & ACC') ||
+          titleUpper.contains('[REVIEW') ||
+          titleUpper.contains('SIAP DI-ACC')) {
+        return false;
+      }
+
+      // 2. DILARANG menampilkan tugas yang pengirimannya sudah diinspeksi (Inspected / Received / Stored / Shipped)
+      final isCompletedInbound = s.inboundShipments.any((inb) =>
+          (inb.status.toLowerCase() == 'inspected' ||
+              inb.status.toLowerCase() == 'received' ||
+              inb.status.toLowerCase() == 'stored') &&
+          (title.contains(inb.inboundNumber) ||
+              desc.contains(inb.inboundNumber) ||
+              title.contains(inb.id.toString()) ||
+              desc.contains(inb.id.toString())));
+      if (isCompletedInbound) return false;
+
+      final isCompletedOutbound = s.outboundShipments.any((outb) =>
+          (outb.status.toLowerCase() == 'inspected' ||
+              outb.status.toLowerCase() == 'ready to ship' ||
+              outb.status.toLowerCase() == 'shipped' ||
+              outb.status.toLowerCase() == 'completed') &&
+          (title.contains(outb.outboundNumber) ||
+              desc.contains(outb.outboundNumber) ||
+              title.contains(outb.id.toString()) ||
+              desc.contains(outb.id.toString())));
+      if (isCompletedOutbound) return false;
+
+      final isDockInboundTask = title.contains('[TUGAS DOK]') ||
+          s.arrivedShipments.any((inb) =>
+              title.contains(inb.inboundNumber) ||
+              desc.contains(inb.inboundNumber) ||
+              title.contains(inb.id.toString()) ||
+              desc.contains(inb.id.toString()) ||
+              (inb.poNumber != null && inb.poNumber!.isNotEmpty && title.contains(inb.poNumber!)));
+
+      final isDockOutboundTask = title.contains('[TUGAS PENGELUARAN]') ||
+          s.arrivedOutbounds.any((outb) =>
+              title.contains(outb.outboundNumber) ||
+              desc.contains(outb.outboundNumber) ||
+              title.contains(outb.id.toString()) ||
+              desc.contains(outb.id.toString()) ||
+              (outb.reference != null && outb.reference!.isNotEmpty && title.contains(outb.reference!)));
+
+      return !isDockInboundTask && !isDockOutboundTask;
+    }).toList();
+
+    // 1. Kumpulkan kartu Tugas Anda & Tugas Menanti
+    final List<Widget> myTaskCards = [];
+    final List<Widget> waitingTaskCards = [];
+
+    // Inbound: Periksa apakah item dipisahkan penugasannya oleh Manager atau memiliki banyak item
+    for (final shipment in s.arrivedShipments) {
+      final hasMultipleItems = shipment.items.length > 1;
+
+      if (hasMultipleItems) {
+        for (final item in shipment.items) {
+          // Hanya tampilkan item yang BELUM selesai diperiksa / putaway
+          final isItemDone = (item.acceptedQty + item.damagedQty) >= item.orderedQty || item.acceptedQty > 0 || item.barcodes.isNotEmpty;
+          if (isItemDone) continue;
+
+          final itemStaff = (item.assignedStaff ?? shipment.assignedStaff).trim();
+          if (isStaffMe(itemStaff, null)) {
+            myTaskCards.add(_InboundItemTaskCard(shipment: shipment, item: item));
+          } else {
+            waitingTaskCards.add(_InboundItemTaskCard(shipment: shipment, item: item));
+          }
+        }
+      } else {
+        final allItemsDone = shipment.items.isNotEmpty && shipment.items.every(
+          (it) => (it.acceptedQty + it.damagedQty) >= it.orderedQty || it.acceptedQty > 0 || it.barcodes.isNotEmpty,
+        );
+        if (!allItemsDone) {
+          if (isStaffMe(shipment.assignedStaff, null)) {
+            myTaskCards.add(_InboundShipmentCard(shipment: shipment));
+          } else {
+            waitingTaskCards.add(_InboundShipmentCard(shipment: shipment));
+          }
+        }
+      }
+    }
+
+    // Outbound
+    for (final shipment in s.arrivedOutbounds) {
+      if (isStaffMe(shipment.assignedStaff, null)) {
+        myTaskCards.add(_OutboundShipmentCard(shipment: shipment));
+      } else {
+        waitingTaskCards.add(_OutboundShipmentCard(shipment: shipment));
+      }
+    }
+
+    // Database tasks
+    for (final task in displayedDbTasks) {
+      if (isStaffMe(task['assignee_name'], task['current_assignee_id'])) {
+        myTaskCards.add(_DbTaskCard(task: task));
+      } else {
+        waitingTaskCards.add(_DbTaskCard(task: task));
+      }
+    }
 
     return RefreshIndicator(
       color: brand,
@@ -24,170 +145,234 @@ class ShiftHubScreen extends StatelessWidget {
           // 1. Hero: operator + shift + check-in
           _ShiftHeroCard(state: s),
 
-          // 1.5 Tugas Inspeksi Dok Menunggu (Inbound Shipments Arrived)
-          if (s.arrivedShipments.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            _InboundArrivalSection(shipments: s.arrivedShipments),
-          ],
+          const SizedBox(height: 20),
 
-          // 1.6 Tugas Pengeluaran Dok Menunggu (Outbound Shipments Arrived)
-          if (s.arrivedOutbounds.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            _OutboundArrivalSection(shipments: s.arrivedOutbounds),
-          ],
-
-        const SizedBox(height: 28),
-
-        // 2. Aksi cepat
-        const _SectionTitle('Aksi Cepat'),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _QuickActionCard(
-                title: 'Putaway',
-                imageAsset: 'assets/images/action_putaway.png',
-                onTap: () {
-                  final target =
-                      s.items.isNotEmpty ? s.items.first.sku : '';
-                  s.openScanner(target, mode: ScanMode.putaway);
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _QuickActionCard(
-                title: 'Dispatching',
-                imageAsset: 'assets/images/action_dispatch.png',
-                onTap: () {
-                  final target =
-                      s.items.isNotEmpty ? s.items.first.sku : '';
-                  s.openScanner(target, mode: ScanMode.dispatch);
-                },
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _QuickActionCard(
-                title: 'Single Scan',
-                imageAsset: 'assets/images/action_single_scan.png',
-                onTap: () {
-                  final target =
-                      s.items.isNotEmpty ? s.items.first.sku : '';
-                  s.openScanner(target, mode: ScanMode.single);
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _QuickActionCard(
-                title: 'Rack Stock Audit',
-                imageAsset: 'assets/images/action_cycle_count.png',
-                onTap: () {
-                  final target =
-                      s.items.isNotEmpty ? s.items.first.sku : '';
-                  if (target.isNotEmpty) {
-                    openRack(context, target);
-                  }
-                },
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 20),
-
-        // 3. Tugas hari ini
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const _SectionTitle('Tugas Hari Ini'),
-            if (s.pendingTasks.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xfffef3c7),
-                  border: Border.all(color: const Color(0xfffde68a)),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: const BoxDecoration(
-                        color: Color(0xffd97706),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${s.pendingTasks.length} Menunggu',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xff92400e),
-                      ),
-                    ),
-                  ],
+          // 2. Aksi Cepat (Posisi paling atas di bawah hero, ukuran lebih kecil & ringkas 4 kolom)
+          const _SectionTitle('Aksi Cepat'),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _QuickActionCard(
+                  title: 'Putaway',
+                  imageAsset: 'assets/images/action_putaway.png',
+                  onTap: () {
+                    final target =
+                        s.items.isNotEmpty ? s.items.first.sku : '';
+                    s.openScanner(target, mode: ScanMode.putaway);
+                  },
                 ),
               ),
-          ],
-        ),
-        const SizedBox(height: 14),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _QuickActionCard(
+                  title: 'Dispatch',
+                  imageAsset: 'assets/images/action_dispatch.png',
+                  onTap: () {
+                    final target =
+                        s.items.isNotEmpty ? s.items.first.sku : '';
+                    s.openScanner(target, mode: ScanMode.dispatch);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _QuickActionCard(
+                  title: 'Single Scan',
+                  imageAsset: 'assets/images/action_single_scan.png',
+                  onTap: () {
+                    final target =
+                        s.items.isNotEmpty ? s.items.first.sku : '';
+                    s.openScanner(target, mode: ScanMode.single);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _QuickActionCard(
+                  title: 'Rack Audit',
+                  imageAsset: 'assets/images/action_cycle_count.png',
+                  onTap: () {
+                    final target =
+                        s.items.isNotEmpty ? s.items.first.sku : '';
+                    if (target.isNotEmpty) {
+                      openRack(context, target);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
 
-        // Data tugas aktif murni dari database (tugas yang selesai otomatis hilang)
-        if (s.pendingTasks.isNotEmpty)
-          ...s.pendingTasks.take(5).map((t) => _DbTaskCard(task: t))
-        else if (s.alerts.where((a) {
-          if (a.read) return false;
-          if (a.id.startsWith('T-')) {
-            final tId = int.tryParse(a.id.substring(2)) ?? 0;
-            return s.pendingTasks.any((t) => (t['id'] is num ? (t['id'] as num).toInt() : int.tryParse(t['id'].toString()) ?? 0) == tId);
-          }
-          return true;
-        }).isNotEmpty)
-          ...s.alerts.where((a) {
-            if (a.read) return false;
-            if (a.id.startsWith('T-')) {
-              final tId = int.tryParse(a.id.substring(2)) ?? 0;
-              return s.pendingTasks.any((t) => (t['id'] is num ? (t['id'] as num).toInt() : int.tryParse(t['id'].toString()) ?? 0) == tId);
-            }
-            return true;
-          }).take(4).map((a) => _AlertTaskCard(alert: a))
-        else
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xffbbf7d0)),
-              boxShadow: brandCardShadow,
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.check_circle_rounded, color: Color(0xff16a34a), size: 20),
-                SizedBox(width: 8),
-                Text(
-                  'Semua tugas hari ini telah selesai dikerjakan',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xff166534),
+          // Garis pemisah kecil antara Aksi Cepat dan Tugas Anda
+          const SizedBox(height: 18),
+          const Divider(height: 1, thickness: 1, color: Color(0xffe2e8f0)),
+          const SizedBox(height: 18),
+
+          // 3. Tugas Anda (Header & Badge Counter)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const _SectionTitle('Tugas Anda'),
+              if (myTaskCards.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xffecfeff),
+                    border: Border.all(color: const Color(0xffa5f3fc)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: Color(0xff0891b2),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${myTaskCards.length} Tugas',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xff0e7490),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
-      ],
-    ),
+          const SizedBox(height: 14),
+
+          // Daftar Kartu Tugas Anda (Dipisahkan oleh garis kecil)
+          if (myTaskCards.isNotEmpty)
+            ...[
+              for (int i = 0; i < myTaskCards.length; i++) ...[
+                myTaskCards[i],
+                if (i < myTaskCards.length - 1)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 14),
+                    child: Divider(height: 1, thickness: 1, color: Color(0xfff1f5f9)),
+                  ),
+              ],
+            ]
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xffe2e8f0)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.assignment_turned_in_outlined, color: muted, size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    'Tidak ada tugas khusus untuk Anda saat ini',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Garis pemisah antara Tugas Anda dan Tugas yang Menanti
+          const SizedBox(height: 20),
+          const Divider(height: 1, thickness: 1, color: Color(0xffe2e8f0)),
+          const SizedBox(height: 20),
+
+          // 4. Tugas yang Menanti (Header & Badge Counter)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const _SectionTitle('Tugas yang Menanti'),
+              if (waitingTaskCards.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xfffef3c7),
+                    border: Border.all(color: const Color(0xfffde68a)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: Color(0xffd97706),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${waitingTaskCards.length} Menunggu',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xff92400e),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Daftar Kartu Tugas Menanti (Dipisahkan oleh garis kecil)
+          if (waitingTaskCards.isNotEmpty)
+            ...[
+              for (int i = 0; i < waitingTaskCards.length; i++) ...[
+                waitingTaskCards[i],
+                if (i < waitingTaskCards.length - 1)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 14),
+                    child: Divider(height: 1, thickness: 1, color: Color(0xfff1f5f9)),
+                  ),
+              ],
+            ]
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xffe2e8f0)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inbox_outlined, color: muted, size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    'Tidak ada tugas yang menanti saat ini',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -524,9 +709,11 @@ class _QuickActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      elevation: 2,
-      shadowColor: const Color(0x26000000),
-      borderRadius: BorderRadius.circular(24),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xffe2e8f0), width: 1),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
@@ -536,9 +723,9 @@ class _QuickActionCard extends StatelessWidget {
         focusColor: Colors.transparent,
         hoverColor: Colors.transparent,
         highlightColor: Colors.transparent,
-        splashColor: brand.withAlpha(30),
+        splashColor: brand.withAlpha(25),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -547,13 +734,13 @@ class _QuickActionCard extends StatelessWidget {
               if (imageAsset != null)
                 Image.asset(
                   imageAsset!,
-                  width: 48,
-                  height: 48,
+                  width: 28,
+                  height: 28,
                   fit: BoxFit.contain,
                 )
               else
                 const SizedBox.shrink(),
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
               FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
@@ -561,8 +748,8 @@ class _QuickActionCard extends StatelessWidget {
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
                     letterSpacing: -0.2,
                     color: brandInk,
                     height: 1.15,
@@ -577,58 +764,11 @@ class _QuickActionCard extends StatelessWidget {
   }
 }
 
-// -----------------------------------------------------------------------------
-// Kartu tugas
-// -----------------------------------------------------------------------------
 
-class _AlertTaskCard extends StatelessWidget {
-  final WarehouseAlert alert;
-
-  const _AlertTaskCard({required this.alert});
-
-  @override
-  Widget build(BuildContext context) {
-    final isUrgent = alert.badge.toUpperCase().contains('URGENT');
-    final color = isUrgent ? danger : forest;
-
-    return _SoftCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Tag(
-            alert.badge.isNotEmpty ? alert.badge : 'TASK',
-            color: color,
-            solid: true,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            alert.title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.2,
-              color: brandInk,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            alert.message,
-            style: const TextStyle(
-              fontSize: 13,
-              color: brandSlate,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 14),
-          _PillButton(
-            label: 'Detail Tugas',
-            icon: Icons.visibility_outlined,
-            onPressed: () => _showAlertDetailSheet(context, alert),
-          ),
-        ],
-      ),
-    );
-  }
+int _parseInt(dynamic val) {
+  if (val == null) return 0;
+  if (val is int) return val;
+  return int.tryParse(val.toString()) ?? 0;
 }
 
 ScanMode _resolveTaskScanMode(Map<String, dynamic> task) {
@@ -639,12 +779,24 @@ ScanMode _resolveTaskScanMode(Map<String, dynamic> task) {
 
   if (combined.contains('dispatch') ||
       combined.contains('outbound') ||
+      combined.contains('pengeluaran') ||
       combined.contains('pick') ||
       combined.contains('kirim') ||
       combined.contains('keluar') ||
       combined.contains('packing') ||
       combined.contains('shipping')) {
     return ScanMode.dispatch;
+  }
+
+  if (combined.contains('putaway') ||
+      combined.contains('inbound') ||
+      combined.contains('dok') ||
+      combined.contains('penerimaan') ||
+      combined.contains('terima') ||
+      combined.contains('masuk') ||
+      combined.contains('simpan') ||
+      combined.contains('penataan')) {
+    return ScanMode.putaway;
   }
 
   return ScanMode.putaway;
@@ -665,8 +817,35 @@ class _DbTaskCard extends StatelessWidget {
     final location = (task['location_code'] ?? '').toString();
     final sku = (task['sku'] ?? '').toString();
     final assigneeName = (task['assignee_name'] ?? 'Staf Lain').toString();
-    final mode = _resolveTaskScanMode(task);
-    final isPutaway = mode == ScanMode.putaway;
+    final targetMode = _resolveTaskScanMode(task);
+    final titleLower = title.toLowerCase();
+    final descLower = description.toLowerCase();
+    final combinedLower = '$titleLower $descLower';
+
+    // Kategori Alur Tugas Dinamis (Bukan Hardcode Putaway)
+    final (String tagText, Color tagBg, Color tagBorder, Color tagColor, IconData tagIcon) = () {
+      if (combinedLower.contains('dok') ||
+          combinedLower.contains('inspeksi') ||
+          combinedLower.contains('inbound') ||
+          combinedLower.contains('penerimaan')) {
+        return ('INSPEKSI DOK', const Color(0xffecfeff), const Color(0xffa5f3fc), const Color(0xff0891b2), Icons.fact_check_outlined);
+      } else if (combinedLower.contains('dispatch') ||
+                 combinedLower.contains('outbound') ||
+                 combinedLower.contains('kirim') ||
+                 combinedLower.contains('pengeluaran')) {
+        return ('DISPATCH', const Color(0xfffffbeb), const Color(0xfffde68a), const Color(0xffb45309), Icons.upload_rounded);
+      } else if (combinedLower.contains('putaway') ||
+                 combinedLower.contains('penataan') ||
+                 combinedLower.contains('simpan')) {
+        return ('PUTAWAY', const Color(0xfff0fdf4), const Color(0xff86efac), forest, Icons.download_rounded);
+      } else if (combinedLower.contains('audit') ||
+                 combinedLower.contains('opname') ||
+                 combinedLower.contains('cycle count')) {
+        return ('STOCK AUDIT', const Color(0xfff5f3ff), const Color(0xffddd6fe), const Color(0xff6d28d9), Icons.inventory_2_outlined);
+      } else {
+        return ('OPERASIONAL', const Color(0xfff8fafc), const Color(0xffcbd5e1), const Color(0xff475569), Icons.assignment_outlined);
+      }
+    }();
 
     final statusText = switch (status) {
       'done' => 'Selesai',
@@ -684,34 +863,32 @@ class _DbTaskCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Baris 1: Tag Alur (Putaway/Dispatch) & Status
+          // Baris 1: Tag Alur Dinamis & Status
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                 decoration: BoxDecoration(
-                  color: isPutaway ? const Color(0xfff0fdf4) : const Color(0xfffffbeb),
+                  color: tagBg,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isPutaway ? const Color(0xff86efac) : const Color(0xfffde68a),
-                  ),
+                  border: Border.all(color: tagBorder),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      isPutaway ? Icons.download_rounded : Icons.upload_rounded,
+                      tagIcon,
                       size: 13,
-                      color: isPutaway ? forest : const Color(0xffd97706),
+                      color: tagColor,
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      isPutaway ? 'PUTAWAY' : 'DISPATCH',
+                      tagText,
                       style: TextStyle(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w900,
-                        color: isPutaway ? forest : const Color(0xffb45309),
+                        color: tagColor,
                         letterSpacing: 0.4,
                       ),
                     ),
@@ -839,12 +1016,56 @@ class _DbTaskCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          // Baris 5: Tombol Aksi Detail Tugas
-          _PillButton(
-            label: 'Detail Tugas',
-            icon: Icons.visibility_outlined,
-            onPressed: () => _showDbTaskDetailSheet(context, task),
-          ),
+          // Baris 5: Tombol Aksi Detail & Langsung Kerjakan (Putaway / Dispatch)
+          if (status != 'done')
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: _PillButton(
+                    label: 'Detail',
+                    icon: Icons.visibility_outlined,
+                    outlined: true,
+                    onPressed: () => _showDbTaskDetailSheet(context, task),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 3,
+                  child: _PillButton(
+                    label: targetMode == ScanMode.putaway
+                        ? 'Kerjakan Putaway'
+                        : (targetMode == ScanMode.dispatch
+                            ? 'Kerjakan Dispatch'
+                            : 'Kerjakan Tugas'),
+                    icon: Icons.qr_code_scanner,
+                    onPressed: () async {
+                      final taskId = _parseInt(task['id']);
+                      if (!isMine && taskId > 0) {
+                        final err = await s.takeOverTask(taskId);
+                        if (err != null) return;
+                      }
+                      if (status == 'pending' && taskId > 0) {
+                        await s.updateTaskStatus(taskId, 'in_progress');
+                      }
+                      s.openScanner(
+                        sku,
+                        mode: targetMode,
+                        taskTitle: title,
+                        taskId: taskId > 0 ? taskId : null,
+                        rack: location.isNotEmpty ? location : null,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            )
+          else
+            _PillButton(
+              label: 'Detail Tugas',
+              icon: Icons.visibility_outlined,
+              onPressed: () => _showDbTaskDetailSheet(context, task),
+            ),
           if (status == 'done') ...[
             const SizedBox(height: 12),
             Container(
@@ -875,61 +1096,8 @@ class _DbTaskCard extends StatelessWidget {
 
 
 // -----------------------------------------------------------------------------
-// Inbound Arrival Section & Inspection Dialog (Tugas Dok Menunggu)
+// Inbound Shipment Card & Inspection Dialog (Tugas Dok Menunggu)
 // -----------------------------------------------------------------------------
-
-class _InboundArrivalSection extends StatelessWidget {
-  final List<InboundShipmentModel> shipments;
-  const _InboundArrivalSection({required this.shipments});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Expanded(
-              child: _SectionTitle('Tugas Inspeksi Dok Menunggu'),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xffecfeff),
-                border: Border.all(color: const Color(0xffa5f3fc)),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: const BoxDecoration(
-                      color: Color(0xff0891b2),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${shipments.length} Armada Tiba',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xff0e7490),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        ...shipments.map((shipment) => _InboundShipmentCard(shipment: shipment)),
-      ],
-    );
-  }
-}
 
 class _InboundShipmentCard extends StatelessWidget {
   final InboundShipmentModel shipment;
@@ -1112,10 +1280,38 @@ class _InboundShipmentCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          _PillButton(
-            label: 'Detail Tugas',
-            icon: Icons.visibility_outlined,
-            onPressed: () => _showInboundTaskDetailSheet(context, shipment),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: _PillButton(
+                  label: 'Detail',
+                  icon: Icons.visibility_outlined,
+                  outlined: true,
+                  onPressed: () => _showInboundTaskDetailSheet(context, shipment),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 3,
+                child: _PillButton(
+                  label: 'Kerjakan Putaway',
+                  icon: Icons.qr_code_scanner,
+                  onPressed: () {
+                    final firstSku = shipment.items.isNotEmpty ? shipment.items.first.sku : '';
+                    final firstQty = shipment.items.isNotEmpty ? shipment.items.first.orderedQty : 1;
+                    s.openScanner(
+                      firstSku,
+                      mode: ScanMode.putaway,
+                      taskTitle: 'Putaway Inbound ${shipment.inboundNumber}',
+                      inboundShipmentId: shipment.id,
+                      rack: 'Dok ${shipment.dock}',
+                      quantity: firstQty > 0 ? firstQty : 1,
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1123,55 +1319,217 @@ class _InboundShipmentCard extends StatelessWidget {
   }
 }
 
-class _OutboundArrivalSection extends StatelessWidget {
-  final List<OutboundShipmentModel> shipments;
-  const _OutboundArrivalSection({required this.shipments});
+class _InboundItemTaskCard extends StatelessWidget {
+  final InboundShipmentModel shipment;
+  final InboundShipmentItemModel item;
+
+  const _InboundItemTaskCard({
+    required this.shipment,
+    required this.item,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Expanded(
-              child: _SectionTitle('Tugas Pengeluaran Dok Menunggu'),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xfffef3c7),
-                border: Border.all(color: const Color(0xfffde68a)),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: const BoxDecoration(
-                      color: Color(0xffd97706),
-                      shape: BoxShape.circle,
-                    ),
+    final s = context.watch<WarehouseState>();
+    final myName = s.staff.name.trim();
+    final assigned = (item.assignedStaff ?? shipment.assignedStaff).trim();
+    final isAssignedToMe = assigned.isNotEmpty &&
+        (assigned.toLowerCase() == myName.toLowerCase() ||
+            myName.toLowerCase().contains(assigned.toLowerCase()) ||
+            assigned.toLowerCase().contains(myName.toLowerCase()));
+    final isAssignedToAll = assigned.isEmpty ||
+        assigned.toLowerCase().contains('semua') ||
+        assigned.toLowerCase() == 'staf dok' ||
+        assigned.toLowerCase() == 'staf lapangan';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isAssignedToMe ? const Color(0xff86efac) : const Color(0xffbfe5dc),
+          width: isAssignedToMe ? 1.5 : 1.2,
+        ),
+        boxShadow: brandCardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: brandSoft,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: brandSoftBorder),
+                ),
+                child: Text(
+                  'DOK ${shipment.dock}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    color: brand,
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${shipments.length} Siap Ambil / Muat',
-                    style: const TextStyle(
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xfff1f5f9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'ITEM INBOUND',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: brandSlate,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xffecfeff),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xffa5f3fc)),
+                ),
+                child: Text(
+                  shipment.inboundNumber,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xff0891b2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            item.name.isNotEmpty ? item.name : item.sku,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: brandInk,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.qr_code_2_outlined, size: 14, color: muted),
+              const SizedBox(width: 4),
+              Text(
+                'SKU: ${item.sku}',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: muted),
+              ),
+              const SizedBox(width: 12),
+              const Icon(Icons.inventory_2_outlined, size: 14, color: muted),
+              const SizedBox(width: 4),
+              Text(
+                '${formatNumber(item.orderedQty)} unit',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: brand),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Penanda Penugasan Staf oleh Manager
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: isAssignedToMe
+                  ? const Color(0xfff0fdf4)
+                  : isAssignedToAll
+                      ? const Color(0xfff8fafc)
+                      : const Color(0xfffffbeb),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isAssignedToMe
+                    ? const Color(0xff86efac)
+                    : isAssignedToAll
+                        ? const Color(0xffcbd5e1)
+                        : const Color(0xfffde68a),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isAssignedToMe
+                      ? Icons.star_rounded
+                      : isAssignedToAll
+                          ? Icons.people_outline
+                          : Icons.person_outline,
+                  size: 15,
+                  color: isAssignedToMe
+                      ? const Color(0xff16a34a)
+                      : isAssignedToAll
+                          ? const Color(0xff475569)
+                          : const Color(0xffb45309),
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    isAssignedToMe
+                        ? '⭐ Tugas Khusus Anda ($assigned)'
+                        : isAssignedToAll
+                            ? '👥 Terbuka untuk Semua Staf Dok'
+                            : '👤 Ditugaskan ke: $assigned',
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xff92400e),
+                      color: isAssignedToMe
+                          ? const Color(0xff166534)
+                          : isAssignedToAll
+                              ? const Color(0xff334155)
+                              : const Color(0xff92400e),
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        ...shipments.map((shipment) => _OutboundShipmentCard(shipment: shipment)),
-      ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: _PillButton(
+                  label: 'Detail',
+                  icon: Icons.visibility_outlined,
+                  outlined: true,
+                  onPressed: () => _showInboundTaskDetailSheet(context, shipment),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 3,
+                child: _PillButton(
+                  label: 'Kerjakan Putaway',
+                  icon: Icons.qr_code_scanner,
+                  onPressed: () {
+                    s.openScanner(
+                      item.sku,
+                      mode: ScanMode.putaway,
+                      taskTitle: 'Putaway ${item.name} (${shipment.inboundNumber})',
+                      inboundShipmentId: shipment.id,
+                      rack: 'Dok ${shipment.dock}',
+                      quantity: item.orderedQty > 0 ? item.orderedQty : 1,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1356,10 +1714,39 @@ class _OutboundShipmentCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          _PillButton(
-            label: 'Detail Tugas Outbound',
-            icon: Icons.visibility_outlined,
-            onPressed: () => _showOutboundTaskDetailSheet(context, shipment),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: _PillButton(
+                  label: 'Detail',
+                  icon: Icons.visibility_outlined,
+                  outlined: true,
+                  onPressed: () => _showOutboundTaskDetailSheet(context, shipment),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 3,
+                child: _PillButton(
+                  label: 'Kerjakan Dispatch',
+                  icon: Icons.qr_code_scanner,
+                  onPressed: () {
+                    final firstSku = shipment.items.isNotEmpty ? shipment.items.first.sku : '';
+                    final firstRack = shipment.items.isNotEmpty ? shipment.items.first.rack : 'A-01';
+                    final firstQty = shipment.items.isNotEmpty ? shipment.items.first.orderedQty : 1;
+                    s.openScanner(
+                      firstSku,
+                      mode: ScanMode.dispatch,
+                      taskTitle: 'Picking Dok ${shipment.outboundNumber}',
+                      outboundShipmentId: shipment.id,
+                      rack: firstRack,
+                      quantity: firstQty > 0 ? firstQty : 1,
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1570,20 +1957,23 @@ void _showInboundTaskDetailSheet(BuildContext context, InboundShipmentModel ship
                 child: SafeArea(
                   top: false,
                   child: _PillButton(
-                    label: 'Kerjakan Inspeksi Dok',
+                    label: 'Kerjakan Putaway (Scan QR)',
                     icon: Icons.qr_code_scanner,
                     onPressed: () {
                       Navigator.pop(ctx);
-                      final firstSku = shipment.items.isNotEmpty ? shipment.items.first.sku : '';
-                      final dockLocation = 'RACK-${shipment.dock}-01-A';
-                      final firstQty = shipment.items.isNotEmpty ? shipment.items.first.orderedQty : 1;
+                      final pending = shipment.items.where(
+                        (it) => !((it.acceptedQty + it.damagedQty) >= it.orderedQty || it.acceptedQty > 0 || it.barcodes.isNotEmpty)
+                      ).toList();
+                      final target = pending.isNotEmpty ? pending.first : (shipment.items.isNotEmpty ? shipment.items.first : null);
+                      final targetSku = target?.sku ?? '';
+                      final targetQty = (target != null && target.orderedQty > 0) ? target.orderedQty : 1;
                       s.openScanner(
-                        firstSku,
+                        targetSku,
                         mode: ScanMode.putaway,
-                        taskTitle: 'Inspeksi Dok ${shipment.inboundNumber}',
+                        taskTitle: 'Putaway Inbound ${shipment.inboundNumber}',
                         inboundShipmentId: shipment.id,
-                        rack: dockLocation,
-                        quantity: firstQty > 0 ? firstQty : 1,
+                        rack: 'Dok ${shipment.dock}',
+                        quantity: targetQty,
                       );
                     },
                   ),
@@ -1846,7 +2236,7 @@ void _showOutboundTaskDetailSheet(BuildContext context, OutboundShipmentModel sh
                           side: const BorderSide(color: brand, width: 1.5),
                         ),
                         icon: const Icon(Icons.qr_code_scanner, color: brand, size: 20),
-                        label: const Text('Ambil Barang & Scan Barcode', style: TextStyle(color: brand, fontWeight: FontWeight.w700)),
+                        label: const Text('Kerjakan Dispatch (Scan QR)', style: TextStyle(color: brand, fontWeight: FontWeight.w700)),
                         onPressed: () {
                           Navigator.pop(ctx);
                           final firstSku = shipment.items.isNotEmpty ? shipment.items.first.sku : '';
@@ -1856,6 +2246,7 @@ void _showOutboundTaskDetailSheet(BuildContext context, OutboundShipmentModel sh
                             firstSku,
                             mode: ScanMode.dispatch,
                             taskTitle: 'Picking Dok ${shipment.outboundNumber}',
+                            outboundShipmentId: shipment.id,
                             rack: firstRack,
                             quantity: firstQty > 0 ? firstQty : 1,
                           );
@@ -2156,7 +2547,11 @@ void _showDbTaskDetailSheet(BuildContext context, Map<String, dynamic> task) {
                         )
                       : isMine
                           ? _PillButton(
-                              label: status == 'in_progress' ? 'Lanjut Kerjakan' : 'Kerjakan Sekarang',
+                              label: targetMode == ScanMode.putaway
+                                  ? 'Kerjakan Putaway (Scan QR)'
+                                  : (targetMode == ScanMode.dispatch
+                                      ? 'Kerjakan Dispatch (Scan QR)'
+                                      : (status == 'in_progress' ? 'Lanjut Kerjakan' : 'Kerjakan Sekarang')),
                               icon: Icons.qr_code_scanner,
                               onPressed: () async {
                                 Navigator.pop(ctx);
@@ -2173,7 +2568,11 @@ void _showDbTaskDetailSheet(BuildContext context, Map<String, dynamic> task) {
                               },
                             )
                           : _PillButton(
-                              label: 'Ambil Alih & Kerjakan',
+                              label: targetMode == ScanMode.putaway
+                                  ? 'Ambil Alih & Kerjakan Putaway'
+                                  : (targetMode == ScanMode.dispatch
+                                      ? 'Ambil Alih & Kerjakan Dispatch'
+                                      : 'Ambil Alih & Kerjakan'),
                               icon: Icons.front_hand_outlined,
                               color: const Color(0xffb45309),
                               outlined: true,
@@ -2202,131 +2601,6 @@ void _showDbTaskDetailSheet(BuildContext context, Map<String, dynamic> task) {
   );
 }
 
-void _showAlertDetailSheet(BuildContext context, WarehouseAlert alert) {
-  final s = context.read<WarehouseState>();
-  final stockItem = alert.sku.isNotEmpty ? s.resolve(alert.sku) : null;
-
-  showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: Colors.white,
-    barrierColor: const Color(0x770c170b),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-    ),
-    builder: (ctx) {
-      return DraggableScrollableSheet(
-        initialChildSize: 0.68,
-        minChildSize: 0.4,
-        maxChildSize: 0.92,
-        expand: false,
-        builder: (context, scrollController) {
-          return Column(
-            children: [
-              Center(
-                child: Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 8),
-                  width: 44,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.black12,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xfffef3c7),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.warning_amber_rounded, color: amber, size: 22),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            alert.title,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: brandInk),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            alert.badge.isNotEmpty ? alert.badge : 'Sistem Alert',
-                            style: const TextStyle(fontSize: 12, color: muted),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, color: brandSlate),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1, color: line),
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.all(20),
-                  children: [
-                    Text(
-                      alert.message,
-                      style: const TextStyle(fontSize: 14, color: brandInk, height: 1.4),
-                    ),
-                    const SizedBox(height: 16),
-                    if (stockItem != null) ...[
-                      const Text(
-                        'DETAIL PRODUK TERKAIT',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: muted, letterSpacing: 0.5),
-                      ),
-                      const SizedBox(height: 10),
-                      _ProductStockDetailCard(item: stockItem),
-                    ],
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  border: Border(top: BorderSide(color: line)),
-                ),
-                child: SafeArea(
-                  top: false,
-                  child: _PillButton(
-                    label: 'Kerjakan Sekarang',
-                    icon: Icons.arrow_forward,
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      s.readAlert(alert.id);
-                      final alertText = '${alert.action} ${alert.title} ${alert.message}'.toLowerCase();
-                      final isDispatch = alertText.contains('dispatch') ||
-                          alertText.contains('outbound') ||
-                          alertText.contains('pick') ||
-                          alertText.contains('kirim') ||
-                          alertText.contains('keluar') ||
-                          alertText.contains('shipping');
-                      final mode = isDispatch ? ScanMode.dispatch : ScanMode.putaway;
-                      s.openScanner(alert.sku, mode: mode, taskTitle: alert.title);
-                    },
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      );
-    },
-  );
-}
 
 class _MetaCol extends StatelessWidget {
   final String label, value;
@@ -2368,12 +2642,13 @@ class _InboundItemDetailCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final product = state.resolve(item.sku);
+    final isDone = (item.acceptedQty + item.damagedQty) >= item.orderedQty || item.acceptedQty > 0 || item.barcodes.isNotEmpty;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xffe2e8f0)),
+        border: Border.all(color: isDone ? const Color(0xff86efac) : const Color(0xffe2e8f0)),
       ),
       child: Row(
         children: [
@@ -2381,10 +2656,14 @@ class _InboundItemDetailCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xfff1f5f9),
+              color: isDone ? const Color(0xfff0fdf4) : const Color(0xfff1f5f9),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.inventory_2_outlined, color: brandSlate, size: 22),
+            child: Icon(
+              isDone ? Icons.check_circle_outline_rounded : Icons.inventory_2_outlined,
+              color: isDone ? const Color(0xff16a34a) : brandSlate,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -2421,10 +2700,27 @@ class _InboundItemDetailCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isDone ? const Color(0xfff0fdf4) : const Color(0xfffffbeb),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: isDone ? const Color(0xff86efac) : const Color(0xfffde68a)),
+                      ),
+                      child: Text(
+                        isDone ? '✓ Selesai (${item.acceptedQty})' : 'Pending',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: isDone ? const Color(0xff166534) : const Color(0xff92400e),
+                        ),
+                      ),
+                    ),
                     if (product?.rack != null && product!.rack.isNotEmpty) ...[
                       const SizedBox(width: 6),
                       Text(
-                        '• Rak: ${product.rack}',
+                        '• ${product.rack}',
                         style: const TextStyle(fontSize: 11, color: muted, fontWeight: FontWeight.w600),
                       ),
                     ],

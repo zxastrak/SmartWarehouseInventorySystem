@@ -7,7 +7,7 @@ if (!(Test-Path $xampp)) {
 }
 
 Write-Host "Menghentikan proses mysqld jika ada..."
-Stop-Process -Name mysqld -Force -ErrorAction SilentlyContinue
+Stop-Process -Name mysqld -Force -ErrorAction SilentlyContinuecd 
 Start-Sleep -Seconds 1
 
 # 1. Backup full folder data lama

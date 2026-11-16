@@ -70,7 +70,14 @@ const taskController = {
 
   getAll: async (req, res) => {
     try {
-      const tasks = await taskModel.getAll();
+      let tasks = await taskModel.getAll();
+      if (req.user && req.user.role === 'staf') {
+        tasks = tasks.filter((t) => {
+          const title = (t.title || '').toUpperCase();
+          const desc = (t.description || '').toUpperCase();
+          return !title.includes('REVIEW') && !title.includes('ACC') && !desc.includes('REVIEW & ACC');
+        });
+      }
       res.status(200).json(tasks);
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });

@@ -4,6 +4,7 @@ import InboundIssueReview from "../components/InboundIssueReview.jsx";
 import CompletedReceiving from "../components/CompletedReceiving.jsx";
 import ScheduledShipment from "../components/ScheduledShipment.jsx";
 import InboundReceiving from "../components/InboundReceiving.jsx";
+import QrHistoryDialog from "../components/QrHistoryDialog.jsx";
 import React, { useEffect, useRef, useState } from "react";
 import DashboardSidebar from "../components/DashboardSidebar.jsx";
 import WarehouseHeader from "../components/WarehouseHeader.jsx";
@@ -23,7 +24,7 @@ const actionNames = {
   Received: "Details", 
   Issue: "Review" 
 };
-function Inbound({ manager, warehouse, shipments, inventory, racks, receivingDrafts, staffAccounts = [], onSaveDraft, onInspect, onCompleteReceiving, onResolveIssue, onUpdateStaff, onCreate, onMarkArrived, onEditSchedule, onViewMovements, movements, onNavigate, onSignOut, purchaseOrders = [], initialShipmentId = null }) {
+function Inbound({ manager, warehouse, shipments, inventory, racks, receivingDrafts, staffAccounts = [], onSaveDraft, onInspect, onCompleteReceiving, onResolveIssue, onUpdateStaff, onUpdateItemStaff, onCreate, onMarkArrived, onEditSchedule, onViewMovements, movements, onNavigate, onSignOut, purchaseOrders = [], initialShipmentId = null }) {
   const [creating, setCreating] = useState(false), [stage, setStage] = useState(0), [query, setQuery] = useState(""), [status, setStatus] = useState("All Statuses"), [supplier, setSupplier] = useState("All Suppliers"), [dateRange, setDateRange] = useState("all"), [sort, setSort] = useState("default"), [page, setPage] = useState(1), [navOpen, setNavOpen] = useState(false), [detail, setDetail] = useState(null), [notice, setNotice] = useState("");
   const [receivingId, setReceivingId] = useState(null), [receivingHeader, setReceivingHeader] = useState({ title: "Inspect Inbound Shipment", description: "Verify delivered quantities and condition before adding stock to inventory.", stage: "inspect" });
   const [issueId, setIssueId] = useState(null);
@@ -31,6 +32,7 @@ function Inbound({ manager, warehouse, shipments, inventory, racks, receivingDra
   const [completedId, setCompletedId] = useState(null);
   const completedShipment = shipments.find((row) => row.id === completedId);
   const [scheduledId, setScheduledId] = useState(null);
+  const [showQrHistory, setShowQrHistory] = useState(false);
   const scheduledShipment = shipments.find((row) => row.id === scheduledId);
   const receivingShipment = shipments.find((row) => row.id === receivingId);
 
@@ -161,46 +163,8 @@ function Inbound({ manager, warehouse, shipments, inventory, racks, receivingDra
     back();
     setStatus("Arrived");
     setNotice("Showing arrivals waiting for inspection.");
-  }} /><main className={`dashboard-content inbound-content${receivingShipment ? " receiving-page" : ""}`}><div className="dashboard-intro"><div><p>{issueShipment ? "INBOUND / REVIEW" : receivingShipment ? receivingHeader.stage === "inspect" ? "INBOUND / INSPECTION" : "INBOUND / INSPECTION / REVIEW" : scheduledShipment ? "INBOUND / DETAILS" : "WAREHOUSE OPERATIONS"}</p><h1>{issueShipment ? "Review Inbound Issue" : completedShipment ? "Completed Receiving Details" : receivingShipment ? receivingHeader.title : scheduledShipment ? scheduledShipment.status === "Scheduled" ? "Scheduled Shipment Detail" : "Shipment Detail" : creating ? stageNames[stage] : "Inbound"}</h1><p className="inbound-description">{issueShipment ? "Resolve damaged and mismatched items before completing receiving." : completedShipment ? "Read-only record of the completed inbound receiving process." : receivingShipment ? receivingHeader.description : scheduledShipment ? scheduledShipment.status === "Scheduled" ? "Review the delivery plan before the shipment arrives." : "Arrival confirmed. Inspect items before completing receiving." : creating ? stageDescriptions[stage] : "Track, inspect, and receive incoming stock from suppliers."}</p></div><div className="dashboard-date"><p>{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(/* @__PURE__ */ new Date())}</p><p>{warehouseName}</p>{!creating && !receivingShipment && !scheduledShipment && !completedShipment && !issueShipment && <button className="inbound-primary inbound-create-button" onClick={start}><span aria-hidden="true">+</span> Create Inbound</button>}</div></div>
- {issueShipment ? <InboundIssueReview key={issueShipment.id} shipment={issueShipment} onResolve={onResolveIssue} onContinue={openShipment} onBack={back} /> : completedShipment ? <CompletedReceiving key={completedShipment.id} shipment={completedShipment} inventory={inventory} movements={movements} warehouseName={warehouseName} onBack={back} onViewMovements={onViewMovements} /> : receivingShipment ? <InboundReceiving key={receivingShipment.id} shipment={receivingShipment} inventory={inventory} racks={racks} staffAccounts={staffAccounts} initialDraft={receivingDrafts[receivingShipment.id]} onSaveDraft={(draft) => onSaveDraft(receivingShipment.id, draft)} onInspect={onInspect} onUpdateStaff={onUpdateStaff} onComplete={(draft) => onCompleteReceiving(receivingShipment.id, draft)} onBack={back} onNavigate={onNavigate} warehouseName={warehouseName} onHeaderChange={setReceivingHeader} /> : scheduledShipment ? <ScheduledShipment key={scheduledShipment.id} shipment={scheduledShipment} inventory={inventory} staffAccounts={staffAccounts} warehouseName={warehouseName} onBack={back} onInspect={openShipment} onMarkArrived={onMarkArrived} onEditSchedule={onEditSchedule} /> : creating ? <CreateInbound orders={eligibleOrders} warehouseName={warehouseName} search={query} onSearch={setQuery} onCancel={back} onCreate={onCreate} onDetails={setDetail} onStageChange={setStage} /> : <>
-{shipments.filter((s) => s.status === 'Inspected').length > 0 && (
-  <div style={{
-    background: 'linear-gradient(135deg, #ecfeff 0%, #cffafe 100%)',
-    border: '1px solid #67e8f9',
-    borderRadius: '12px',
-    padding: '16px 20px',
-    marginBottom: '20px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: '14px',
-    boxShadow: '0 2px 8px rgba(6, 182, 212, 0.12)'
-  }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-      <span style={{ fontSize: '32px' }}>📱</span>
-      <div>
-        <strong style={{ display: 'block', fontSize: '15px', color: '#0e7490' }}>
-          {shipments.filter((s) => s.status === 'Inspected').length} Pengiriman Selesai Diinspeksi Staf Dok (Siap Review)
-        </strong>
-        <p style={{ margin: '3px 0 0', fontSize: '13px', color: '#155e75' }}>
-          Staf lapangan dok telah memeriksa fisik barang dan mengirim laporan inspeksi via Mobile. Silakan review hasil hitungan & catatan staf untuk disetujui masuk inventory.
-        </p>
-      </div>
-    </div>
-    <div style={{ display: 'flex', gap: '8px' }}>
-      <button
-        type="button"
-        className="inbound-primary"
-        style={{ padding: '8px 16px', fontSize: '13px', borderRadius: '8px', cursor: 'pointer', background: '#0891b2', borderColor: '#0891b2' }}
-        onClick={() => setStatus('Inspected')}
-      >
-        Tampilkan Menunggu Review
-      </button>
-    </div>
-  </div>
-)}
-
+  }} /><main className={`dashboard-content inbound-content${receivingShipment ? " receiving-page" : ""}`}><div className="dashboard-intro"><div><p>{issueShipment ? "INBOUND / REVIEW" : receivingShipment ? receivingHeader.stage === "inspect" ? "INBOUND / INSPECTION" : "INBOUND / INSPECTION / REVIEW" : scheduledShipment ? "INBOUND / DETAILS" : "WAREHOUSE OPERATIONS"}</p><h1>{issueShipment ? "Review Inbound Issue" : completedShipment ? "Completed Receiving Details" : receivingShipment ? receivingHeader.title : scheduledShipment ? scheduledShipment.status === "Scheduled" ? "Scheduled Shipment Detail" : "Shipment Detail" : creating ? stageNames[stage] : "Inbound"}</h1><p className="inbound-description">{issueShipment ? "Resolve damaged and mismatched items before completing receiving." : completedShipment ? "Read-only record of the completed inbound receiving process." : receivingShipment ? receivingHeader.description : scheduledShipment ? scheduledShipment.status === "Scheduled" ? "Review the delivery plan before the shipment arrives." : "Arrival confirmed. Inspect items before completing receiving." : creating ? stageDescriptions[stage] : "Track, inspect, and receive incoming stock from suppliers."}</p></div><div className="dashboard-date"><p>{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(/* @__PURE__ */ new Date())}</p><p>{warehouseName}</p>{!creating && !receivingShipment && !scheduledShipment && !completedShipment && !issueShipment && <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "14px", flexWrap: "wrap", justifyContent: "flex-end" }}><button type="button" className="inbound-secondary" onClick={() => setShowQrHistory(true)} title="Lihat riwayat pembuatan dan pencetakan QR Code" style={{ height: "40px", padding: "0 14px", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 600, fontSize: "13px" }}><span aria-hidden="true">📜</span> Riwayat QR</button><button className="inbound-primary inbound-create-button" onClick={start}><span aria-hidden="true">+</span> Create Inbound</button></div>}</div></div>
+ {issueShipment ? <InboundIssueReview key={issueShipment.id} shipment={issueShipment} onResolve={onResolveIssue} onContinue={openShipment} onBack={back} /> : completedShipment ? <CompletedReceiving key={completedShipment.id} shipment={completedShipment} inventory={inventory} movements={movements} warehouseName={warehouseName} onBack={back} onViewMovements={onViewMovements} /> : receivingShipment ? <InboundReceiving key={receivingShipment.id} shipment={receivingShipment} inventory={inventory} racks={racks} staffAccounts={staffAccounts} initialDraft={receivingDrafts[receivingShipment.id]} onSaveDraft={(draft) => onSaveDraft(receivingShipment.id, draft)} onInspect={onInspect} onUpdateStaff={onUpdateStaff} onUpdateItemStaff={onUpdateItemStaff} onComplete={(draft) => onCompleteReceiving(receivingShipment.id, draft)} onBack={back} onNavigate={onNavigate} warehouseName={warehouseName} onHeaderChange={setReceivingHeader} /> : scheduledShipment ? <ScheduledShipment key={scheduledShipment.id} shipment={scheduledShipment} inventory={inventory} staffAccounts={staffAccounts} warehouseName={warehouseName} onBack={back} onInspect={openShipment} onMarkArrived={onMarkArrived} onEditSchedule={onEditSchedule} onUpdateItemStaff={onUpdateItemStaff} /> : creating ? <CreateInbound orders={eligibleOrders} warehouseName={warehouseName} search={query} onSearch={setQuery} onCancel={back} onCreate={onCreate} onDetails={setDetail} onStageChange={setStage} /> : <>
 {eligibleOrders.length > 0 && (
   <div style={{
     background: '#f0f7ff',
@@ -250,7 +214,6 @@ function Inbound({ manager, warehouse, shipments, inventory, racks, receivingDra
       </section>
     </>}
   {notice && <p role="status" className="form-notice">{notice}</p>}
-  <p className="dashboard-demo">Sistem Inbound terhubung langsung dengan Database & Purchase Orders. Penerimaan barang akan otomatis menambah stok produk di sistem.</p>
 </main>
 </div>
 {detail && (
@@ -283,6 +246,11 @@ function Inbound({ manager, warehouse, shipments, inventory, racks, receivingDra
       )}
     </div>
   </dialog>
+)}
+{showQrHistory && (
+  <QrHistoryDialog
+    onClose={() => setShowQrHistory(false)}
+  />
 )}
 </div>
 );

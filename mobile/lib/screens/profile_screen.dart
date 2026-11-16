@@ -242,89 +242,113 @@ class ProfileScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              if (s.attendances.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Center(
-                    child: Text(
-                      'Belum ada catatan absensi untuk akun staf ini.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: muted,
+              if (!s.isCheckedIn)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xfff8fafc),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xffeef2f6)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: Color(0xfff1f5f9),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.badge_outlined,
+                          size: 16,
+                          color: muted,
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              hasShift ? 'Shift Siap Absen' : 'Belum Ada Jadwal Shift',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: brandInk,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              hasShift
+                                  ? 'Tekan tombol di bawah untuk mulai check-in shift ini.'
+                                  : 'Menunggu jadwal shift operasional dari manager.',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: muted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 )
               else
-                ...s.attendances.take(5).map((log) {
-                  final isCheckIn = log['type'] == 'check_in';
-                  DateTime? dt;
-                  if (log['scan_time'] != null) {
-                    dt =
-                        DateTime.tryParse(
-                          log['scan_time'].toString(),
-                        )?.toLocal();
-                  }
-                  final timeStr =
-                      dt != null
-                          ? '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${clock(dt)}'
-                          : 'Waktu tidak tersedia';
-                  final c = isCheckIn ? forest : danger;
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xfff8fafc),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xffeef2f6)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: c.withAlpha(25),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            isCheckIn ? Icons.login : Icons.logout,
-                            size: 16,
-                            color: c,
-                          ),
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xfff0fdf4),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xff86efac)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: Color(0xffdcfce7),
+                          shape: BoxShape.circle,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                isCheckIn
-                                    ? 'Check-in Masuk'
-                                    : 'Check-out Pulang',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: brandInk,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                timeStr,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: muted,
-                                ),
-                              ),
-                            ],
-                          ),
+                        child: const Icon(
+                          Icons.login,
+                          size: 16,
+                          color: forest,
                         ),
-                      ],
-                    ),
-                  );
-                }),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Sesi Check-in Aktif',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: brandInk,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              s.lastAttendanceTime != null
+                                  ? 'Masuk: ${clock(s.lastAttendanceTime!)} WIB'
+                                  : 'Waktu tercatat',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: forest,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 4),
               SizedBox(
                 width: double.infinity,

@@ -67,6 +67,31 @@ const inboundController = {
     }
   },
 
+  updateItemStaff: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { sku, assigned_staff } = req.body || {};
+      if (!sku) {
+        return res.status(400).json({ message: 'SKU produk wajib diisi' });
+      }
+      const result = await inboundModel.updateItemStaff(id, sku, assigned_staff);
+      await logAudit({
+        user_id: req.user?.id || null,
+        action: 'INBOUND_ITEM_STAFF_UPDATED',
+        table_affected: 'inbound_shipment_items',
+        record_id: isNaN(Number(id)) ? null : Number(id),
+      }).catch(() => {});
+      res.status(200).json({
+        success: true,
+        message: `Staf untuk item ${sku} berhasil diperbarui`,
+        data: result,
+      });
+    } catch (err) {
+      console.error('Inbound updateItemStaff error:', err);
+      res.status(500).json({ message: 'Gagal memperbarui staf item inbound', error: err.message });
+    }
+  },
+
   updateStatus: async (req, res) => {
     try {
       const { id } = req.params;
@@ -128,7 +153,15 @@ const inboundController = {
     try {
       const { id } = req.params;
       const { items, notes } = req.body;
-      const userId = req.user?.id || null;
+      const user = req.user || null;
+      const userId = user?.id || null;
+
+      // Proteksi Role: Hanya Manager atau Admin yang boleh memberikan ACC
+      if (user && user.role && !['manager', 'admin'].includes(user.role.toLowerCase())) {
+        return res.status(403).json({
+          message: 'Akses ditolak: Hanya Manager yang berwenang memberikan persetujuan (ACC) penerimaan barang ke inventory.',
+        });
+      }
 
       if (!Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: 'Item penerimaan wajib disertakan' });
@@ -145,12 +178,15 @@ const inboundController = {
 
       res.status(200).json({
         success: true,
-        message: 'Penerimaan barang (Receiving) berhasil diselesaikan dan stok bertambah',
+        message: 'Penerimaan barang (Receiving) berhasil disetujui (ACC) dan stok resmi bertambah ke inventory',
         acceptedUnits: result.acceptedUnits,
       });
     } catch (err) {
       console.error('Inbound completeReceiving error:', err);
-      res.status(500).json({ message: 'Gagal menyelesaikan penerimaan barang', error: err.message });
+      res.status(err.message.includes('belum diinspeksi') ? 400 : 500).json({
+        message: err.message || 'Gagal menyelesaikan penerimaan barang',
+        error: err.message,
+      });
     }
   },
 

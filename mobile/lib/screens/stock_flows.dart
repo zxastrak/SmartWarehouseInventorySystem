@@ -287,19 +287,11 @@ class StockDetailsFlow extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              _DetailRow('Kode SKU', item.sku),
+              _DetailRow('Kode SKU', item.sku, highlight: true),
               _DetailRow('Nama Barang', item.name),
               _DetailRow('Lokasi Rak', item.rack),
               _DetailRow('Zona Gudang', item.zone),
               _DetailRow('Satuan Unit', item.unit),
-              if (item.price > 0)
-                _DetailRow('Harga Satuan', formatRupiah(item.price)),
-              if (item.price > 0)
-                _DetailRow(
-                  'Estimasi Nilai Stok',
-                  formatRupiah(item.price * item.quantity),
-                  highlight: true,
-                ),
             ],
           ),
         ),
@@ -383,8 +375,8 @@ class _DetailRow extends StatelessWidget {
             textAlign: TextAlign.right,
             style: TextStyle(
               fontSize: 12,
-              fontWeight: highlight ? FontWeight.w900 : FontWeight.w700,
-              color: highlight ? forest : brandInk,
+              fontWeight: FontWeight.w700,
+              color: highlight ? brand : brandInk,
             ),
           ),
         ),
@@ -513,7 +505,7 @@ class _RackCountFlowState extends State<RackCountFlow> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Log: ${formatNumber(item.quantity)} Units • Safe Min: ${formatNumber(item.minimum)} Units',
+                        'Log: ${formatNumber(item.quantity)} ${item.unit} • Safe Min: ${formatNumber(item.minimum)} ${item.unit}',
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
@@ -574,7 +566,7 @@ class _RackCountFlowState extends State<RackCountFlow> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'System Count: ${formatNumber(item.rackCounts[item.rack] ?? 0)} Units    Safe Min: ${formatNumber(item.minimum)}',
+                  'System Count: ${formatNumber(item.rackCounts[item.rack] ?? 0)} ${item.unit}    Safe Min: ${formatNumber(item.minimum)} ${item.unit}',
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,

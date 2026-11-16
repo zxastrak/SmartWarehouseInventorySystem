@@ -2,6 +2,8 @@ import { typeOf } from "../utils/productTypes.js";
 import React, { useEffect, useRef, useState } from "react";
 import { inboundDate } from "../data/inbound.js";
 import { shipmentProducts } from "../data/receiving.js";
+import InboundItemQrDialog from "./InboundItemQrDialog.jsx";
+import InboundItemDetailModal from "./InboundItemDetailModal.jsx";
 import "../styles/scheduled.css";
 const eventTime = (value) => value ? new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -11,18 +13,17 @@ const eventTime = (value) => value ? new Intl.DateTimeFormat("en-US", {
   hour12: false,
   timeZone: "Asia/Jakarta"
 }).format(new Date(value)) : "";
-function ScheduledShipment({ shipment, inventory, warehouseName, staffAccounts = [], onBack, onInspect, onMarkArrived, onEditSchedule }) {
-  const [expanded, setExpanded] = useState(false);
+function ScheduledShipment({ shipment, inventory, warehouseName, staffAccounts = [], onBack, onInspect, onMarkArrived, onEditSchedule, onUpdateItemStaff }) {
   const [modal, setModal] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState("");
   const [schedule, setSchedule] = useState({});
+  const [inboundQrSku, setInboundQrSku] = useState(null);
+  const [selectedDetailItem, setSelectedDetailItem] = useState(null);
   const dialogRef = useRef(null);
   const submitting = useRef(false);
   const items = shipmentProducts(shipment, inventory);
   const total = items.reduce((sum, item) => sum + item.ordered, 0);
-  const extra = items.slice(4);
-  const extraTotal = extra.reduce((sum, item) => sum + item.ordered, 0);
   const arrived = shipment.status === "Arrived";
   const arrivalWindow = `${inboundDate(shipment.date)} \xB7 ${shipment.time}${shipment.endTime ? "\u2013" + shipment.endTime : ""}`;
   useEffect(() => {
@@ -62,10 +63,9 @@ function ScheduledShipment({ shipment, inventory, warehouseName, staffAccounts =
     setError("");
   }
   const timeline = [
-    ["Purchase order approved", eventTime(shipment.approvedAt) || "Approved purchase order", true],
     ["Inbound scheduled", shipment.scheduledAt ? `${eventTime(shipment.scheduledAt)}${shipment.scheduledBy ? " by " + shipment.scheduledBy : ""}` : "Delivery plan saved", true],
     [arrived ? "Shipment arrived" : "Expected arrival", arrived ? eventTime(shipment.arrivedAt) : arrivalWindow, arrived],
-    ["Inspection", "Starts after arrival confirmation", false]
+    ["Inspection", arrived ? (['Inspected', 'Received'].includes(shipment.status) ? "Completed by dock staff" : shipment.status === 'Inspecting' ? "In progress by dock staff" : "Waiting for dock staff inspection") : "Starts after arrival confirmation", ['Inspected', 'Received'].includes(shipment.status)]
   ];
   return <div className="scheduled-content">
     {!arrived && <button className="scheduled-edit dashboard-link" onClick={openEdit}>Edit Schedule</button>}
@@ -77,11 +77,13 @@ function ScheduledShipment({ shipment, inventory, warehouseName, staffAccounts =
           <h2>Delivery Timeline</h2>
           <p className="scheduled-timeline-desc">Alur kedatangan dan tahapan operasional pengiriman di dok gudang.</p>
         </div>
-        {arrived ? (
-          <button className="inbound-primary" onClick={() => onInspect(shipment)}>Inspect Items</button>
-        ) : (
-          <button className="inbound-primary" onClick={openArrival}>Mark as Arrived</button>
-        )}
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          {arrived ? (
+            <button className="inbound-primary" onClick={() => onInspect(shipment)}>Inspect Items</button>
+          ) : (
+            <button className="inbound-primary" onClick={openArrival}>Mark as Arrived</button>
+          )}
+        </div>
       </div>
       <ol>
         {timeline.map(([label, caption, complete]) => (
@@ -104,12 +106,116 @@ function ScheduledShipment({ shipment, inventory, warehouseName, staffAccounts =
 
     {/* 3. Expected Items Card */}
     <section className="dashboard-card scheduled-items scheduled-items-full">
-      <h2>Expected Items</h2><p>{items.length} products · {total} expected units</p>
-      <div className="scheduled-table-wrap"><table><thead><tr><th>Product</th><th>SKU</th><th>Ordered</th><th>Remaining</th></tr></thead><tbody>
-        {(expanded ? items : items.slice(0, 4)).map((item) => <tr key={item.sku}><td><strong>{item.name}</strong><small>Type: {typeOf(item)}</small>{item.category === "PPE" && item === items[0] && <small>{item.category}</small>}</td><td>{item.sku}</td><td>{item.ordered}</td><td className="positive-text">{item.ordered}</td></tr>)}
-        {extra.length > 0 && !expanded && <tr><td><button className="scheduled-expand" onClick={() => setExpanded(true)}>+ {extra.length} additional products</button></td><td /><td>{extraTotal}</td><td className="positive-text">{extraTotal}</td></tr>}
+      <div className="scheduled-items-header-bar">
+        <div>
+          <h2>Expected Items</h2>
+          <p>{items.length} products · {total} expected units</p>
+        </div>
+        <button
+          type="button"
+          className="inbound-secondary scheduled-items-batch-qr-btn"
+          onClick={() => setInboundQrSku("")}
+          title="Buka dialog cetak label QR untuk semua barang pengiriman ini"
+        >
+          <span aria-hidden="true">🏷️</span> Cetak Semua QR Barang ({items.length})
+        </button>
+      </div>
+      <div className="scheduled-table-wrap"><table><thead><tr><th>SKU</th><th>Nama Produk</th><th>Tipe Barang</th><th>Ordered</th><th>Staf Bertugas</th><th>Aksi</th></tr></thead><tbody>
+        {items.length === 0 ? (
+          <tr>
+            <td colSpan={6} style={{ textAlign: "center", padding: "24px", color: "#737b6c" }}>
+              Tidak ada item produk dalam pengiriman ini.
+            </td>
+          </tr>
+        ) : (
+          items.map((item) => {
+            const itemStaff = item.assigned_staff || item.staff || shipment.staff || shipment.assigned_staff || 'Semua Staf Lapangan';
+            return (
+            <tr key={item.sku}>
+              <td>
+                <strong
+                  style={{ fontFamily: 'monospace', color: '#191d17', cursor: 'pointer', textDecoration: 'underline dotted' }}
+                  onClick={() => setSelectedDetailItem(item)}
+                  title="Klik untuk melihat detail item"
+                >
+                  {item.sku}
+                </strong>
+              </td>
+              <td>
+                <strong
+                  style={{ cursor: 'pointer', color: '#191d17' }}
+                  onClick={() => setSelectedDetailItem(item)}
+                  title="Klik untuk melihat detail item"
+                >
+                  {item.name}
+                </strong>
+              </td>
+              <td>
+                <span className="scheduled-unit-badge">{typeOf(item) || item.category || 'General'}</span>
+              </td>
+              <td>
+                <strong>{item.ordered}</strong> <span className="scheduled-unit-text">{item.unit || "pcs"}</span>
+              </td>
+              <td>
+                <select
+                  value={itemStaff}
+                  onChange={(e) => onUpdateItemStaff && onUpdateItemStaff(shipment.id, item.sku, e.target.value)}
+                  className="inbound-item-staff-select"
+                  title={`Tugaskan staf untuk ${item.name}`}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    border: '1.5px solid #d4dec3',
+                    background: '#ffffff',
+                    color: '#191d17',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    maxWidth: 160,
+                  }}
+                >
+                  <option value="Semua Staf Lapangan">👥 Semua Staf</option>
+                  {staffAccounts
+                    .filter((acc) => !['staff', 'staf'].includes(String(acc.fullName || acc.name || '').trim().toLowerCase()))
+                    .map((acc) => {
+                      const name = acc.fullName || acc.name;
+                      return (
+                        <option key={acc.id || name} value={name}>
+                          👤 {name}
+                        </option>
+                      );
+                    })}
+                  {itemStaff && itemStaff !== 'Semua Staf Lapangan' && !['staff', 'staf'].includes(itemStaff.toLowerCase()) && !staffAccounts.some((acc) => (acc.fullName || acc.name) === itemStaff) && (
+                    <option value={itemStaff}>👤 {itemStaff}</option>
+                  )}
+                </select>
+              </td>
+              <td>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="inbound-secondary"
+                    style={{ padding: "4px 8px", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                    onClick={() => setSelectedDetailItem(item)}
+                    title={`Lihat detail produk & lokasi rak ${item.sku}`}
+                  >
+                    <span>🔍 Detail</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="inbound-secondary"
+                    style={{ padding: "4px 8px", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                    onClick={() => setInboundQrSku(item.sku)}
+                    title={`Generate QR label untuk ${item.sku}`}
+                  >
+                    <span>║▌║ QR</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          );})
+        )}
       </tbody></table></div>
-      {expanded && extra.length > 0 && <button className="scheduled-expand scheduled-collapse" onClick={() => setExpanded(false)}>Show fewer products</button>}
     </section>
     <section className="scheduled-next"><strong>What happens next?</strong><p>{arrived ? "Arrival confirmed. Inspect delivered quantities and conditions before completing receiving." : "Marking the shipment as arrived enables item inspection and changes its status to Arrived."}</p></section>
     <button className="dashboard-link scheduled-back" onClick={onBack}>‹ Back to Inbound</button>
@@ -156,6 +262,23 @@ function ScheduledShipment({ shipment, inventory, warehouseName, staffAccounts =
         <div className="scheduled-dialog-actions"><button type="button" className="inbound-secondary" onClick={closeModal}>Cancel</button><button className="inbound-primary" type="submit">Save Schedule</button></div>
       </form>}
     </dialog>
+
+    {inboundQrSku !== null && (
+      <InboundItemQrDialog
+        shipment={{ ...shipment, products: items }}
+        initialSku={inboundQrSku}
+        onClose={() => setInboundQrSku(null)}
+      />
+    )}
+
+    {selectedDetailItem !== null && (
+      <InboundItemDetailModal
+        item={selectedDetailItem}
+        inventory={inventory}
+        shipment={shipment}
+        onClose={() => setSelectedDetailItem(null)}
+      />
+    )}
   </div>;
 }
 export {

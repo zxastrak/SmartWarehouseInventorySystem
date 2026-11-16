@@ -20,7 +20,8 @@ function managementDate(value, regional = {}, withTime = false) {
 function validateStaff(draft, records, warehouses) {
   const errors = {};
   if (draft.fullName.trim().length < 2) errors.fullName = "Enter at least 2 characters.";
-  if (!staffRoles.includes(draft.role)) errors.role = "Choose a staff role.";
+  const role = draft.role && draft.role.trim() !== "" ? draft.role.trim() : "Staf";
+  draft.role = role;
   const contact = draft.contact.trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact) && !/^\+?[\d\s().-]{8,25}$/.test(contact)) errors.contact = "Enter an email or a valid phone number.";
   else if (!contact.includes("@") && !/^\+?\d{8,15}$/.test(contact.replace(/[\s().-]/g, ""))) errors.contact = "Use 8\u201315 phone digits.";

@@ -3,7 +3,7 @@ import DashboardSidebar from '../components/DashboardSidebar.jsx';
 import WarehouseHeader from '../components/WarehouseHeader.jsx';
 import DashboardIcon from '../components/DashboardIcon.jsx';
 import { poDate, poMoney, poTotal } from '../utils/purchaseOrders.js';
-import { categoriesApi } from '../utils/api.js';
+import { categoriesApi, unitsApi } from '../utils/api.js';
 import '../styles/dashboard.css';
 import '../styles/inventory.css';
 import '../styles/inbound.css';
@@ -36,7 +36,16 @@ export default function Suppliers({
 
   // Modals state
   const [formModal, setFormModal] = useState(null); // { mode: 'create' } or { mode: 'edit', supplier }
-  const [formData, setFormData] = useState({ name: '', contact_person: '', email: '', phone: '', address: '' });
+  const [formData, setFormData] = useState({
+    name: '',
+    contact_person: '',
+    email: '',
+    phone: '',
+    address: '',
+    bank_name: '',
+    bank_account: '',
+    bank_holder: '',
+  });
   const [deleteTarget, setDeleteTarget] = useState(null); // supplier object
   const [detailsSupplier, setDetailsSupplier] = useState(null); // supplier object
   const [detailsTab, setDetailsTab] = useState('products');
@@ -74,6 +83,7 @@ export default function Suppliers({
   const [catalogCategoryFilter, setCatalogCategoryFilter] = useState('All Categories');
   const [catalogStockFilter, setCatalogStockFilter] = useState('All Stock');
   const [catalogSort, setCatalogSort] = useState('name-asc');
+  const [catalogPage, setCatalogPage] = useState(1);
 
   // Product detail & edit modals inside supplier details
   const [detailsProduct, setDetailsProduct] = useState(null);
@@ -81,9 +91,15 @@ export default function Suppliers({
   const [editProductForm, setEditProductForm] = useState({
     name: '',
     sku: '',
+    category_id: '',
+    category_name: '',
     price: '',
-    unit: 'pcs',
-    reorder: 0,
+    unit: '',
+    weight: '',
+    weight_unit: 'kg',
+    reorder: 15,
+    image_url: '',
+    notes: '',
   });
 
   const [catalogModal, setCatalogModal] = useState(false);
@@ -95,9 +111,12 @@ export default function Suppliers({
     category_id: '',
     category_name: '',
     price: '',
-    unit: 'pcs',
+    unit: '',
+    weight: '',
+    weight_unit: 'kg',
     stock_quantity: 0,
-    reorder: 0,
+    reorder: 15,
+    image_url: '',
     location_id: null,
     zone: '—',
     notes: '',
@@ -111,13 +130,52 @@ export default function Suppliers({
   const [categoryNotice, setCategoryNotice] = useState('');
   const [isSubmittingCat, setIsSubmittingCat] = useState(false);
 
+  // Product Units CRUD states
+  const [unitsList, setUnitsList] = useState([]);
+  const [unitModalOpen, setUnitModalOpen] = useState(false);
+  const [unitForm, setUnitForm] = useState({ id: null, name: '' });
+  const [unitError, setUnitError] = useState('');
+  const [unitNotice, setUnitNotice] = useState('');
+  const [isSubmittingUnit, setIsSubmittingUnit] = useState(false);
+
   const formDialogRef = useRef(null);
   const deleteDialogRef = useRef(null);
   const detailsDialogRef = useRef(null);
   const catalogDialogRef = useRef(null);
   const categoryDialogRef = useRef(null);
+  const unitDialogRef = useRef(null);
   const productDetailsDialogRef = useRef(null);
   const productEditDialogRef = useRef(null);
+  const catalogFileInputRef = useRef(null);
+  const editProductFileInputRef = useRef(null);
+
+  function handleImageFileCatalog(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('File harus berupa gambar (JPG, PNG, WebP).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      setCatalogForm((cur) => ({ ...cur, image_url: uploadEvent.target.result }));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleImageFileEdit(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('File harus berupa gambar (JPG, PNG, WebP).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      setEditProductForm((cur) => ({ ...cur, image_url: uploadEvent.target.result }));
+    };
+    reader.readAsDataURL(file);
+  }
 
   const warehouseName = warehouse?.warehouseName || 'Main Warehouse';
 
@@ -159,7 +217,10 @@ export default function Suppliers({
         (s.name && s.name.toLowerCase().includes(q)) ||
         (s.contact_person && s.contact_person.toLowerCase().includes(q)) ||
         (s.phone && s.phone.toLowerCase().includes(q)) ||
-        (s.address && s.address.toLowerCase().includes(q));
+        (s.address && s.address.toLowerCase().includes(q)) ||
+        (s.bank_name && s.bank_name.toLowerCase().includes(q)) ||
+        (s.bank_account && s.bank_account.toLowerCase().includes(q)) ||
+        (s.bank_holder && s.bank_holder.toLowerCase().includes(q));
 
       if (!matchSearch) return false;
 
@@ -242,6 +303,14 @@ export default function Suppliers({
   }, [categoryModalOpen]);
 
   useEffect(() => {
+    if (unitModalOpen) {
+      unitDialogRef.current?.showModal();
+    } else {
+      unitDialogRef.current?.close();
+    }
+  }, [unitModalOpen]);
+
+  useEffect(() => {
     if (detailsProduct) {
       productDetailsDialogRef.current?.showModal();
     } else {
@@ -275,6 +344,30 @@ export default function Suppliers({
     fetchCategories();
   }, [fetchCategories]);
 
+  // Load product units from backend API
+  const fetchUnits = useCallback(async () => {
+    try {
+      const list = await unitsApi.getAll();
+      if (Array.isArray(list)) {
+        setUnitsList(list);
+      } else {
+        setUnitsList([]);
+      }
+    } catch (err) {
+      console.error('Gagal mengambil data satuan:', err);
+      setUnitsList([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUnits();
+  }, [fetchUnits]);
+
+  // Reset catalog pagination when filter or active supplier changes
+  useEffect(() => {
+    setCatalogPage(1);
+  }, [catalogSearch, catalogCategoryFilter, catalogStockFilter, catalogSort, detailsSupplier?.id]);
+
   function navigate(label) {
     const routes = {
       Dashboard: 'dashboard',
@@ -301,7 +394,16 @@ export default function Suppliers({
   }
 
   function openCreateModal() {
-    setFormData({ name: '', contact_person: '', email: '', phone: '', address: '' });
+    setFormData({
+      name: '',
+      contact_person: '',
+      email: '',
+      phone: '',
+      address: '',
+      bank_name: '',
+      bank_account: '',
+      bank_holder: '',
+    });
     setError('');
     setFormModal({ mode: 'create' });
   }
@@ -313,6 +415,9 @@ export default function Suppliers({
       email: supplier.email || '',
       phone: supplier.phone || '',
       address: supplier.address || '',
+      bank_name: supplier.bank_name || '',
+      bank_account: supplier.bank_account || '',
+      bank_holder: supplier.bank_holder || '',
     });
     setError('');
     setFormModal({ mode: 'edit', supplier });
@@ -325,6 +430,7 @@ export default function Suppliers({
     setCatalogSupplier(targetSup);
 
     const firstCat = categories.length > 0 ? categories[0] : { id: '', name: '' };
+    const defaultUnit = unitsList.length > 0 ? unitsList[0].name : '';
 
     setCatalogForm({
       supplier_id: supId,
@@ -333,9 +439,12 @@ export default function Suppliers({
       category_id: firstCat.id,
       category_name: firstCat.name,
       price: '',
-      unit: 'pcs',
+      unit: defaultUnit,
+      weight: '',
+      weight_unit: 'kg',
       stock_quantity: 0,
-      reorder: 0,
+      reorder: 15,
+      image_url: '',
       location_id: null,
       zone: '—',
       notes: '',
@@ -350,12 +459,21 @@ export default function Suppliers({
 
   function openEditProductModal(prod) {
     setEditProduct(prod);
+    const matchedCategory = categories.find(
+      (c) => c.name?.toLowerCase() === prod.category?.toLowerCase() || c.id === prod.category_id || String(c.id) === String(prod.category_id)
+    );
     setEditProductForm({
       name: prod.name || '',
       sku: prod.sku || '',
+      category_id: matchedCategory ? matchedCategory.id : (prod.category_id || (categories[0]?.id || '')),
+      category_name: matchedCategory ? matchedCategory.name : (prod.category || 'General'),
       price: prod.price || 0,
-      unit: prod.unit || 'pcs',
-      reorder: prod.reorder || 0,
+      unit: prod.unit || (unitsList.length > 0 ? unitsList[0].name : ''),
+      weight: prod.weight !== null && prod.weight !== undefined ? String(prod.weight) : '',
+      weight_unit: prod.weight_unit || 'kg',
+      reorder: prod.reorder ?? prod.reorder_level ?? 15,
+      image_url: prod.image_url || '',
+      notes: prod.notes || prod.description || '',
     });
     setError('');
   }
@@ -369,12 +487,23 @@ export default function Suppliers({
     setIsSubmitting(true);
     setError('');
     try {
+      const matchedCat = categories.find((c) => c.id === Number(editProductForm.category_id));
+      const finalCategoryName = matchedCat?.name || editProductForm.category_name || editProduct.category || 'General';
       const updated = {
         ...editProduct,
         name: editProductForm.name.trim(),
+        category_id: editProductForm.category_id ? Number(editProductForm.category_id) : null,
+        category: finalCategoryName,
+        category_name: finalCategoryName,
         price: Number(editProductForm.price) || 0,
-        unit: editProductForm.unit,
-        reorder: Number(editProductForm.reorder) || 0,
+        unit: editProductForm.unit || (unitsList.length > 0 ? unitsList[0].name : 'pcs'),
+        weight: editProductForm.weight !== '' && !isNaN(Number(editProductForm.weight)) ? Number(editProductForm.weight) : null,
+        weight_unit: editProductForm.weight_unit || 'kg',
+        reorder: Number(editProductForm.reorder) || 15,
+        reorder_level: Number(editProductForm.reorder) || 15,
+        image_url: editProductForm.image_url || null,
+        description: editProductForm.notes || editProduct.description || '',
+        notes: editProductForm.notes || editProduct.notes || '',
         reason: `Katalog diperbarui dari detail supplier ${detailsSupplier?.name || ''}`,
       };
       if (onUpdateProduct) {
@@ -512,6 +641,94 @@ export default function Suppliers({
     }
   }
 
+  // Unit CRUD Handlers
+  async function handleSaveUnit(e) {
+    e.preventDefault();
+    if (!unitForm.name.trim()) {
+      setUnitError('Nama satuan wajib diisi.');
+      return;
+    }
+    setIsSubmittingUnit(true);
+    setUnitError('');
+    setUnitNotice('');
+
+    const unitName = unitForm.name.trim();
+
+    try {
+      if (unitForm.id) {
+        const res = await unitsApi.update(unitForm.id, {
+          name: unitName,
+          label: unitName,
+          description: '',
+          default_weight_kg: null,
+        });
+        if (res?.error || (!res.success && res.status >= 400)) {
+          throw new Error(res.data?.message || res.error || 'Gagal memperbarui satuan');
+        }
+        await fetchUnits();
+        setUnitNotice(`Satuan "${unitName}" berhasil diperbarui.`);
+        setUnitForm({ id: null, name: '' });
+      } else {
+        const res = await unitsApi.create({
+          name: unitName,
+          label: unitName,
+          description: '',
+          default_weight_kg: null,
+        });
+        if (res?.error || (!res.success && res.status >= 400)) {
+          throw new Error(res.data?.message || res.error || 'Gagal menambahkan satuan');
+        }
+        await fetchUnits();
+        setCatalogForm((prev) => ({
+          ...prev,
+          unit: unitName,
+        }));
+        setUnitNotice(`Satuan baru "${unitName}" berhasil ditambahkan & langsung dipilih.`);
+        setUnitForm({ id: null, name: '' });
+      }
+    } catch (err) {
+      setUnitError(err.message || 'Gagal menyimpan satuan.');
+    } finally {
+      setIsSubmittingUnit(false);
+    }
+  }
+
+  function handleStartEditUnit(u) {
+    setUnitForm({
+      id: u.id,
+      name: u.label || u.name,
+    });
+    setUnitError('');
+    setUnitNotice('');
+  }
+
+  function handleCancelEditUnit() {
+    setUnitForm({ id: null, name: '' });
+    setUnitError('');
+  }
+
+  async function handleDeleteUnit(u) {
+    if (!window.confirm(`Yakin ingin menghapus satuan "${u.label || u.name}"?`)) return;
+    setIsSubmittingUnit(true);
+    setUnitError('');
+    setUnitNotice('');
+    try {
+      const res = await unitsApi.remove(u.id);
+      if (res?.error || (!res.success && res.status >= 400)) {
+        throw new Error(res.data?.message || res.error || 'Gagal menghapus satuan');
+      }
+      await fetchUnits();
+      if (catalogForm.unit === u.name) {
+        setCatalogForm((prev) => ({ ...prev, unit: '' }));
+      }
+      setUnitNotice(`Satuan "${u.label || u.name}" berhasil dihapus.`);
+    } catch (err) {
+      setUnitError(err.message || 'Gagal menghapus satuan.');
+    } finally {
+      setIsSubmittingUnit(false);
+    }
+  }
+
   async function handleSaveCatalogProduct(e) {
     e.preventDefault();
     const supId = catalogForm.supplier_id || detailsSupplier?.id || catalogSupplier?.id;
@@ -523,12 +740,21 @@ export default function Suppliers({
       setError('Nama produk wajib diisi.');
       return;
     }
-    if (!catalogForm.sku.trim()) {
+    const cleanSku = catalogForm.sku.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+    if (!cleanSku) {
       setError('SKU produk wajib diisi.');
       return;
     }
-    if (inventory.some((it) => it.sku.toLowerCase() === catalogForm.sku.trim().toLowerCase())) {
-      setError(`SKU "${catalogForm.sku.trim()}" sudah digunakan pada sistem gudang.`);
+    if (cleanSku.length > 7) {
+      setError('SKU produk maksimal 7 karakter.');
+      return;
+    }
+    if (!/^[A-Z0-9]{1,7}$/.test(cleanSku)) {
+      setError('SKU produk hanya boleh memuat huruf kapital (A–Z) dan angka (0–9).');
+      return;
+    }
+    if (inventory.some((it) => it.sku.toLowerCase() === cleanSku.toLowerCase())) {
+      setError(`SKU "${cleanSku}" sudah digunakan pada sistem gudang.`);
       return;
     }
     const priceNum = Number(catalogForm.price);
@@ -543,13 +769,23 @@ export default function Suppliers({
     try {
       const selectedSup = suppliers.find((s) => s.id === Number(supId)) || detailsSupplier || catalogSupplier;
       const matchedCat = categories.find((c) => c.id === Number(catalogForm.category_id));
+      const reorderNum = Number(catalogForm.reorder) || 15;
+      const defaultUnit = unitsList.length > 0 ? unitsList[0].name : 'pcs';
       const payload = {
         ...catalogForm,
+        sku: cleanSku,
         supplier_id: Number(supId),
         supplier_name: selectedSup?.name || '',
         category_id: Number(catalogForm.category_id),
         category_name: matchedCat?.name || catalogForm.category_name || 'General',
         price: priceNum,
+        unit: catalogForm.unit || defaultUnit,
+        weight: catalogForm.weight !== '' && !isNaN(Number(catalogForm.weight)) ? Number(catalogForm.weight) : null,
+        weight_unit: catalogForm.weight_unit || 'kg',
+        reorder: reorderNum,
+        reorder_level: reorderNum,
+        image_url: catalogForm.image_url || null,
+        description: catalogForm.notes || '',
         stock_quantity: 0,
         zone: '—',
         location_id: null,
@@ -592,6 +828,17 @@ export default function Suppliers({
           setError(res.error);
         } else {
           setNotice(`Supplier "${formData.name}" berhasil ditambahkan.`);
+          setFormModal(null);
+        }
+      } else if (formModal.mode === 'edit') {
+        const res = await onUpdateSupplier(formModal.supplier.id, formData);
+        if (res?.error) {
+          setError(res.error);
+        } else {
+          setNotice(`Perubahan data supplier "${formData.name}" berhasil disimpan.`);
+          if (detailsSupplier && detailsSupplier.id === formModal.supplier.id) {
+            setDetailsSupplier((prev) => ({ ...prev, ...formData }));
+          }
           setFormModal(null);
         }
       }
@@ -779,7 +1026,7 @@ export default function Suppliers({
                     <th>Address</th>
                     <th>Supplied Items</th>
                     <th>Active POs</th>
-                    <th style={{ textAlign: 'center' }}>Actions</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -822,12 +1069,7 @@ export default function Suppliers({
                         </td>
                         <td>
                           <div
-                            style={{
-                              maxWidth: '220px',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
+                            className="supplier-address-cell"
                             title={s.address || 'Belum ada alamat'}
                           >
                             {s.address || '—'}
@@ -986,13 +1228,49 @@ export default function Suppliers({
               />
             </div>
 
-            <div className="supplier-form-field">
+            <div className="supplier-form-field full-width">
               <label htmlFor="sup-address">Alamat Gudang / Kantor</label>
               <textarea
                 id="sup-address"
                 placeholder="Alamat lengkap supplier..."
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                rows={2}
+                style={{ minHeight: '64px' }}
+              />
+            </div>
+
+            <div className="supplier-form-divider full-width">
+              <span>Informasi Rekening Bank (Untuk Pembayaran PO)</span>
+            </div>
+
+            <div className="supplier-form-field">
+              <label htmlFor="sup-bank-name">Nama Bank</label>
+              <input
+                id="sup-bank-name"
+                placeholder="Contoh: BCA, Mandiri, BRI, BNI, BSI"
+                value={formData.bank_name}
+                onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
+              />
+            </div>
+
+            <div className="supplier-form-field">
+              <label htmlFor="sup-bank-account">Nomor Rekening</label>
+              <input
+                id="sup-bank-account"
+                placeholder="Contoh: 1234567890"
+                value={formData.bank_account}
+                onChange={(e) => setFormData({ ...formData, bank_account: e.target.value })}
+              />
+            </div>
+
+            <div className="supplier-form-field full-width">
+              <label htmlFor="sup-bank-holder">Atas Nama Rekening (A/N)</label>
+              <input
+                id="sup-bank-holder"
+                placeholder="Contoh: PT Sumber Makmur Sejahtera"
+                value={formData.bank_holder}
+                onChange={(e) => setFormData({ ...formData, bank_holder: e.target.value })}
               />
             </div>
           </div>
@@ -1162,15 +1440,60 @@ export default function Suppliers({
             <div className="supplier-details-meta">
               <div className="meta-item">
                 <dt>Kontak Person (PIC)</dt>
-                <dd>{detailsSupplier.contact_person || '—'}</dd>
+                <dd title={detailsSupplier.contact_person || ''}>{detailsSupplier.contact_person || '—'}</dd>
+              </div>
+              <div className="meta-item">
+                <dt>Email Supplier</dt>
+                <dd title={detailsSupplier.email || ''}>
+                  {detailsSupplier.email ? (
+                    <a href={`mailto:${detailsSupplier.email}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                      {detailsSupplier.email}
+                    </a>
+                  ) : (
+                    '—'
+                  )}
+                </dd>
               </div>
               <div className="meta-item">
                 <dt>Telepon / WhatsApp</dt>
-                <dd>{detailsSupplier.phone || '—'}</dd>
+                <dd title={detailsSupplier.phone || ''}>{detailsSupplier.phone || '—'}</dd>
               </div>
-              <div className="meta-item" style={{ gridColumn: '1 / -1' }}>
+              <div className="meta-item meta-item-bank">
+                <dt>Rekening Bank Pembayaran</dt>
+                <dd>
+                  {detailsSupplier.bank_name || detailsSupplier.bank_account ? (
+                    <div className="details-bank-compact">
+                      <span className="details-bank-pill">🏦 {detailsSupplier.bank_name || 'Bank'}</span>
+                      <span className="details-bank-number">{detailsSupplier.bank_account || '—'}</span>
+                      {detailsSupplier.bank_holder && (
+                        <span className="details-bank-holder" title={`a.n ${detailsSupplier.bank_holder}`}>
+                          (a.n {detailsSupplier.bank_holder})
+                        </span>
+                      )}
+                      {detailsSupplier.bank_account && (
+                        <button
+                          type="button"
+                          className="btn-copy-bank-compact"
+                          onClick={() => {
+                            navigator.clipboard?.writeText(detailsSupplier.bank_account);
+                            setNotice(`Nomor rekening ${detailsSupplier.bank_name ? detailsSupplier.bank_name + ' ' : ''}${detailsSupplier.bank_account} berhasil disalin!`);
+                          }}
+                          title="Salin nomor rekening ke clipboard"
+                        >
+                          📋
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <span style={{ color: '#737b6c', fontSize: 12, fontStyle: 'italic', fontWeight: 400 }}>
+                      Belum ada rekening
+                    </span>
+                  )}
+                </dd>
+              </div>
+              <div className="meta-item meta-item-address">
                 <dt>Alamat Lengkap</dt>
-                <dd>{detailsSupplier.address || '—'}</dd>
+                <dd title={detailsSupplier.address || ''}>{detailsSupplier.address || '—'}</dd>
               </div>
             </div>
 
@@ -1228,6 +1551,10 @@ export default function Suppliers({
                 if (catalogSort === 'stock-asc') return (Number(a.current) || 0) - (Number(b.current) || 0);
                 return 0;
               });
+
+              const catalogPages = Math.max(1, Math.ceil(displaySupplierItems.length / 5));
+              const activeCatalogPage = Math.min(catalogPage, catalogPages);
+              const visibleCatalogItems = displaySupplierItems.slice((activeCatalogPage - 1) * 5, activeCatalogPage * 5);
 
               return (
                 <>
@@ -1304,11 +1631,11 @@ export default function Suppliers({
                           <th>Estimasi Harga Beli</th>
                           <th>Stok Fisik</th>
                           <th>Status Stok</th>
-                          <th style={{ textAlign: 'center' }}>Aksi</th>
+                          <th>Aksi</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {displaySupplierItems.map((item) => (
+                        {visibleCatalogItems.map((item) => (
                           <tr key={item.sku}>
                             <td>
                               <span className="catalog-sku-badge">{item.sku}</span>
@@ -1342,7 +1669,9 @@ export default function Suppliers({
                             </td>
                             <td>
                               <strong>{item.current}</strong> {item.unit || 'pcs'}
-                              <small style={{ display: 'block', color: '#737b6c', fontSize: 11 }}>Min: {item.reorder ?? 0}</small>
+                              <small style={{ display: 'block', color: '#737b6c', fontSize: 11 }}>
+                                Min. Order: {item.reorder ?? item.reorder_level ?? 15} {item.unit || 'pcs'}
+                              </small>
                             </td>
                             <td>
                               <span
@@ -1387,6 +1716,41 @@ export default function Suppliers({
                       </tbody>
                     </table>
                   </div>
+
+                  {displaySupplierItems.length > 5 && (
+                    <div className="inventory-pagination" style={{ marginTop: 12 }}>
+                      <span>
+                        Showing {displaySupplierItems.length ? (activeCatalogPage - 1) * 5 + 1 : 0}–
+                        {Math.min(activeCatalogPage * 5, displaySupplierItems.length)} of {displaySupplierItems.length} produk
+                      </span>
+                      <div>
+                        <button
+                          disabled={activeCatalogPage === 1}
+                          aria-label="Previous catalog page"
+                          onClick={() => setCatalogPage(activeCatalogPage - 1)}
+                        >
+                          ‹
+                        </button>
+                        {Array.from({ length: catalogPages }, (_, i) => (
+                          <button
+                            key={i}
+                            className={activeCatalogPage === i + 1 ? 'active-page' : ''}
+                            aria-label={`Catalog page ${i + 1}`}
+                            onClick={() => setCatalogPage(i + 1)}
+                          >
+                            {i + 1}
+                          </button>
+                        ))}
+                        <button
+                          disabled={activeCatalogPage === catalogPages}
+                          aria-label="Next catalog page"
+                          onClick={() => setCatalogPage(activeCatalogPage + 1)}
+                        >
+                          ›
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </>
               );
             })()}
@@ -1477,7 +1841,7 @@ export default function Suppliers({
               );
             })()}
 
-            <div className="supplier-modal-actions" style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <div className="supplier-modal-actions">
               <button
                 type="button"
                 className="inbound-secondary"
@@ -1518,15 +1882,6 @@ export default function Suppliers({
           </div>
         </div>
 
-        {(detailsSupplier || catalogSupplier) && (
-          <div className="supplier-prefilled-banner">
-            <span>🏢</span>
-            <span>
-              Mendaftarkan produk langsung ke katalog pemasok: <strong>{(detailsSupplier || catalogSupplier).name}</strong> (SUP-{String((detailsSupplier || catalogSupplier).id).padStart(3, '0')})
-            </span>
-          </div>
-        )}
-
         <form onSubmit={handleSaveCatalogProduct} noValidate>
           <div className="catalog-form-grid">
             <div className="supplier-form-field full-width">
@@ -1543,20 +1898,33 @@ export default function Suppliers({
             </div>
 
             <div className="supplier-form-field">
-              <label htmlFor="cat-sku">
-                Kode SKU Produk <span className="required">*</span>
-              </label>
+              <div className="catalog-field-header">
+                <label htmlFor="cat-sku">
+                  Kode SKU Produk <span className="required">*</span>
+                </label>
+                <span style={{ fontSize: '11px', color: '#737b6c', fontWeight: 600 }}>
+                  {catalogForm.sku.length}/7 Karakter
+                </span>
+              </div>
               <input
                 id="cat-sku"
-                placeholder="Contoh: SKU-006 / SC-LOG-01"
+                placeholder="Maks. 7 huruf/angka (cth: BRS001)"
                 value={catalogForm.sku}
-                onChange={(e) => setCatalogForm({ ...catalogForm, sku: e.target.value })}
+                maxLength={7}
+                style={{ textTransform: 'uppercase', fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.05em' }}
+                onChange={(e) => {
+                  const sanitized = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+                  setCatalogForm({ ...catalogForm, sku: sanitized });
+                }}
                 required
               />
+              <small style={{ fontSize: '11px', color: '#737b6c', marginTop: '4px', display: 'block' }}>
+                Hanya huruf kapital (A–Z) dan angka (0–9), maksimal 7 karakter.
+              </small>
             </div>
 
             <div className="supplier-form-field">
-              <div className="category-field-header">
+              <div className="catalog-field-header">
                 <label htmlFor="cat-category">
                   Kategori Produk <span className="required">*</span>
                 </label>
@@ -1590,7 +1958,7 @@ export default function Suppliers({
 
             <div className="supplier-form-field">
               <label htmlFor="cat-price">
-                Estimasi Harga Beli / Satuan (IDR) <span className="required">*</span>
+                Harga Beli Satuan (IDR) <span className="required">*</span>
               </label>
               <div className="currency-input-wrapper">
                 <span className="currency-prefix">Rp</span>
@@ -1608,50 +1976,144 @@ export default function Suppliers({
             </div>
 
             <div className="supplier-form-field">
-              <label htmlFor="cat-unit">Satuan Barang</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <label htmlFor="cat-unit" style={{ margin: 0 }}>
+                  Satuan Barang <span className="required">*</span>
+                </label>
+                <button
+                  type="button"
+                  className="btn-manage-cat-inline"
+                  onClick={() => {
+                    setUnitError('');
+                    setUnitNotice('');
+                    setUnitForm({ id: null, name: '' });
+                    setUnitModalOpen(true);
+                  }}
+                  title="Buka panel kelola master satuan produk"
+                >
+                  ⚙ Kelola Satuan
+                </button>
+              </div>
               <select
                 id="cat-unit"
-                value={catalogForm.unit}
+                value={catalogForm.unit || ''}
                 onChange={(e) => setCatalogForm({ ...catalogForm, unit: e.target.value })}
+                required
               >
-                <option value="pcs">pcs</option>
-                <option value="unit">unit</option>
-                <option value="box">box</option>
-                <option value="set">set</option>
-                <option value="pack">pack</option>
-                <option value="roll">roll</option>
-                <option value="pasang">pasang</option>
+                {unitsList.length === 0 ? (
+                  <option value="" disabled>Belum ada satuan. Klik '⚙ Kelola Satuan' untuk menambah</option>
+                ) : (
+                  unitsList.map((u) => (
+                    <option key={u.id || u.name} value={u.name}>
+                      {u.label || u.name}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
-            <div className="supplier-form-field full-width">
-              <label htmlFor="cat-reorder">Batas Minimum Reorder (Unit)</label>
+            <div className="supplier-form-field">
+              <label htmlFor="cat-weight">Berat Barang (Opsional)</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  id="cat-weight"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Contoh: 50"
+                  value={catalogForm.weight}
+                  onChange={(e) => setCatalogForm({ ...catalogForm, weight: e.target.value })}
+                  style={{ flex: 1 }}
+                />
+                <select
+                  id="cat-weight-unit"
+                  value={catalogForm.weight_unit || 'kg'}
+                  onChange={(e) => setCatalogForm({ ...catalogForm, weight_unit: e.target.value })}
+                  style={{ width: '100px' }}
+                >
+                  <option value="kg">kg</option>
+                  <option value="gram">gram</option>
+                  <option value="ton">ton</option>
+                  <option value="liter">liter</option>
+                  <option value="ml">ml</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="supplier-form-field">
+              <label htmlFor="cat-reorder">Batas Minimum Order (Unit)</label>
               <input
                 id="cat-reorder"
                 type="number"
                 min="1"
                 step="1"
-                placeholder="15"
-                value={catalogForm.reorder || null}
+                placeholder="10"
+                value={catalogForm.reorder || ''}
                 onChange={(e) => setCatalogForm({ ...catalogForm, reorder: e.target.value })}
               />
             </div>
 
-            <div className="supplier-form-field full-width">
-              <label htmlFor="cat-image">Foto / Gambar Produk (URL)</label>
-              <input
-                id="cat-image"
-                type="url"
-                placeholder="https://images.unsplash.com/... atau tautan gambar produk"
-                value={catalogForm.image_url || ''}
-                onChange={(e) => setCatalogForm({ ...catalogForm, image_url: e.target.value })}
-              />
+            <div className="catalog-photo-section">
+              <label>Foto Produk Katalog</label>
+              <div className="catalog-photo-wrap">
+                <div className="catalog-photo-preview-box">
+                  {catalogForm.image_url ? (
+                    <img
+                      src={catalogForm.image_url}
+                      alt="Preview Produk"
+                      className="catalog-photo-preview-img"
+                    />
+                  ) : (
+                    <div className="catalog-photo-placeholder">
+                      <span style={{ fontSize: 24 }}>📦</span>
+                      <span>Belum ada foto</span>
+                    </div>
+                  )}
+                </div>
+                <div className="catalog-photo-inputs">
+                  <input
+                    type="file"
+                    ref={catalogFileInputRef}
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleImageFileCatalog}
+                  />
+                  <div className="catalog-photo-actions-row">
+                    <button
+                      type="button"
+                      className="btn-upload-photo"
+                      onClick={() => catalogFileInputRef.current?.click()}
+                    >
+                      📷 Upload Foto 
+                    </button>
+                    {catalogForm.image_url && (
+                      <button
+                        type="button"
+                        className="btn-clear-photo"
+                        onClick={() => setCatalogForm((cur) => ({ ...cur, image_url: '' }))}
+                      >
+                        ✕ Hapus Foto
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    id="cat-image"
+                    type="url"
+                    className="catalog-url-input"
+                    placeholder="Atau tempel tautan URL gambar (https://...)"
+                    value={catalogForm.image_url || ''}
+                    onChange={(e) => setCatalogForm({ ...catalogForm, image_url: e.target.value })}
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="supplier-form-field full-width">
               <label htmlFor="cat-notes">Deskripsi &amp; Catatan Spesifikasi (Opsional)</label>
               <textarea
                 id="cat-notes"
+                rows={2}
+                style={{ minHeight: '68px' }}
                 placeholder="Spesifikasi teknis, nomor part vendor, atau ketentuan garansi..."
                 value={catalogForm.notes}
                 onChange={(e) => setCatalogForm({ ...catalogForm, notes: e.target.value })}
@@ -1861,6 +2323,167 @@ export default function Suppliers({
       </div>
     </dialog>
 
+      {/* Unit Management Modal Dialog */}
+      <dialog
+        ref={unitDialogRef}
+        className="supplier-modal category-manager-modal"
+        aria-labelledby="unit-manager-title"
+        onCancel={() => setUnitModalOpen(false)}
+      >
+        <div className="supplier-modal-scroll">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+            <div>
+              <h2 id="unit-manager-title" style={{ fontSize: 18, margin: '0 0 4px', color: '#191d17' }}>
+                Kelola Satuan Barang
+              </h2>
+              <p className="modal-subtitle" style={{ margin: 0, fontSize: 13, color: '#555d4e' }}>
+                Tambah atau kelola satuan barang gudang (Karung, Dus, Pcs, Box, Pack, dsb.).
+              </p>
+            </div>
+            <button
+              type="button"
+              className="dashboard-link"
+              style={{ fontSize: 18, padding: 4 }}
+              onClick={() => setUnitModalOpen(false)}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Notice & Error */}
+          {unitNotice && (
+            <div
+              className="supplier-prefilled-banner"
+              style={{ background: '#f0f7ec', borderColor: '#cfe3c5', color: '#2b3910', marginBottom: 14 }}
+            >
+              <span>✓</span>
+              <span>{unitNotice}</span>
+            </div>
+          )}
+          {unitError && (
+            <p role="alert" className="field-error" style={{ marginBottom: 14 }}>
+              {unitError}
+            </p>
+          )}
+
+          {/* Form Create / Update Unit */}
+          <div className="category-crud-card">
+            <div className="category-crud-card-title">
+              <span>{unitForm.id ? '✏ Edit Satuan' : '+ Tambah Satuan Baru'}</span>
+              {unitForm.id && (
+                <span style={{ fontSize: 11, fontWeight: 'normal', color: '#737b6c' }}>
+                  (ID: {unitForm.id})
+                </span>
+              )}
+            </div>
+            <form onSubmit={handleSaveUnit} noValidate>
+              <div className="supplier-form-field" style={{ marginBottom: 14 }}>
+                <label htmlFor="unit-form-name">
+                  Nama Satuan <span className="required">*</span>
+                </label>
+                <input
+                  id="unit-form-name"
+                  placeholder="Contoh: Karung, Dus, Pcs, Box, Sak, Roll, Pail, Pack"
+                  value={unitForm.name}
+                  onChange={(e) => setUnitForm({ ...unitForm, name: e.target.value })}
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="category-actions-group">
+                {unitForm.id && (
+                  <button
+                    type="button"
+                    className="inbound-secondary"
+                    style={{ padding: '6px 12px', fontSize: 12 }}
+                    onClick={handleCancelEditUnit}
+                    disabled={isSubmittingUnit}
+                  >
+                    Batal Edit
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  className="inbound-primary"
+                  style={{ padding: '6px 14px', fontSize: 12 }}
+                  disabled={isSubmittingUnit}
+                >
+                  {isSubmittingUnit
+                    ? 'Menyimpan...'
+                    : unitForm.id
+                    ? 'Simpan Perubahan'
+                    : '+ Tambahkan Satuan'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Units Table */}
+          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <strong style={{ fontSize: 13, color: '#2b3910' }}>
+              Daftar Satuan Aktif ({unitsList.length})
+            </strong>
+          </div>
+
+          <div className="category-list-wrap">
+            <table className="category-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '75%' }}>Nama Satuan</th>
+                  <th style={{ width: '25%', textAlign: 'right' }}>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {unitsList.map((u) => (
+                  <tr key={u.id || u.name}>
+                    <td>
+                      <strong style={{ fontSize: 14 }}>{u.label || u.name}</strong>
+                    </td>
+                    <td>
+                      <div className="category-table-actions">
+                        <button
+                          type="button"
+                          className="btn-cat-action"
+                          onClick={() => handleStartEditUnit(u)}
+                          title="Edit satuan ini"
+                        >
+                          ✏ Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-cat-action btn-cat-delete"
+                          onClick={() => handleDeleteUnit(u)}
+                          title="Hapus satuan ini"
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {unitsList.length === 0 && (
+                  <tr>
+                    <td colSpan="2" style={{ textAlign: 'center', padding: '16px', color: '#737b6c' }}>
+                      Belum ada data satuan. Masukkan nama satuan baru di atas.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="supplier-modal-actions" style={{ marginTop: 12 }}>
+            <button
+              type="button"
+              className="inbound-primary"
+              onClick={() => setUnitModalOpen(false)}
+            >
+              Selesai
+            </button>
+          </div>
+        </div>
+      </dialog>
+
       {/* Product Detail Preview Modal */}
       <dialog
         ref={productDetailsDialogRef}
@@ -1894,6 +2517,24 @@ export default function Suppliers({
               </button>
             </div>
 
+            {detailsProduct.image_url && (
+              <div style={{ margin: '14px 0', textAlign: 'center' }}>
+                <img
+                  src={detailsProduct.image_url}
+                  alt={detailsProduct.name}
+                  style={{
+                    maxHeight: 180,
+                    maxWidth: '100%',
+                    objectFit: 'contain',
+                    borderRadius: 8,
+                    border: '1px solid #dfe4d9',
+                    background: '#ffffff',
+                    padding: 4,
+                  }}
+                />
+              </div>
+            )}
+
             <div className="catalog-details-grid">
               <div className="catalog-detail-item">
                 <dt>Harga Beli Satuan</dt>
@@ -1904,12 +2545,16 @@ export default function Suppliers({
                 <dd>{detailsProduct.unit || 'pcs'}</dd>
               </div>
               <div className="catalog-detail-item">
+                <dt>Berat Barang</dt>
+                <dd>{detailsProduct.weight ? `${detailsProduct.weight} ${detailsProduct.weight_unit || 'kg'}` : '—'}</dd>
+              </div>
+              <div className="catalog-detail-item">
                 <dt>Stok Fisik Saat Ini</dt>
                 <dd>{detailsProduct.current ?? 0} {detailsProduct.unit || 'pcs'}</dd>
               </div>
               <div className="catalog-detail-item">
-                <dt>Batas Minimum Reorder</dt>
-                <dd>{detailsProduct.reorder ?? null} {detailsProduct.unit || 'pcs'}</dd>
+                <dt>Batas Minimum Order</dt>
+                <dd>{detailsProduct.reorder ?? detailsProduct.reorder_level ?? 15} {detailsProduct.unit || 'pcs'}</dd>
               </div>
               <div className="catalog-detail-item">
                 <dt>Status Ketersediaan</dt>
@@ -1955,7 +2600,7 @@ export default function Suppliers({
       {/* Edit Product Modal */}
       <dialog
         ref={productEditDialogRef}
-        className="supplier-modal"
+        className="supplier-modal catalog-modal product-edit-modal"
         aria-labelledby="prod-edit-title"
         onCancel={() => setEditProduct(null)}
       >
@@ -1992,6 +2637,47 @@ export default function Suppliers({
               </div>
 
               <div className="supplier-form-field">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label htmlFor="edit-prod-category" style={{ margin: 0 }}>
+                    Kategori Produk <span className="required">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    className="btn-manage-cat-inline"
+                    onClick={() => {
+                      setCategoryError('');
+                      setCategoryNotice('');
+                      setCategoryForm({ id: null, name: '', description: '' });
+                      setCategoryModalOpen(true);
+                    }}
+                    title="Buka panel kelola kategori produk"
+                  >
+                    ⚙ Kelola Kategori
+                  </button>
+                </div>
+                <select
+                  id="edit-prod-category"
+                  value={editProductForm.category_id}
+                  onChange={(e) => {
+                    const catId = Number(e.target.value);
+                    const cat = categories.find((c) => c.id === catId);
+                    setEditProductForm((prev) => ({
+                      ...prev,
+                      category_id: catId,
+                      category_name: cat?.name || 'General',
+                    }));
+                  }}
+                  required
+                >
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="supplier-form-field">
                 <label htmlFor="edit-prod-price">Harga Beli Satuan (IDR) <span className="required">*</span></label>
                 <div className="currency-input-wrapper">
                   <span className="currency-prefix">Rp</span>
@@ -2008,24 +2694,72 @@ export default function Suppliers({
               </div>
 
               <div className="supplier-form-field">
-                <label htmlFor="edit-prod-unit">Satuan Barang</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label htmlFor="edit-prod-unit" style={{ margin: 0 }}>
+                    Satuan Barang <span className="required">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    className="btn-manage-cat-inline"
+                    onClick={() => {
+                      setUnitError('');
+                      setUnitNotice('');
+                      setUnitForm({ id: null, name: '' });
+                      setUnitModalOpen(true);
+                    }}
+                    title="Buka panel kelola master satuan produk"
+                  >
+                    ⚙ Kelola Satuan
+                  </button>
+                </div>
                 <select
                   id="edit-prod-unit"
-                  value={editProductForm.unit}
+                  value={editProductForm.unit || ''}
                   onChange={(e) => setEditProductForm({ ...editProductForm, unit: e.target.value })}
+                  required
                 >
-                  <option value="pcs">pcs</option>
-                  <option value="unit">unit</option>
-                  <option value="box">box</option>
-                  <option value="set">set</option>
-                  <option value="pack">pack</option>
-                  <option value="roll">roll</option>
-                  <option value="pasang">pasang</option>
+                  {unitsList.length === 0 ? (
+                    <option value="" disabled>Belum ada satuan. Klik '⚙ Kelola Satuan' untuk menambah</option>
+                  ) : (
+                    unitsList.map((u) => (
+                      <option key={u.id || u.name} value={u.name}>
+                        {u.label || u.name}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
+              <div className="supplier-form-field">
+                <label htmlFor="edit-prod-weight">Berat Barang (Opsional)</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    id="edit-prod-weight"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Contoh: 50"
+                    value={editProductForm.weight}
+                    onChange={(e) => setEditProductForm({ ...editProductForm, weight: e.target.value })}
+                    style={{ flex: 1 }}
+                  />
+                  <select
+                    id="edit-prod-weight-unit"
+                    value={editProductForm.weight_unit || 'kg'}
+                    onChange={(e) => setEditProductForm({ ...editProductForm, weight_unit: e.target.value })}
+                    style={{ width: '100px' }}
+                  >
+                    <option value="kg">kg</option>
+                    <option value="gram">gram</option>
+                    <option value="ton">ton</option>
+                    <option value="liter">liter</option>
+                    <option value="ml">ml</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="supplier-form-field full-width">
-                <label htmlFor="edit-prod-reorder">Batas Minimum Reorder</label>
+                <label htmlFor="edit-prod-reorder">Batas Minimum Order (Unit)</label>
                 <input
                   id="edit-prod-reorder"
                   type="number"
@@ -2034,6 +2768,61 @@ export default function Suppliers({
                   value={editProductForm.reorder}
                   onChange={(e) => setEditProductForm({ ...editProductForm, reorder: e.target.value })}
                 />
+              </div>
+
+              <div className="catalog-photo-section">
+                <label>Foto Produk</label>
+                <div className="catalog-photo-wrap">
+                  <div className="catalog-photo-preview-box">
+                    {editProductForm.image_url ? (
+                      <img
+                        src={editProductForm.image_url}
+                        alt="Preview Produk"
+                        className="catalog-photo-preview-img"
+                      />
+                    ) : (
+                      <div className="catalog-photo-placeholder">
+                        <span style={{ fontSize: 24 }}>📦</span>
+                        <span>Belum ada foto</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="catalog-photo-inputs">
+                    <input
+                      type="file"
+                      ref={editProductFileInputRef}
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={handleImageFileEdit}
+                    />
+                    <div className="catalog-photo-actions-row">
+                      <button
+                        type="button"
+                        className="btn-upload-photo"
+                        onClick={() => editProductFileInputRef.current?.click()}
+                      >
+                        📷 Upload Foto dari Perangkat
+                      </button>
+                      {editProductForm.image_url && (
+                        <button
+                          type="button"
+                          className="btn-clear-photo"
+                          onClick={() => setEditProductForm((cur) => ({ ...cur, image_url: '' }))}
+                        >
+                          ✕ Hapus Foto
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      id="edit-prod-image"
+                      type="url"
+                      className="catalog-url-input"
+                      placeholder="Atau tempel tautan URL gambar (https://...)"
+                      value={editProductForm.image_url || ''}
+                      onChange={(e) => setEditProductForm({ ...editProductForm, image_url: e.target.value })}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 

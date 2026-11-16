@@ -15,6 +15,29 @@ function SettingsDialog({ title, onClose, children, wide = false }) {
 }
 function Settings({ manager, warehouse, preferences, warehouses, onNavigate, onSignOut, onSaveProfile, onSavePreferences, onChangePassword, onRevokeSessions, otherSessions, currentSession, securityEvents, initialView = "home" }) {
   const [tab, setTab] = useState("General"), [view, setView] = useState(initialView), [draft, setDraft] = useState(() => structuredClone(preferences)), [profile, setProfile] = useState(() => ({ ...manager })), [errors, setErrors] = useState({}), [modal, setModal] = useState(null), [notice, setNotice] = useState(""), [query, setQuery] = useState(""), [passwords, setPasswords] = useState({ current: "", next: "", confirm: "" }), [code, setCode] = useState(""), [success, setSuccess] = useState(""), [twoStepTarget, setTwoStepTarget] = useState(true);
+  const [tabPill, setTabPill] = useState({ left: 0, width: 0, ready: false });
+  const tabRefs = useRef({});
+
+  useEffect(() => {
+    const updatePill = () => {
+      const el = tabRefs.current[tab];
+      if (el) {
+        setTabPill({
+          left: el.offsetLeft,
+          width: el.offsetWidth,
+          ready: true,
+        });
+      }
+    };
+    updatePill();
+    const timer = setTimeout(updatePill, 60);
+    window.addEventListener("resize", updatePill);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updatePill);
+    };
+  }, [tab]);
+
   const photoInput = useRef(null);
   useEffect(() => setDraft(structuredClone(preferences)), [preferences]);
   useEffect(() => setProfile({ ...manager }), [manager]);
@@ -143,7 +166,23 @@ function Settings({ manager, warehouse, preferences, warehouses, onNavigate, onS
   }
   const avatar = (data, size = "") => <span className={"ss-avatar " + size}>{data.photo ? <img src={data.photo} alt="Manager avatar" /> : initials(data.fullName || data.name || "Manager")}</span>;
   const actions = (save, label, cancel) => <div className="ss-actions">{cancel && <button type="button" className="inbound-secondary" onClick={cancel}>Cancel</button>}<button type="button" className="inbound-primary" onClick={save}>{label}</button></div>;
-  return <ManagementShell page="Settings" title="Settings" eyebrow="SYSTEM PREFERENCES" description="Manage your profile, warehouse preferences, notifications, and security." manager={manager} warehouse={warehouse} query={query} onSearch={search} regional={regional} onNavigate={onNavigate} onSignOut={onSignOut}><nav className="dashboard-card ss-tabs" aria-label="Settings sections">{tabs.map((label) => <button key={label} type="button" aria-current={tab === label ? "page" : void 0} className={tab === label ? "selected" : ""} onClick={() => section(label)}>{label}</button>)}</nav>
+  return <ManagementShell page="Settings" title="Settings" eyebrow="SYSTEM PREFERENCES" description="Manage your profile, warehouse preferences, notifications, and security." manager={manager} warehouse={warehouse} query={query} onSearch={search} regional={regional} onNavigate={onNavigate} onSignOut={onSignOut}>
+    <nav className="dashboard-card ss-tabs" aria-label="Settings sections">
+      <div
+        className="ss-tab-sliding-pill"
+        style={{
+          transform: `translateX(${tabPill.left}px)`,
+          width: `${tabPill.width}px`,
+          opacity: tabPill.ready ? 1 : 0,
+          transition: tabPill.ready
+            ? "transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), width 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease"
+            : "none",
+        }}
+        aria-hidden="true"
+      />
+      {tabs.map((label) => <button key={label} ref={(node) => { if (node) tabRefs.current[label] = node; }} type="button" aria-current={tab === label ? "page" : void 0} className={tab === label ? "selected" : ""} onClick={() => section(label)}>{label}</button>)}
+    </nav>
+    <div key={tab} className="ss-tab-content-animate">
  {tab === "General" && view === "home" && <><div className="ss-general-grid"><section className="dashboard-card ss-card"><h2>Manager Profile</h2><div className="ss-profile-summary">{avatar(manager)}<div><h3>{manager.fullName}</h3><p>{manager.jobTitle || "Warehouse Manager"}</p><small>{manager.email}{manager.phone ? " \xB7 " + manager.phone : ""}</small></div></div><div className="ss-profile-bottom"><span>Account ID</span><strong>MGR-001</strong><button className="inbound-secondary" onClick={() => section("General", "profile")}>Edit Profile</button></div></section><section className="dashboard-card ss-card"><h2>Current Warehouse</h2><p className="ss-muted">Default warehouse for this account.</p><section className="ss-callout"><small>{warehouse.warehouseName.toUpperCase()}</small><h3>{warehouse.warehouseCode}</h3><p>{warehouse.city || "City not recorded"}</p></section><button className="inbound-secondary ss-full" onClick={() => section("General", "warehouse")}>Manage Warehouse Preferences</button></section></div><section className="dashboard-card ss-card"><h2>Quick Settings</h2><p className="ss-muted">Common preferences for your manager account.</p><div className="ss-quick-grid"><Toggle label="Notifications" description={preferences.notifications.enabled ? "Alerts for stock, orders, and approvals \xB7 enabled" : "Notification preferences paused"} checked={preferences.notifications.enabled} onChange={quickNotifications} /><Toggle label="Two-step verification" description={preferences.security.twoStep ? "Enabled for demo manager sign-in" : "Not enabled"} checked={preferences.security.twoStep} onChange={twoStep} /><div className="ss-setting-link"><div><strong>Language</strong><small>{regional.language === "id-ID" ? "Indonesian regional formats" : "English (United States)"}</small></div><button className="dashboard-link" onClick={() => section("Appearance & Regional")}>Change ›</button></div><div className="ss-setting-link"><div><strong>Time zone</strong><small>{regional.timeZone}</small></div><button className="dashboard-link" onClick={() => section("Appearance & Regional")}>Change ›</button></div></div></section></>}
  {tab === "General" && view === "profile" && <form className="dashboard-card ss-card ss-profile-form" onSubmit={saveProfile} noValidate><button type="button" className="ss-back" onClick={() => section("General")}>‹ Back to General Settings</button><h2>Profile Information</h2><div className="ss-photo-edit">{avatar(profile, "large")}<div><button type="button" className="inbound-secondary" onClick={() => photoInput.current.click()}>Change Photo</button><small>JPG or PNG · Maximum 2 MB</small><input ref={photoInput} type="file" accept="image/png,image/jpeg" aria-label="Manager photo" hidden onChange={choosePhoto} />{errors.photo && <p className="field-error">{errors.photo}</p>}</div></div><div className="ss-fields">{[["fullName", "Full name *"], ["jobTitle", "Job title"], ["email", "Email *"], ["phone", "Phone number"]].map(([key, label]) => <label key={key}>{label}<input aria-label={label} type={key === "email" ? "email" : key === "phone" ? "tel" : "text"} value={profile[key] || ""} maxLength={key === "email" ? 254 : 100} onChange={(e) => {
     setProfile({ ...profile, [key]: e.target.value });
@@ -158,7 +197,7 @@ function Settings({ manager, warehouse, preferences, warehouses, onNavigate, onS
  {tab === "Appearance & Regional" && <section className="dashboard-card ss-card"><h2>Appearance</h2><p className="ss-muted">Theme changes apply to Settings and Staff Management after saving.</p><h3>Theme</h3><div className="ss-theme-options" role="radiogroup" aria-label="Theme">{[["light", "Light"], ["dark", "Dark"], ["system", "System Default"]].map(([value, label]) => <label key={value} className={draft.appearance.theme === value ? "selected" : ""}><input type="radio" name="theme" value={value} checked={draft.appearance.theme === value} onChange={() => edit("appearance", "theme", value)} /><span className={"ss-theme-swatch " + value}><i /></span><strong>{label}</strong></label>)}</div><hr /><h2>Regional Format</h2><div className="ss-fields"><label>Language<select aria-label="Language" value={draft.appearance.language} onChange={(e) => edit("appearance", "language", e.target.value)}><option value="en-US">English (United States)</option><option value="id-ID">Indonesian (regional formats)</option></select></label><label>Time zone<select aria-label="Time zone" value={draft.appearance.timeZone} onChange={(e) => edit("appearance", "timeZone", e.target.value)}><option>Asia/Jakarta</option><option>Asia/Makassar</option><option>Asia/Jayapura</option></select></label><label>Date format<select aria-label="Date format" value={draft.appearance.dateFormat} onChange={(e) => edit("appearance", "dateFormat", e.target.value)}><option value="medium">DD MMM YYYY</option><option value="numeric">Numeric date</option></select><small>Preview: {managementDate((/* @__PURE__ */ new Date()).toISOString(), draft.appearance)}</small></label><label>Number and currency<select aria-label="Number and currency" value={draft.appearance.numberLocale} onChange={(e) => edit("appearance", "numberLocale", e.target.value)}><option value="id-ID">Indonesia · Rp1.250.000</option><option value="en-US">English formatting · IDR 1,250,000</option></select><small>Preview: {new Intl.NumberFormat(draft.appearance.numberLocale, { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(125e4)}</small></label></div><p className="ss-muted ss-note">Regional formats apply to Settings and Staff Management. Menu text remains English; operational reports retain their source formats and currencies.</p><div className="ss-actions"><button className="inbound-secondary" onClick={() => {
     setDraft({ ...draft, appearance: structuredClone(defaultPreferences.appearance) });
     setNotice("Defaults selected. Save Appearance to apply.");
-  }}>Reset Defaults</button><button className="inbound-primary" onClick={() => saveGroup("appearance", "Appearance and regional preferences")}>Save Appearance</button></div></section>}
+  }}>Reset Defaults</button><button className="inbound-primary" onClick={() => saveGroup("appearance", "Appearance and regional preferences")}>Save Appearance</button></div></section>}</div>
  {notice && <p role="status" className="form-notice">{notice}</p>}<p className="dashboard-demo">Preferences and account changes are stored only for this frontend session. Refresh restores the demo defaults.</p>
  {modal && <SettingsDialog title={modal === "success" ? "Changes saved successfully" : modal === "password" ? "Change Password" : modal === "two-step" ? "Two-step Verification" : "Sign Out Other Sessions"} onClose={close} wide={modal === "success"}>
  {modal === "success" ? <><div className="ss-success">✓</div><h2>Changes saved successfully</h2><p className="ss-muted ss-center">Your changes are applied to this frontend session.</p><section className="ss-inset ss-success-summary"><small>UPDATED</small><strong>{success}</strong><dl className="ss-information"><div><dt>Saved by</dt><dd>{manager.fullName} · Warehouse Manager</dd></div></dl></section><button className="inbound-primary ss-full" onClick={close}>Back to Settings</button><p className="ss-muted ss-center">Changes are recorded in the Audit Trail.</p></> : modal === "password" ? <form onSubmit={changePassword} noValidate><h2>Change Password</h2><p className="ss-muted">Update the demo manager credential for this session.</p><hr /><div className="ss-password-fields">{[["current", "Current password"], ["next", "New password"], ["confirm", "Confirm new password"]].map(([key, label]) => <PasswordInput key={key} id={"settings-password-" + key} label={label} value={passwords[key]} onChange={(e) => {

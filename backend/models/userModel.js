@@ -11,7 +11,7 @@ const UserModel = {
       email,
       password,
       role || 'staf',
-      role_title || null,
+      role_title || 'Staf',
       warehouse || null,
     ]);
     return result;

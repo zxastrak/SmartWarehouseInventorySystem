@@ -189,8 +189,14 @@ CREATE TABLE `suppliers` (
   `id` int NOT NULL,
   `name` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
   `contact_person` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `email` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `phone` varchar(20) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `address` text COLLATE utf8mb4_general_ci,
+  `payment_terms` varchar(50) COLLATE utf8mb4_general_ci DEFAULT 'Net 30',
+  `lead_time_days` int DEFAULT NULL,
+  `bank_name` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `bank_account` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `bank_holder` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -242,7 +248,10 @@ CREATE TABLE `users` (
   `name` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
   `email` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
   `password` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
-  `role` enum('manager','staf') COLLATE utf8mb4_general_ci NOT NULL,
+  `role` enum('manager','staf') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'staf',
+  `role_title` varchar(100) COLLATE utf8mb4_general_ci DEFAULT 'Staf',
+  `warehouse` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `photo` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_active` tinyint(1) NOT NULL DEFAULT '1'

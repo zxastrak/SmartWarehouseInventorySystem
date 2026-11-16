@@ -378,6 +378,33 @@ export const categoriesApi = {
   },
 };
 
+export const unitsApi = {
+  getAll: async () => {
+    const res = await apiFetch('/units');
+    return res.ok && Array.isArray(res.data) ? res.data : [];
+  },
+  create: async (data) => {
+    const res = await apiFetch('/units', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return { success: res.ok, status: res.status, data: res.data };
+  },
+  update: async (id, data) => {
+    const res = await apiFetch(`/units/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return { success: res.ok, status: res.status, data: res.data };
+  },
+  remove: async (id) => {
+    const res = await apiFetch(`/units/${id}`, {
+      method: 'DELETE',
+    });
+    return { success: res.ok, status: res.status, data: res.data };
+  },
+};
+
 export const suppliersApi = {
   getAll: async () => {
     const res = await apiFetch('/suppliers');
@@ -472,6 +499,13 @@ export const inboundApi = {
     const res = await apiFetch(`/inbound/${encodeURIComponent(id)}/status`, {
       method: 'PUT',
       body: JSON.stringify({ status, notes }),
+    });
+    return { success: res.ok, status: res.status, data: res.data };
+  },
+  updateItemStaff: async (id, sku, assignedStaff) => {
+    const res = await apiFetch(`/inbound/${encodeURIComponent(id)}/item-staff`, {
+      method: 'PUT',
+      body: JSON.stringify({ sku, assigned_staff: assignedStaff }),
     });
     return { success: res.ok, status: res.status, data: res.data };
   },
@@ -610,5 +644,47 @@ export const usersApi = {
       body: JSON.stringify({ email, new_password }),
     });
     return { success: res.ok, status: res.status, data: res.data, message: res.data?.message };
+  },
+};
+
+export const shiftsApi = {
+  getAll: async () => {
+    const res = await apiFetch('/shifts');
+    return res.ok && Array.isArray(res.data) ? res.data : [];
+  },
+  getById: async (id) => {
+    const res = await apiFetch(`/shifts/${encodeURIComponent(id)}`);
+    return res.ok ? res.data : null;
+  },
+  create: async ({ user_id, shift_date, start_time, end_time }) => {
+    const res = await apiFetch('/shifts', {
+      method: 'POST',
+      body: JSON.stringify({ user_id, shift_date, start_time, end_time }),
+    });
+    return { success: res.ok, status: res.status, data: res.data, message: res.data?.message };
+  },
+  update: async (id, data) => {
+    const res = await apiFetch(`/shifts/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return { success: res.ok, status: res.status, data: res.data, message: res.data?.message };
+  },
+  delete: async (id) => {
+    const res = await apiFetch(`/shifts/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    return { success: res.ok, status: res.status, data: res.data, message: res.data?.message };
+  },
+};
+
+export const attendanceApi = {
+  getAll: async () => {
+    const res = await apiFetch('/attendances');
+    return res.ok && Array.isArray(res.data) ? res.data : [];
+  },
+  getByUserId: async (userId) => {
+    const all = await attendanceApi.getAll();
+    return all.filter((a) => String(a.user_id) === String(userId));
   },
 };

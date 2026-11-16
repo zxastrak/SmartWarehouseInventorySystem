@@ -2,6 +2,7 @@ import { typeOf } from "../utils/productTypes.js";
 import React, { useEffect, useRef, useState } from "react";
 import { newReceivingDraft } from "../data/receiving.js";
 import { acceptedUnits, inspectionSummary, validateInspection } from "../utils/receiving.js";
+import InboundItemDetailModal from "./InboundItemDetailModal.jsx";
 import "../styles/receiving.css";
 
 const headings = { 
@@ -16,14 +17,23 @@ const descriptions = {
 
 const receivingDate = (date) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(`${date}T12:00:00`));
 
-function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccounts = [], onSaveDraft, onInspect, onUpdateStaff, onComplete, onBack, onNavigate, warehouseName, onHeaderChange }) {
-  const [currentStaff, setCurrentStaff] = useState(shipment.staff || shipment.assigned_staff || 'Staf Dok');
-  const [assignNotice, setAssignNotice] = useState('');
+const normalizeStaff = (val) => {
+  if (!val || ['staff', 'staf'].includes(String(val).trim().toLowerCase())) {
+    return 'Semua Staf Lapangan';
+  }
+  return String(val).trim();
+};
+
+function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccounts = [], onSaveDraft, onInspect, onUpdateStaff, onUpdateItemStaff, onComplete, onBack, onNavigate, warehouseName, onHeaderChange }) {
+  const [currentStaff, setCurrentStaff] = useState(() => normalizeStaff(shipment.staff || shipment.assigned_staff));
+  const [isAssigned, setIsAssigned] = useState(false);
   const [isSubmittingAssign, setIsSubmittingAssign] = useState(false);
+  const [selectedDetailItem, setSelectedDetailItem] = useState(null);
 
   useEffect(() => {
     if (shipment.staff || shipment.assigned_staff) {
-      setCurrentStaff(shipment.staff || shipment.assigned_staff);
+      const staffVal = normalizeStaff(shipment.staff || shipment.assigned_staff);
+      setCurrentStaff(staffVal);
     }
   }, [shipment.staff, shipment.assigned_staff]);
 
@@ -31,12 +41,25 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
     const finalStaff = (newStaff || '').trim() || 'Semua Staf Lapangan';
     setCurrentStaff(finalStaff);
     setIsSubmittingAssign(true);
-    if (onUpdateStaff) {
-      await onUpdateStaff(shipment.id, finalStaff);
+    try {
+      if (onUpdateStaff) {
+        await onUpdateStaff(shipment.id, finalStaff);
+      }
+      setIsAssigned(true);
+    } finally {
+      setIsSubmittingAssign(false);
     }
-    setIsSubmittingAssign(false);
-    setAssignNotice(`Penugasan inspeksi berhasil diubah ke: "${finalStaff}"`);
-    setTimeout(() => setAssignNotice(''), 3500);
+  }
+
+  async function handleItemStaffChange(sku, newStaff) {
+    const finalStaff = (newStaff || '').trim() || 'Semua Staf Lapangan';
+    setDraft((prev) => ({
+      ...prev,
+      rows: prev.rows.map((r) => (r.sku === sku ? { ...r, assigned_staff: finalStaff } : r)),
+    }));
+    if (onUpdateItemStaff) {
+      await onUpdateItemStaff(shipment.id, sku, finalStaff);
+    }
   }
 
   const [draft, setDraft] = useState(() => {
@@ -77,6 +100,10 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
 
   function complete() {
     if (submitLock.current || done) return;
+    if (shipment.status !== "Inspected") {
+      setError("Inbound shipment belum diinspeksi oleh staf dok. Staf dok wajib menginput kuantitas fisik dan memindai barcode unit di Mobile terlebih dahulu sebelum Manager memberikan ACC.");
+      return;
+    }
     const problem = validateInspection(draft);
     if (problem) {
       setError(problem);
@@ -117,6 +144,34 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
 
   return (
     <div className="receiving-content">
+      {/* Top Navigation Bar: Tombol Kembali Langsung ke Menu / Detail Sebelumnya */}
+      <div className="inbound-top-nav-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+        <button
+          type="button"
+          className="dashboard-link inbound-back-nav-btn"
+          onClick={onBack}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontWeight: 700,
+            fontSize: 13,
+            color: '#3e5510',
+            background: '#f8f9f5',
+            border: '1.5px solid #d4dec3',
+            borderRadius: 8,
+            padding: '7px 15px',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          ← Kembali ke Detail / Daftar Inbound
+        </button>
+        <span style={{ fontSize: 12, color: '#737b6c', fontWeight: 500 }}>
+          No. Inbound: <strong style={{ color: '#191d17' }}>{shipment.id}</strong> · PO: <strong style={{ color: '#191d17' }}>{shipment.po}</strong> · Dok: <strong style={{ color: '#191d17' }}>{shipment.dock}</strong>
+        </span>
+      </div>
+
       {/* 3-Step Progress Indicator (Figma MacBook Pro 16" - 17 & 15) */}
       <ol className={`receiving-steps receiving-step-${receivingProgress}`} aria-label="Receiving progress">
         {[
@@ -131,71 +186,48 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
         ))}
       </ol>
 
-      {/* Toast Notice Penugasan */}
-      {assignNotice && (
-        <div
-          style={{
-            background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
-            border: '1px solid #86efac',
-            borderRadius: 10,
-            padding: '12px 18px',
-            marginBottom: 16,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            boxShadow: '0 2px 6px rgba(22, 163, 74, 0.1)',
-            color: '#166534',
-            fontSize: 13,
-            fontWeight: 600,
-          }}
-        >
-          <span>✓</span>
-          <span>{assignNotice}</span>
-        </div>
-      )}
-
       {/* TAHAP 1: INSPECT INBOUND SHIPMENT (Figma MacBook Pro 16" - 17) */}
       {draft.stage === "inspect" && (
-        <div className="receiving-inspect-grid">
-          <div className="receiving-left">
-
-            {/* Shipment Information Card (Figma Layout) */}
-            <section className="dashboard-card receiving-shipment-card">
-              <div className="receiving-card-heading">
-                <h2>Shipment Information</h2>
-                <span className="inbound-status">{shipment.status.toUpperCase()}</span>
-              </div>
-              <dl>
-                {[
-                  ["Inbound ID", shipment.id],
-                  ["Purchase Order", shipment.po],
-                  ["Supplier", shipment.supplier],
-                  ["Delivery Date", `${receivingDate(shipment.date)} · ${shipment.time}`],
-                  ["Receiving Dock", shipment.dock],
-                  ["Delivery Note", shipment.reference || "Not provided"],
-                  ["Driver / Vehicle", shipment.carrier || "Not provided"],
-                  [
-                    "Assigned to",
-                    <div key="assigned-action" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                      <select
-                        value={currentStaff}
-                        onChange={(e) => handleStaffChange(e.target.value)}
-                        style={{
-                          width: '100%',
-                          maxWidth: 240,
-                          padding: '6px 10px',
-                          borderRadius: 8,
-                          border: '1.5px solid #5c732b',
-                          background: '#ffffff',
-                          color: '#191d17',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          outline: 'none',
-                        }}
-                      >
-                        <option value="Semua Staf Lapangan">👥 Semua Staf Lapangan</option>
-                        {staffAccounts.map((acc) => {
+        <div className="receiving-inspect-container" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Shipment Information Card (Figma Layout) */}
+          <section className="dashboard-card receiving-shipment-card">
+            <div className="receiving-card-heading">
+              <h2>Shipment Information</h2>
+              <span className="inbound-status">{shipment.status.toUpperCase()}</span>
+            </div>
+            <dl>
+              {[
+                ["Inbound ID", shipment.id],
+                ["Purchase Order", shipment.po],
+                ["Supplier", shipment.supplier],
+                ["Delivery Date", `${receivingDate(shipment.date)} · ${shipment.time}`],
+                ["Receiving Dock", shipment.dock],
+                ["Delivery Note", shipment.reference || "Not provided"],
+                ["Driver / Vehicle", shipment.carrier || "Not provided"],
+                [
+                  "Assigned to",
+                  <div key="assigned-action" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                    <select
+                      value={currentStaff}
+                      onChange={(e) => handleStaffChange(e.target.value)}
+                      style={{
+                        width: '100%',
+                        maxWidth: 240,
+                        padding: '6px 10px',
+                        borderRadius: 8,
+                        border: '1.5px solid #5c732b',
+                        background: '#ffffff',
+                        color: '#191d17',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        outline: 'none',
+                      }}
+                    >
+                      <option value="Semua Staf Lapangan">👥 Semua Staf Lapangan</option>
+                      {staffAccounts
+                        .filter((acc) => !['staff', 'staf'].includes(String(acc.fullName || acc.name || '').trim().toLowerCase()))
+                        .map((acc) => {
                           const name = acc.fullName || acc.name;
                           return (
                             <option key={acc.id || name} value={name}>
@@ -203,34 +235,50 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                             </option>
                           );
                         })}
-                        {currentStaff && currentStaff !== 'Semua Staf Lapangan' && !staffAccounts.some((acc) => (acc.fullName || acc.name) === currentStaff) && (
-                          <option value={currentStaff}>👤 {currentStaff}</option>
-                        )}
-                      </select>
-                      {isSubmittingAssign && (
-                        <span style={{ fontSize: 11, color: '#5c732b', fontWeight: 600 }}>Menyimpan...</span>
+                      {currentStaff && currentStaff !== 'Semua Staf Lapangan' && !['staff', 'staf'].includes(currentStaff.toLowerCase()) && !staffAccounts.some((acc) => (acc.fullName || acc.name) === currentStaff) && (
+                        <option value={currentStaff}>👤 {currentStaff}</option>
                       )}
-                    </div>
-                  ],
-                ].map(([label, value]) => (
-                  <div key={typeof label === 'string' ? label : 'row'}>
-                    <dt>{label}</dt>
-                    <dd>{value}</dd>
+                    </select>
+                    {isSubmittingAssign && (
+                      <span style={{ fontSize: 11, color: '#5c732b', fontWeight: 600 }}>Menyimpan...</span>
+                    )}
                   </div>
-                ))}
-              </dl>
-            </section>
+                ],
+              ].map(([label, value]) => (
+                <div key={typeof label === 'string' ? label : 'row'}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
 
+          {/* Top Row: Inspection Allocation Progress & Alur Pemeriksaan Dok (Naik ke Atas) */}
+          <div className="receiving-inspect-top-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16, alignItems: 'stretch' }}>
             {/* Inspection Allocation Progress Bar Card */}
-            <section className="dashboard-card receiving-allocation-progress">
+            <section
+              className="dashboard-card receiving-allocation-progress"
+              style={{
+                margin: 0,
+                height: '100%',
+                boxSizing: 'border-box',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                padding: '18px 20px',
+                gap: 16,
+              }}
+            >
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h2>Inspection Progress</h2>
+                  <h2 style={{ margin: 0, fontSize: 16 }}>Inspection Progress</h2>
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#5c732b' }}>
                     {inspectPercent}% Selesai
                   </span>
                 </div>
-                <p>Status verifikasi fisik dan scan barcode barang datang dari PO.</p>
+                <p style={{ margin: '6px 0 14px', fontSize: 12, color: '#737b6c' }}>
+                  Status verifikasi fisik dan scan barcode barang datang dari PO.
+                </p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <progress value={totalInspectedUnits} max={totals.ordered || 1} />
                   <span style={{ fontWeight: 700, fontSize: 13, color: '#5c732b', minWidth: 46 }}>
@@ -238,160 +286,212 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                   </span>
                 </div>
               </div>
-              <div className="receiving-progress-stats">
-                <article>
-                  <span>EXPECTED</span>
-                  <strong>{totals.ordered}</strong>
+              <div
+                className="receiving-progress-stats"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 10,
+                  margin: 0,
+                  width: '100%',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <article style={{ padding: '10px 8px', textAlign: 'center' }}>
+                  <span style={{ fontSize: 10, color: '#737b6c', display: 'block', marginBottom: 4 }}>EXPECTED</span>
+                  <strong style={{ fontSize: 22, display: 'block' }}>{totals.ordered}</strong>
                 </article>
-                <article>
-                  <span>ACCEPTED</span>
-                  <strong>{totals.accepted}</strong>
+                <article style={{ padding: '10px 8px', textAlign: 'center' }}>
+                  <span style={{ fontSize: 10, color: '#737b6c', display: 'block', marginBottom: 4 }}>ACCEPTED</span>
+                  <strong style={{ fontSize: 22, display: 'block', color: '#5c732b' }}>{totals.accepted}</strong>
                 </article>
-                <article className={issueUnits > 0 ? "summary-issue" : ""}>
-                  <span>ISSUES</span>
-                  <strong>{issueUnits}</strong>
+                <article className={issueUnits > 0 ? "summary-issue" : ""} style={{ padding: '10px 8px', textAlign: 'center' }}>
+                  <span style={{ fontSize: 10, color: '#737b6c', display: 'block', marginBottom: 4 }}>ISSUES</span>
+                  <strong style={{ fontSize: 22, display: 'block' }}>{issueUnits}</strong>
                 </article>
               </div>
             </section>
 
-            {/* Item Inspection Card (Matching Figma MacBook Pro 16" - 17 Columns) */}
-            <section className="dashboard-card receiving-item-card">
-              <div className="card-heading" style={{ marginBottom: 12 }}>
-                <div>
-                  <h2>Item Inspection</h2>
-                  <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
-                    Data kuantitas dan kondisi fisik barang pesanan dari purchase order.
-                  </p>
+            {/* Dock Workflow Status / Alur Pemeriksaan Dok */}
+            <section
+              className="dashboard-card receiving-details-card"
+              style={{
+                margin: 0,
+                height: '100%',
+                boxSizing: 'border-box',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                padding: '18px 20px',
+              }}
+            >
+              <div>
+                <h2>Alur Pemeriksaan Dok</h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, margin: '14px 0' }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                    <span style={{ background: '#dcfce7', color: '#166534', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>✓</span>
+                    <div>
+                      <strong style={{ fontSize: 13, color: '#166534' }}>Armada Barang Tiba</strong>
+                      <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>Dikonfirmasi tiba di Dok {shipment.dock}</p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                    <span style={{ background: '#e0f2fe', color: '#0284c7', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>⏳</span>
+                    <div>
+                      <strong style={{ fontSize: 13, color: '#0369a1' }}>Pemeriksaan Fisik & Scan Barcode</strong>
+                      <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>Sedang diproses oleh {currentStaff} di HP Mobile</p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                    <span style={{ background: '#f1f5f9', color: '#94a3b8', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>3</span>
+                    <div>
+                      <strong style={{ fontSize: 13, color: '#64748b' }}>Review & ACC Manager</strong>
+                      <p style={{ margin: '2px 0 0', fontSize: 12, color: '#94a3b8' }}>Menunggu pengiriman data dari aplikasi mobile staf</p>
+                    </div>
+                  </div>
                 </div>
-                <span className="status-badge-waiting">
-                  ⏳ Menunggu Cek Staf
-                </span>
-              </div>
-
-              <div className="receiving-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      {["Product", "Ordered", "Received", "Damaged", "Rejected", "Accepted", "Result"].map((label) => (
-                        <th key={label}>{label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {draft.rows.map((row) => {
-                      const count = acceptedUnits(row);
-                      const issues = Number(row.damaged) + Number(row.rejected) + Math.max(0, row.ordered - Number(row.received));
-                      return (
-                        <tr key={row.sku}>
-                          <td>
-                            <strong>{row.name}</strong>
-                            <small>Type: {typeOf(row)}</small>
-                            <small>{row.sku} · {row.category}</small>
-                          </td>
-                          <td><strong>{row.ordered}</strong></td>
-                          <td>{row.received !== undefined ? row.received : "—"}</td>
-                          <td>{Number(row.damaged) > 0 ? <span className="critical-text">{row.damaged}</span> : "0"}</td>
-                          <td>{Number(row.rejected) > 0 ? <span className="critical-text">{row.rejected}</span> : "0"}</td>
-                          <td className="positive-text"><strong>{Number.isFinite(count) ? count : "—"}</strong></td>
-                          <td>
-                            <span className={`inbound-status${issues ? " inbound-status-issue" : " inbound-status-arrived"}`}>
-                              {issues ? "Partial issue" : "Accepted"}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {!draft.rows.length && (
-                      <tr>
-                        <td colSpan="7" style={{ textAlign: "center", padding: "24px 16px", color: "#64748b" }}>
-                          Tidak ada produk tercatat dalam PO ini.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              {issueUnits > 0 && issueBanner}
-              <p style={{ margin: '14px 0 0', fontSize: 11, color: '#737b6c' }}>
-                Inspection progress saved automatically
-              </p>
-            </section>
-          </div>
-
-          <div className="receiving-right">
-            {/* Supporting evidence (Exact Figma MacBook Pro 16" - 17) */}
-            <section className="dashboard-card receiving-details-card">
-              <h2>Supporting evidence</h2>
-              <div style={{
-                border: '1.5px dashed #cbd5e1',
-                borderRadius: 8,
-                padding: '20px 16px',
-                textAlign: 'center',
-                background: '#f8fafc',
-                margin: '12px 0'
-              }}>
-                <span style={{ fontSize: 24, display: 'block', marginBottom: 6 }}>📷</span>
-                <strong style={{ display: 'block', fontSize: 13, color: '#334155' }}>+ Upload photos or documents</strong>
-                <span style={{ fontSize: 11, color: '#64748b' }}>PNG, JPG, or PDF · Max. 10 MB</span>
-                <p style={{ margin: '8px 0 0', fontSize: 11, color: '#0369a1' }}>
-                  ℹ️ Dikirim oleh staf dok ({currentStaff}) via Mobile
-                </p>
               </div>
               <p className="receiving-help" style={{ borderTop: '1px solid #f1f5f9', paddingTop: 10, margin: 0, fontSize: 11, color: '#737b6c' }}>
-                Next: review accepted items before completing receiving.
-              </p>
-            </section>
-
-            {/* Dock Workflow Status */}
-            <section className="dashboard-card receiving-details-card">
-              <h2>Alur Pemeriksaan Dok</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, margin: '14px 0' }}>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                  <span style={{ background: '#dcfce7', color: '#166534', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>✓</span>
-                  <div>
-                    <strong style={{ fontSize: 13, color: '#166534' }}>Armada Barang Tiba</strong>
-                    <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>Dikonfirmasi tiba di Dok {shipment.dock}</p>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                  <span style={{ background: '#e0f2fe', color: '#0284c7', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>⏳</span>
-                  <div>
-                    <strong style={{ fontSize: 13, color: '#0369a1' }}>Pemeriksaan Fisik & Scan Barcode</strong>
-                    <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>Sedang diproses oleh {currentStaff} di HP Mobile</p>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                  <span style={{ background: '#f1f5f9', color: '#94a3b8', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>3</span>
-                  <div>
-                    <strong style={{ fontSize: 13, color: '#64748b' }}>Review & ACC Manager</strong>
-                    <p style={{ margin: '2px 0 0', fontSize: 12, color: '#94a3b8' }}>Menunggu pengiriman data dari aplikasi mobile staf</p>
-                  </div>
-                </div>
-              </div>
-              <p className="receiving-help" style={{ borderTop: '1px solid #f1f5f9', paddingTop: 12 }}>
                 Setelah staf dok menekan "Kirim Hasil Cek & Barcode ke Manager" di aplikasi Mobile, halaman ini akan otomatis berganti ke tampilan Review & ACC.
               </p>
             </section>
-
-            {/* Inspection Summary Card (Exact Figma 3 Metrics Layout) */}
-            <section className="dashboard-card receiving-summary-card">
-              <h2>Inspection Summary</h2>
-              <div>
-                {[
-                  ["Ordered", totals.ordered, ""],
-                  ["Accepted", totals.accepted, "summary-accepted"],
-                  ["Issues", issueUnits, issueUnits ? "summary-issue" : ""]
-                ].map(([label, value, tone]) => (
-                  <article key={label} className={tone}>
-                    <span>{label}</span>
-                    <strong>{value}</strong>
-                  </article>
-                ))}
-              </div>
-            </section>
           </div>
+
+          {/* Item Inspection Card (Matching Figma MacBook Pro 16" - 17 Columns, Full Width) */}
+          <section className="dashboard-card receiving-item-card" style={{ width: '100%', boxSizing: 'border-box' }}>
+            <div className="card-heading" style={{ marginBottom: 12 }}>
+              <div>
+                <h2>Item Inspection</h2>
+                <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
+                  Data kuantitas dan kondisi fisik barang pesanan dari purchase order.
+                </p>
+              </div>
+              <span className="status-badge-waiting">
+                ⏳ Menunggu Cek Staf
+              </span>
+            </div>
+
+            <div className="receiving-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    {["Product", "Ordered", "Damaged", "Rejected", "Accepted", "Staf Bertugas", "Result", "Aksi"].map((label) => (
+                      <th key={label}>{label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {draft.rows.map((row) => {
+                    const count = acceptedUnits(row);
+                    const issues = Number(row.damaged) + Number(row.rejected) + Math.max(0, row.ordered - Number(row.received));
+                    const invItem = inventory.find((item) => item.sku === row.sku);
+                    const rowImg = row.image_url || invItem?.image_url;
+                    const rowStaff = normalizeStaff(row.assigned_staff || currentStaff);
+                    return (
+                      <tr key={row.sku}>
+                        <td>
+                          <div
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                            onClick={() => setSelectedDetailItem(row)}
+                            title="Klik untuk melihat detail lengkap produk dan rak"
+                          >
+                            <div className="inventory-thumb" style={{ width: 34, height: 34, borderRadius: 6, flexShrink: 0 }}>
+                              {rowImg ? (
+                                <img
+                                  src={rowImg}
+                                  alt={row.name}
+                                  className="inventory-thumb-img"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex';
+                                  }}
+                                />
+                              ) : null}
+                              <div className="inventory-thumb-fallback" style={{ display: rowImg ? 'none' : 'flex', fontSize: 12 }}>
+                                📦
+                              </div>
+                            </div>
+                            <div>
+                              <strong style={{ color: '#191d17', textDecoration: 'underline dotted', cursor: 'pointer' }}>{row.name}</strong>
+                              <small>Type: {typeOf(row)}</small>
+                              <small>{row.sku} · {row.category}</small>
+                            </div>
+                          </div>
+                        </td>
+                        <td><strong>{row.ordered}</strong></td>
+                        <td>{Number(row.damaged) > 0 ? <span className="critical-text">{row.damaged}</span> : "0"}</td>
+                        <td>{Number(row.rejected) > 0 ? <span className="critical-text">{row.rejected}</span> : "0"}</td>
+                        <td className="positive-text"><strong>{Number.isFinite(count) ? count : "—"}</strong></td>
+                        <td>
+                          <select
+                            value={rowStaff}
+                            onChange={(e) => handleItemStaffChange(row.sku, e.target.value)}
+                            className="inbound-item-staff-select"
+                            title={`Tugaskan staf untuk ${row.name}`}
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: 6,
+                              border: '1.5px solid #d4dec3',
+                              background: '#ffffff',
+                              color: '#191d17',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              maxWidth: 160,
+                            }}
+                          >
+                            <option value="Semua Staf Lapangan">👥 Semua Staf</option>
+                            {staffAccounts
+                              .filter((acc) => !['staff', 'staf'].includes(String(acc.fullName || acc.name || '').trim().toLowerCase()))
+                              .map((acc) => {
+                                const name = acc.fullName || acc.name;
+                                return (
+                                  <option key={acc.id || name} value={name}>
+                                    👤 {name}
+                                  </option>
+                                );
+                              })}
+                            {rowStaff && rowStaff !== 'Semua Staf Lapangan' && !['staff', 'staf'].includes(rowStaff.toLowerCase()) && !staffAccounts.some((acc) => (acc.fullName || acc.name) === rowStaff) && (
+                              <option value={rowStaff}>👤 {rowStaff}</option>
+                            )}
+                          </select>
+                        </td>
+                        <td>
+                          <span className={`inbound-status${issues ? " inbound-status-issue" : " inbound-status-arrived"}`}>
+                            {issues ? "Partial issue" : "Accepted"}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="inbound-secondary"
+                            style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
+                            onClick={() => setSelectedDetailItem(row)}
+                            title={`Buka detail barang ${row.sku}`}
+                          >
+                            <span>🔍 Detail</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {!draft.rows.length && (
+                    <tr>
+                      <td colSpan="8" style={{ textAlign: "center", padding: "24px 16px", color: "#64748b" }}>
+                        Tidak ada produk tercatat dalam PO ini.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {issueUnits > 0 && issueBanner}
+            <p style={{ margin: '14px 0 0', fontSize: 11, color: '#737b6c' }}>
+              Inspection progress saved automatically
+            </p>
+          </section>
         </div>
       )}
 
@@ -456,7 +556,7 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                 <table>
                   <thead>
                     <tr>
-                      {["Product", "Accepted", "Barcode Hasil Scan Staf Dok", "Condition", "New stock"].map((label) => (
+                      {["Product", "Accepted", "Barcode Hasil Scan Staf Dok", "Condition", "New stock", "Aksi"].map((label) => (
                         <th key={label}>{label}</th>
                       ))}
                     </tr>
@@ -475,8 +575,12 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                       return (
                         <tr key={row.sku}>
                           <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <div className="inventory-thumb" style={{ width: 38, height: 38, borderRadius: 8 }}>
+                            <div
+                              style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                              onClick={() => setSelectedDetailItem(row)}
+                              title="Klik untuk melihat detail lengkap produk dan rak"
+                            >
+                              <div className="inventory-thumb" style={{ width: 38, height: 38, borderRadius: 8, flexShrink: 0 }}>
                                 {rowImg ? (
                                   <img
                                     src={rowImg}
@@ -493,7 +597,7 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                                 </div>
                               </div>
                               <div>
-                                <strong>{row.name}</strong>
+                                <strong style={{ color: '#191d17', textDecoration: 'underline dotted', cursor: 'pointer' }}>{row.name}</strong>
                                 <small>Type: {typeOf(row)}</small>
                                 <small>{row.sku} · {row.category}</small>
                               </div>
@@ -523,6 +627,17 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                             )}
                           </td>
                           <td className="positive-text"><strong>{before} → {before + acceptedUnits(row)}</strong></td>
+                          <td>
+                            <button
+                              type="button"
+                              className="inbound-secondary"
+                              style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
+                              onClick={() => setSelectedDetailItem(row)}
+                              title={`Buka detail barang ${row.sku}`}
+                            >
+                              <span>🔍 Detail</span>
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -603,38 +718,65 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
       <div className="receiving-footer">
         <p>
           {draft.stage === "inspect"
-            ? "⏳ Menunggu staf dok mengirimkan hasil pemeriksaan fisik & scan barcode via aplikasi Mobile"
+            ? "Tahap pemeriksaan fisik & verifikasi barcode armada tiba oleh staf dok lapangan"
             : `${totals.accepted} units to be received into inventory`}
         </p>
-        <div>
-          {draft.stage === "inspect" ? (
-            <>
-              <button
-                className="inbound-secondary"
-                onClick={onBack}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="inbound-secondary"
-                style={{ background: '#f8fafc', borderColor: '#cbd5e1' }}
-                onClick={() => window.location.reload()}
-                title="Muat ulang data dari server"
-              >
-                🔄 Refresh Status
-              </button>
-            </>
-          ) : (
-            <>
-              <button className="inbound-secondary" onClick={onBack}>
-                ← Back
-              </button>
-              <button className="inbound-primary" disabled={!confirmed || done} onClick={complete}>
-                {done ? "Telah Di-ACC" : "✅ Complete Receiving"}
-              </button>
-            </>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+          {draft.stage === "inspect" && (
+            <div
+              style={{
+                background: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                borderRadius: 6,
+                padding: '4px 10px',
+                fontSize: 11,
+                color: '#166534',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                lineHeight: 1.3,
+              }}
+            >
+              <span>⏳</span>
+              <span>
+                {isAssigned
+                  ? <>Ditugaskan ke: <strong>{currentStaff}</strong>. Menunggu hasil dari mobile.</>
+                  : "Silakan pilih staf dan tekan Tugaskan untuk memulai inspeksi di mobile."}
+              </span>
+            </div>
           )}
+          <div style={{ display: 'flex', gap: 10 }}>
+            {draft.stage === "inspect" ? (
+              <>
+                <button
+                  className="inbound-secondary"
+                  onClick={onBack}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="inbound-primary"
+                  disabled={isSubmittingAssign}
+                  style={isAssigned ? { background: '#3e5510', borderColor: '#3e5510' } : {}}
+                  onClick={async () => {
+                    await handleStaffChange(currentStaff);
+                  }}
+                >
+                  {isSubmittingAssign ? "Menugaskan..." : isAssigned ? "✓ Ditugaskan" : "Tugaskan"}
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="inbound-secondary" onClick={onBack}>
+                  ← Back
+                </button>
+                <button className="inbound-primary" disabled={!confirmed || done} onClick={complete}>
+                  {done ? "Telah Di-ACC" : "✅ Complete Receiving"}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -670,6 +812,16 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
             </div>
           </div>
         </dialog>
+      )}
+
+      {/* Modal Detail Item Barang (Foto Produk, Rak Masuk, Kuantitas, Barcode) */}
+      {selectedDetailItem && (
+        <InboundItemDetailModal
+          item={selectedDetailItem}
+          inventory={inventory}
+          shipment={shipment}
+          onClose={() => setSelectedDetailItem(null)}
+        />
       )}
     </div>
   );

@@ -8,9 +8,12 @@ const authController = {
     try {
       const { name, email, password, role, role_title, warehouse } = req.body;
 
-      if (!name || !email || !password || !role) {
-        return res.status(400).json({ message: 'Semua field wajib diisi' });
+      if (!name || !email || !password) {
+        return res.status(400).json({ message: 'Nama, email, dan password wajib diisi' });
       }
+
+      const assignedRole = role && role.trim() ? role.trim() : 'staf';
+      const assignedRoleTitle = role_title && role_title.trim() ? role_title.trim() : 'Staf';
 
       const existingUser = await userModel.findByEmail(email);
       if (existingUser.length > 0) {
@@ -22,8 +25,8 @@ const authController = {
         name,
         email,
         password: hashedPassword,
-        role,
-        role_title,
+        role: assignedRole,
+        role_title: assignedRoleTitle,
         warehouse,
       });
 

@@ -10,6 +10,7 @@ router.get('/', inboundController.getAll);
 router.get('/:id', inboundController.getById);
 router.post('/', inboundController.create);
 router.put('/:id', inboundController.update);
+router.put('/:id/item-staff', inboundController.updateItemStaff);
 router.put('/:id/status', inboundController.updateStatus);
 router.post('/:id/inspect', inboundController.inspect);
 router.put('/:id/inspect', inboundController.inspect);

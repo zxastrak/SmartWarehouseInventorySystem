@@ -22,6 +22,8 @@ const uploadRoute = require('./routes/uploadRoute');
 const inboundRoute = require('./routes/inboundRoute');
 const outboundRoute = require('./routes/outboundRoute');
 const appUpdateRoute = require('./routes/appUpdateRoute');
+const qrHistoryRoute = require('./routes/qrHistoryRoute');
+const unitRoute = require('./routes/unitRoute');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -35,6 +37,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use('/api/auth', authRoute);
 app.use('/api/categories', categoryRoute);
+app.use('/api/units', unitRoute);
 app.use('/api/locations', locationRoute);
 app.use('/api/suppliers', supplierRoute);
 app.use('/api/products', productRoute);
@@ -46,6 +49,7 @@ app.use('/api/purchase-orders', purchaseOrderRoute);
 app.use('/api/inbound', inboundRoute);
 app.use('/api/outbound', outboundRoute);
 app.use('/api/audit-logs', auditLogRoute);
+app.use('/api/qr-history', qrHistoryRoute);
 app.use('/api/users', userRoute);
 app.use('/api/upload', uploadRoute);
 app.use('/api/app', appUpdateRoute);

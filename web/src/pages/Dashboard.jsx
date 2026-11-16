@@ -6,6 +6,7 @@ import DashboardSidebar from "../components/DashboardSidebar.jsx";
 import Icon from "../components/DashboardIcon.jsx";
 import { stockStatus } from "../data/inventory.js";
 import { stockHistory } from "../data/dashboard.js";
+import { shiftsApi } from "../utils/api.js";
 import "../styles/dashboard.css";
 
 function StockFlow({ period, onPeriodChange }) {
@@ -136,9 +137,17 @@ function Dashboard({ manager, warehouse, onSignOut, onNavigate, inventory = [], 
   const greeting = hour < 12 ? "GOOD MORNING" : hour < 18 ? "GOOD AFTERNOON" : "GOOD EVENING";
   const warehouseName = warehouse?.warehouseName || "Main Warehouse";
 
-  // Dynamic live stock items based on REAL inventory
+  // Filter inventaris aktif: produk yang masih dalam proses Inbound (belum di-ACC / belum masuk rak)
+  // TIDAK dihitung dalam stok inventaris aktif dashboard
+  const activeInventory = useMemo(() => {
+    return (inventory || []).filter(
+      (item) => item.is_in_inventory !== false && (!item.pending_inbound || (Number(item.current) || 0) > 0)
+    );
+  }, [inventory]);
+
+  // Dynamic live stock items based on REAL active inventory
   const liveStockItems = useMemo(() => {
-    return (inventory || [])
+    return activeInventory
       .filter((item) => (Number(item.current) || 0) < (Number(item.reorder) || 15))
       .map((item) => ({
         code: item.sku,
@@ -150,18 +159,18 @@ function Dashboard({ manager, warehouse, onSignOut, onNavigate, inventory = [], 
         days: item.current > 0 ? Math.ceil(item.current / 3) : 0,
         status: stockStatus(item),
       }));
-  }, [inventory]);
+  }, [activeInventory]);
 
   const filtered = liveStockItems.filter((item) =>
     `${item.code} ${item.name} ${item.rack}`.toLowerCase().includes(search.toLowerCase().trim())
   );
 
-  // Dynamic metrics calculated from REAL inventory
+  // Dynamic metrics calculated from REAL active inventory
   const liveMetrics = useMemo(() => {
-    const totalItems = inventory.length;
-    const inStock = inventory.filter((item) => (Number(item.current) || 0) >= (Number(item.reorder) || 15)).length;
-    const lowStock = inventory.filter((item) => (Number(item.current) || 0) > 0 && (Number(item.current) || 0) < (Number(item.reorder) || 15)).length;
-    const outOfStock = inventory.filter((item) => (Number(item.current) || 0) === 0).length;
+    const totalItems = activeInventory.length;
+    const inStock = activeInventory.filter((item) => (Number(item.current) || 0) >= (Number(item.reorder) || 15)).length;
+    const lowStock = activeInventory.filter((item) => (Number(item.current) || 0) > 0 && (Number(item.current) || 0) < (Number(item.reorder) || 15)).length;
+    const outOfStock = activeInventory.filter((item) => (Number(item.current) || 0) === 0).length;
 
     return [
       { label: "Total Products", value: formatNumber(totalItems), trend: "Aktif", icon: "box", tone: "green" },
@@ -169,15 +178,67 @@ function Dashboard({ manager, warehouse, onSignOut, onNavigate, inventory = [], 
       { label: "Low Stock", value: formatNumber(lowStock), trend: "Perlu Reorder", icon: "warning", tone: "rose" },
       { label: "Out of Stock", value: formatNumber(outOfStock), trend: "Habis", icon: "close", tone: "rose" },
     ];
-  }, [inventory]);
+  }, [activeInventory]);
 
-  // Capacity calculations
+  // Capacity calculations based on active inventory
   const totalUnits = useMemo(() => {
-    return inventory.reduce((sum, item) => sum + (Number(item.current) || 0), 0);
-  }, [inventory]);
+    return activeInventory.reduce((sum, item) => sum + (Number(item.current) || 0), 0);
+  }, [activeInventory]);
   const maxCapacity = 5000;
   const usedPercent = Math.min(100, Math.round((totalUnits / maxCapacity) * 100));
   const availableCapacity = Math.max(0, maxCapacity - totalUnits);
+
+  // Shift & attendance data sync
+  const [shifts, setShifts] = useState([]);
+  useEffect(() => {
+    shiftsApi.getAll().then((data) => {
+      if (Array.isArray(data)) setShifts(data);
+    }).catch(() => {});
+  }, []);
+
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }, []);
+
+  const activeShiftInfo = useMemo(() => {
+    const now = new Date();
+    const curH = now.getHours();
+    const curM = now.getMinutes();
+    const curTotal = curH * 60 + curM;
+
+    const todayShifts = shifts.filter((s) => {
+      const sDate = s.shift_date ? String(s.shift_date).slice(0, 10) : "";
+      return sDate === todayStr;
+    });
+
+    let activeNow = null;
+    for (const sh of todayShifts) {
+      const start = String(sh.start_time || "").slice(0, 5);
+      const end = String(sh.end_time || "").slice(0, 5);
+      if (!start || !end) continue;
+      const [shH, shM] = start.split(":").map(Number);
+      const [ehH, ehM] = end.split(":").map(Number);
+      const startTotal = shH * 60 + shM;
+      let endTotal = ehH * 60 + ehM;
+      if (endTotal < startTotal) {
+        if (curTotal >= startTotal || curTotal < endTotal) {
+          activeNow = sh;
+          break;
+        }
+      } else {
+        if (curTotal >= startTotal && curTotal < endTotal) {
+          activeNow = sh;
+          break;
+        }
+      }
+    }
+
+    return {
+      todayCount: todayShifts.length,
+      activeNow,
+    };
+  }, [shifts, todayStr]);
 
   useEffect(() => {
     if (dialog && !dialogRef.current?.open) dialogRef.current?.showModal();
@@ -297,7 +358,7 @@ function Dashboard({ manager, warehouse, onSignOut, onNavigate, inventory = [], 
                       {!filtered.length && (
                         <tr>
                           <td colSpan="8" className="empty-stock">
-                            {inventory.length === 0
+                            {activeInventory.length === 0
                               ? "Belum ada produk yang didaftarkan dalam inventaris."
                               : "Tidak ada produk dengan stok menipis."}
                           </td>
@@ -309,6 +370,34 @@ function Dashboard({ manager, warehouse, onSignOut, onNavigate, inventory = [], 
               </section>
             </div>
             <div className="dashboard-right-column">
+              {/* Card Ringkasan Shift Operasional Hari Ini */}
+              <section className="dashboard-card shift-summary-card">
+                <div className="card-heading">
+                  <div>
+                    <h2 style={{ fontSize: "15px", margin: 0 }}>Shift Operasional</h2>
+                    <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#737b6c" }}>
+                      Status jadwal & staf bertugas hari ini
+                    </p>
+                  </div>
+                  <button className="dashboard-link" onClick={() => onNavigate?.("staff-management")}>
+                    Kelola Shift <Icon name="arrow" size={16} />
+                  </button>
+                </div>
+                <div style={{ padding: "12px 14px", background: "#f8f9f5", borderRadius: "10px", marginTop: "10px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: activeShiftInfo.activeNow ? "#16a34a" : "#94a3b8", display: "inline-block" }} />
+                      <strong style={{ fontSize: "13px", color: "#191d17" }}>
+                        {activeShiftInfo.activeNow ? `Shift Aktif (${String(activeShiftInfo.activeNow.start_time).slice(0, 5)}–${String(activeShiftInfo.activeNow.end_time).slice(0, 5)})` : "Di Luar Jam Shift"}
+                      </strong>
+                    </div>
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: "#5c732b" }}>
+                      {activeShiftInfo.todayCount} Staf Terjadwal
+                    </span>
+                  </div>
+                </div>
+              </section>
+
               <section className="dashboard-card action-card">
                 <div className="card-heading">
                   <h2>
@@ -364,10 +453,10 @@ function Dashboard({ manager, warehouse, onSignOut, onNavigate, inventory = [], 
                 <h2>Quick Actions</h2>
                 <div className="quick-grid">
                   {[
+                    ["users", "Staff & Shifts", `${activeShiftInfo.todayCount} staf bertugas hari ini`, "green", () => onNavigate?.("staff-management")],
                     ["box", "Purchase Orders", "Kelola pesanan barang", "primary", () => onNavigate?.("purchase-orders")],
                     ["transfer", "Inbound Shipments", "Penerimaan stok barang", "green", () => onNavigate?.("inbound")],
                     ["report", "View Reports", "Laporan stok & mutasi", "neutral", () => onNavigate?.("reports")],
-                    ["chart", "Product Catalog", "Katalog & stok produk", "neutral", () => onNavigate?.("inventory")],
                   ].map(([icon, title, description, tone, action]) => (
                     <button key={title} className={`quick-action quick-${tone}`} onClick={action}>
                       <Icon name={icon} size={34} />

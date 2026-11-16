@@ -11,7 +11,7 @@ enum ActivityFilter {
   inbound('Inspeksi Dok', Icons.fact_check_outlined),
   movement('Mutasi Stok', Icons.swap_horiz),
   rack('Rak & Opname', Icons.inventory_2_outlined),
-  attendanceTasks('Absensi & Tugas', Icons.badge_outlined);
+  attendance('Absensi', Icons.badge_outlined);
 
   final String label;
   final IconData icon;
@@ -75,12 +75,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
             t.contains('discrepancy') ||
             t.contains('selisih') ||
             d.contains('rack-');
-      case ActivityFilter.attendanceTasks:
+      case ActivityFilter.attendance:
         return t.contains('check-in') ||
             t.contains('check-out') ||
             t.contains('absensi') ||
-            t.contains('tugas') ||
-            t.contains('task') ||
             t.contains('profil');
     }
   }
@@ -90,12 +88,25 @@ class _ActivityScreenState extends State<ActivityScreen> {
     final s = context.watch<WarehouseState>();
     final allActivities = s.activities;
 
-    final inboundCount = allActivities.where((a) => _matchesFilter(a, ActivityFilter.inbound)).length;
-    final movementCount = allActivities.where((a) => _matchesFilter(a, ActivityFilter.movement)).length;
-    final rackCount = allActivities.where((a) => _matchesFilter(a, ActivityFilter.rack)).length;
-    final attendanceCount = allActivities.where((a) => _matchesFilter(a, ActivityFilter.attendanceTasks)).length;
+    final inboundCount =
+        allActivities
+            .where((a) => _matchesFilter(a, ActivityFilter.inbound))
+            .length;
+    final movementCount =
+        allActivities
+            .where((a) => _matchesFilter(a, ActivityFilter.movement))
+            .length;
+    final rackCount =
+        allActivities
+            .where((a) => _matchesFilter(a, ActivityFilter.rack))
+            .length;
+    final attendanceCount =
+        allActivities
+            .where((a) => _matchesFilter(a, ActivityFilter.attendance))
+            .length;
 
-    final filtered = allActivities.where((a) => _matchesFilter(a, _filter)).toList();
+    final filtered =
+        allActivities.where((a) => _matchesFilter(a, _filter)).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,7 +181,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                           ),
                         ),
                         Text(
-                          'Semua riwayat inspeksi dok, mutasi, opname & tugas',
+                          'Semua riwayat inspeksi dok, mutasi, opname & absensi staf',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
@@ -190,13 +201,21 @@ class _ActivityScreenState extends State<ActivityScreen> {
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: line),
                       ),
-                      child: _isRefreshing
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: brand),
-                            )
-                          : const Icon(Icons.refresh, size: 16, color: brandInk),
+                      child:
+                          _isRefreshing
+                              ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: brand,
+                                ),
+                              )
+                              : const Icon(
+                                Icons.refresh,
+                                size: 16,
+                                color: brandInk,
+                              ),
                     ),
                   ),
                 ],
@@ -222,7 +241,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
                       count: inboundCount,
                       icon: Icons.fact_check_outlined,
                       selected: _filter == ActivityFilter.inbound,
-                      onTap: () => setState(() => _filter = ActivityFilter.inbound),
+                      onTap:
+                          () =>
+                              setState(() => _filter = ActivityFilter.inbound),
                     ),
                     const SizedBox(width: 6),
                     _FilterChip(
@@ -230,7 +251,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
                       count: movementCount,
                       icon: Icons.swap_horiz,
                       selected: _filter == ActivityFilter.movement,
-                      onTap: () => setState(() => _filter = ActivityFilter.movement),
+                      onTap:
+                          () =>
+                              setState(() => _filter = ActivityFilter.movement),
                     ),
                     const SizedBox(width: 6),
                     _FilterChip(
@@ -238,15 +261,19 @@ class _ActivityScreenState extends State<ActivityScreen> {
                       count: rackCount,
                       icon: Icons.inventory_2_outlined,
                       selected: _filter == ActivityFilter.rack,
-                      onTap: () => setState(() => _filter = ActivityFilter.rack),
+                      onTap:
+                          () => setState(() => _filter = ActivityFilter.rack),
                     ),
                     const SizedBox(width: 6),
                     _FilterChip(
-                      label: 'Absensi & Tugas',
+                      label: 'Absensi',
                       count: attendanceCount,
                       icon: Icons.badge_outlined,
-                      selected: _filter == ActivityFilter.attendanceTasks,
-                      onTap: () => setState(() => _filter = ActivityFilter.attendanceTasks),
+                      selected: _filter == ActivityFilter.attendance,
+                      onTap:
+                          () => setState(
+                            () => _filter = ActivityFilter.attendance,
+                          ),
                     ),
                   ],
                 ),
@@ -255,10 +282,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
               // Konten Daftar Aktivitas
               if (filtered.isEmpty)
-                _EmptyActivities(
-                  filter: _filter,
-                  onRefresh: _refreshData,
-                )
+                _EmptyActivities(filter: _filter, onRefresh: _refreshData)
               else
                 Column(
                   children: [
@@ -307,24 +331,21 @@ class _FilterChip extends StatelessWidget {
             color: selected ? brand : line,
             width: selected ? 1.4 : 1.0,
           ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: brand.withValues(alpha: 0.25),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
+          boxShadow:
+              selected
+                  ? [
+                    BoxShadow(
+                      color: brand.withValues(alpha: 0.25),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                  : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 14,
-              color: selected ? Colors.white : brandSlate,
-            ),
+            Icon(icon, size: 14, color: selected ? Colors.white : brandSlate),
             const SizedBox(width: 5),
             Text(
               label,
@@ -338,9 +359,10 @@ class _FilterChip extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
               decoration: BoxDecoration(
-                color: selected
-                    ? Colors.white.withValues(alpha: 0.25)
-                    : const Color(0xfff1f5f9),
+                color:
+                    selected
+                        ? Colors.white.withValues(alpha: 0.25)
+                        : const Color(0xfff1f5f9),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -363,10 +385,7 @@ class _EmptyActivities extends StatelessWidget {
   final ActivityFilter filter;
   final VoidCallback onRefresh;
 
-  const _EmptyActivities({
-    required this.filter,
-    required this.onRefresh,
-  });
+  const _EmptyActivities({required this.filter, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -375,7 +394,7 @@ class _EmptyActivities extends StatelessWidget {
       ActivityFilter.inbound => 'inspeksi dok',
       ActivityFilter.movement => 'mutasi stok',
       ActivityFilter.rack => 'penataan rak & opname',
-      ActivityFilter.attendanceTasks => 'absensi & tugas',
+      ActivityFilter.attendance => 'absensi staf',
     };
 
     return Padding(
@@ -421,11 +440,16 @@ class _EmptyActivities extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 foregroundColor: brand,
                 side: const BorderSide(color: brandSoftBorder),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               onPressed: onRefresh,
               icon: const Icon(Icons.refresh, size: 14),
-              label: const Text('Muat Ulang', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              label: const Text(
+                'Muat Ulang',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
             ),
           ],
         ),
@@ -452,7 +476,9 @@ class _ActivityMeta {
 
 _ActivityMeta _getActivityMeta(Activity a) {
   final t = a.title.toLowerCase();
-  if (t.contains('inspeksi') || t.contains('inbound') || a.barcodes.isNotEmpty) {
+  if (t.contains('inspeksi') ||
+      t.contains('inbound') ||
+      a.barcodes.isNotEmpty) {
     return const _ActivityMeta(
       categoryTag: 'INSPEKSI DOK',
       icon: Icons.fact_check_outlined,
@@ -488,7 +514,9 @@ _ActivityMeta _getActivityMeta(Activity a) {
       borderColor: brandSoftBorder,
     );
   }
-  if (a.kind == MovementKind.rackCount || t.contains('opname') || t.contains('verifikasi')) {
+  if (a.kind == MovementKind.rackCount ||
+      t.contains('opname') ||
+      t.contains('verifikasi')) {
     return const _ActivityMeta(
       categoryTag: 'OPNAME RAK',
       icon: Icons.inventory_2_outlined,
@@ -506,22 +534,15 @@ _ActivityMeta _getActivityMeta(Activity a) {
       borderColor: Color(0xfffde68a),
     );
   }
-  if (t.contains('check-in') || t.contains('check-out') || t.contains('absensi')) {
+  if (t.contains('check-in') ||
+      t.contains('check-out') ||
+      t.contains('absensi')) {
     return const _ActivityMeta(
       categoryTag: 'ABSENSI STAF',
       icon: Icons.access_time_rounded,
       primaryColor: Color(0xff4f46e5),
       bgColor: Color(0xffeef2ff),
       borderColor: Color(0xffc7d2fe),
-    );
-  }
-  if (t.contains('tugas') || t.contains('task')) {
-    return const _ActivityMeta(
-      categoryTag: 'TUGAS GUDANG',
-      icon: Icons.task_alt_rounded,
-      primaryColor: Color(0xff0d9488),
-      bgColor: Color(0xfff0fdfa),
-      borderColor: Color(0xff99f6e4),
     );
   }
   return const _ActivityMeta(
@@ -537,16 +558,17 @@ class _ActivityCard extends StatelessWidget {
   final Activity activity;
   final bool isLast;
 
-  const _ActivityCard({
-    required this.activity,
-    required this.isLast,
-  });
+  const _ActivityCard({required this.activity, required this.isLast});
 
   String _formatTimestamp(DateTime dt) {
     final now = DateTime.now();
-    final isToday = dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    final isToday =
+        dt.year == now.year && dt.month == now.month && dt.day == now.day;
     final yesterday = now.subtract(const Duration(days: 1));
-    final isYesterday = dt.year == yesterday.year && dt.month == yesterday.month && dt.day == yesterday.day;
+    final isYesterday =
+        dt.year == yesterday.year &&
+        dt.month == yesterday.month &&
+        dt.day == yesterday.day;
 
     final timeStr = clock(dt);
     if (isToday) return timeStr;
@@ -711,11 +733,15 @@ class _ActivityCard extends StatelessWidget {
               if (a.quantity > 0) ...[
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
-                    color: a.kind == MovementKind.stockOut
-                        ? const Color(0xfffff1f2)
-                        : brandSoft,
+                    color:
+                        a.kind == MovementKind.stockOut
+                            ? const Color(0xfffff1f2)
+                            : brandSoft,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -763,23 +789,31 @@ class _ActivityCard extends StatelessWidget {
             Wrap(
               spacing: 6,
               runSpacing: 6,
-              children: a.barcodes.map((bc) => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xfff1f5f9),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: line),
-                ),
-                child: Text(
-                  '║▌║ $bc',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'monospace',
-                    color: brandInk,
-                  ),
-                ),
-              )).toList(),
+              children:
+                  a.barcodes
+                      .map(
+                        (bc) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xfff1f5f9),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: line),
+                          ),
+                          child: Text(
+                            '║▌║ $bc',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'monospace',
+                              color: brandInk,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
             ),
           ],
           const SizedBox(height: 10),

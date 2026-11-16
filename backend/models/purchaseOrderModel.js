@@ -169,12 +169,14 @@ const purchaseOrderModel = {
             );
             const totalUnits = poItemsList.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
             const itemsCount = poItemsList.length || 1;
-            const inbNumber = `INB-${String(po.id).padStart(4, '0')}`;
+            const inbNumber = po.po_number
+              ? `INB-${po.po_number.replace(/^PO-?/i, '')}`
+              : `INB-${Date.now()}`;
 
             const [inbRes] = await db.query(
               `INSERT INTO inbound_shipments 
                (inbound_number, purchase_order_id, po_number, supplier_id, supplier_name, scheduled_date, scheduled_time, dock, assigned_staff, carrier, units, items_count, status, notes)
-               VALUES (?, ?, ?, ?, ?, COALESCE(?, CURDATE()), '08:00:00', 'D-01', 'Staff', 'Logistics Partner', ?, ?, 'Scheduled', ?)`,
+               VALUES (?, ?, ?, ?, ?, COALESCE(?, CURDATE()), '08:00:00', 'D-01', 'Semua Staf Lapangan', 'Logistics Partner', ?, ?, 'Scheduled', ?)`,
               [
                 inbNumber,
                 po.id,

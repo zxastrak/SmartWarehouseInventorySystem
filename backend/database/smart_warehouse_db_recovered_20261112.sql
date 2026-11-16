@@ -203,7 +203,6 @@ CREATE TABLE `inbound_shipments` (
 
 LOCK TABLES `inbound_shipments` WRITE;
 /*!40000 ALTER TABLE `inbound_shipments` DISABLE KEYS */;
-INSERT INTO `inbound_shipments` VALUES (1,'INB-0001',1,'PO-20261112-001',1,'PT Macet Bayar','2026-11-13','08:00:00','D-01','Albert','Logistics Partner',NULL,1000,1,'Arrived',0,'Kedatangan barang terjadwal untuk PO PO-20261112-001',NULL,'2026-11-12 00:39:52',NULL,'2026-11-11 17:39:38','2026-11-11 17:48:11',NULL,NULL,NULL);
 /*!40000 ALTER TABLE `inbound_shipments` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -592,7 +591,6 @@ CREATE TABLE `tasks` (
 
 LOCK TABLES `tasks` WRITE;
 /*!40000 ALTER TABLE `tasks` DISABLE KEYS */;
-INSERT INTO `tasks` VALUES (1,'[TUGAS DOK] Inspeksi Fisik & Scan Barcode INB-0001','Armada pengiriman INB-0001 (Logistics Partner) telah tiba di Dok D-01. Silakan lakukan pemeriksaan fisik barang dan pemindaian barcode satuan unit.',NULL,NULL,8,1,'pending','2026-11-11 17:39:52',NULL,NULL);
 /*!40000 ALTER TABLE `tasks` ENABLE KEYS */;
 UNLOCK TABLES;
 

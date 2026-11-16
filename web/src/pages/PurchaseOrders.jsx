@@ -6,6 +6,7 @@ import WarehouseHeader from "../components/WarehouseHeader.jsx";
 import { purchaseOrderStatuses } from "../data/purchaseOrders.js";
 import { poTotal, poMoney, poDate, poToday, downloadPurchaseOrder } from "../utils/purchaseOrders.js";
 import { categoriesApi } from "../utils/api.js";
+import Icon from "../components/DashboardIcon.jsx";
 import "../styles/dashboard.css";
 import "../styles/inventory.css";
 import "../styles/inbound.css";
@@ -107,6 +108,8 @@ function PurchaseOrders({
             price: Number(cp.price) || 0,
             supplier: s.name || "",
             supplier_id: s.id,
+            min_order: Number(cp.min_order ?? 0),
+            unit: cp.unit || "pcs",
           });
         }
       });
@@ -122,6 +125,8 @@ function PurchaseOrders({
           price: Number(p.price) || 0,
           supplier: p.supplier || existing?.supplier || "",
           supplier_id: p.supplier_id || existing?.supplier_id,
+          min_order: Number(p.min_order ?? existing?.min_order ?? 0),
+          unit: p.unit || existing?.unit || "pcs",
         });
       }
     });
@@ -136,6 +141,8 @@ function PurchaseOrders({
             category: p.category || "Electronics",
             price: Number(p.unitPrice) || 0,
             supplier: o.supplier || "",
+            min_order: Number(p.min_order ?? 0),
+            unit: p.unit || "pcs",
           });
         }
       });
@@ -149,7 +156,7 @@ function PurchaseOrders({
     terms: "Net 30",
     reference: "",
     notes: "",
-    products: [{ name: "", code: "", category: "Electronics", quantity: "", unitPrice: "" }],
+    products: [{ name: "", code: "", category: "Electronics", quantity: "", unitPrice: "", min_order: 0, unit: "pcs" }],
   });
 
   const matchedSupplierObj = (suppliers || []).find(
@@ -284,7 +291,7 @@ function PurchaseOrders({
       terms: "Net 30",
       reference: "",
       notes: "",
-      products: [{ name: "", code: "", category: defaultCat, quantity: "", unitPrice: "" }],
+      products: [{ name: "", code: "", category: defaultCat, quantity: "", unitPrice: "", min_order: 0, unit: "pcs" }],
     });
     setError("");
     setCreating(true);
@@ -303,7 +310,7 @@ function PurchaseOrders({
         ...curr,
         products: curr.products.map((row, i) =>
           i === index
-            ? { ...row, code: "", name: "", category: categories[0]?.name || "Electronics", unitPrice: "" }
+            ? { ...row, code: "", name: "", category: categories[0]?.name || "Electronics", unitPrice: "", min_order: 0, unit: "pcs" }
             : row
         ),
       }));
@@ -316,12 +323,15 @@ function PurchaseOrders({
       ...curr,
       products: curr.products.map((row, i) => {
         if (i !== index) return row;
+        const itemMin = Number(found?.min_order ?? 0);
         return {
           ...row,
           code: found?.sku || selectedSku,
-          name: found?.name || row.name,
+          name: found?.name || row.name || selectedSku,
           category: found?.category || row.category || categories[0]?.name || "Electronics",
-          unitPrice: found?.price ? found.price : row.unitPrice,
+          unitPrice: found?.price != null ? Number(found.price) : row.unitPrice,
+          min_order: itemMin,
+          unit: found?.unit || "pcs",
         };
       }),
     }));
@@ -371,10 +381,24 @@ function PurchaseOrders({
       setError("Silakan pilih supplier terlebih dahulu.");
       return;
     }
+
+    // Validasi pembatasan minimum order katalog supplier
+    for (let i = 0; i < draft.products.length; i++) {
+      const row = draft.products[i];
+      const minVal = Number(row.min_order || 0);
+      const qtyVal = Number(row.quantity || 0);
+      if (minVal > 0 && qtyVal < minVal) {
+        setError(
+          `Tidak dapat diproses: Jumlah pesanan untuk "${row.name || row.code}" (${qtyVal} ${row.unit || 'unit'}) berada di bawah batas minimum order katalog supplier (${minVal} ${row.unit || 'unit'}). Silakan naikkan jumlah pesanan minimal ${minVal} ${row.unit || 'unit'}.`
+        );
+        return;
+      }
+    }
+
     lock.current = true;
     setError("");
     try {
-      const next = await onCreate({ ...draft, deliverTo: warehouseName });
+      const next = await onCreate({ ...draft, supplier_id: matchedSupplierObj?.id, deliverTo: warehouseName });
       if (next?.error) {
         setError(next.error);
         return;
@@ -534,46 +558,57 @@ function PurchaseOrders({
                       </tr>
                     </thead>
                     <tbody>
-                      {visible.map((row) => (
-                        <tr key={row.id}>
-                          <td>
-                            <strong>{row.id}</strong>
-                          </td>
-                          <td>
-                            <strong>{row.supplier}</strong>
-                          </td>
-                          <td>{poDate(row.expected)}</td>
-                          <td>{(row.products || []).length}</td>
-                          <td>{poMoney(poTotal(row), row.currency)}</td>
-                          <td>
-                            <span className={"po-status status-" + row.status.toLowerCase().replaceAll(" ", "-")}>
-                              {row.status}
-                            </span>
-                          </td>
-                          <td>
-                            <button
-                              className="dashboard-link"
-                              aria-label={`${action(row)} ${row.id}`}
-                              onClick={() => {
-                                setView(
-                                  {
-                                    "In Transit": "track",
-                                    "Partially Received": "partial",
-                                    Overdue: "overdue",
-                                    Received: "completed",
-                                  }[row.status] || "details"
-                                );
-                                setSelected(row.id);
-                                setNotice("");
-                                setError("");
-                                window.scrollTo(0, 0);
-                              }}
-                            >
-                              {action(row)} ›
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {visible.map((row) => {
+                        const sObj = (suppliers || []).find(
+                          (s) => s.name?.toLowerCase().trim() === row.supplier?.toLowerCase().trim()
+                        );
+                        return (
+                          <tr key={row.id}>
+                            <td>
+                              <strong>{row.id}</strong>
+                            </td>
+                            <td>
+                              <strong>{row.supplier}</strong>
+                              {(sObj?.bank_name || sObj?.bank_account) && (
+                                <div className="po-table-bank-info">
+                                  <span className="po-table-bank-badge">🏦 {sObj.bank_name || "Bank"}</span>
+                                  <span className="po-table-bank-num">{sObj.bank_account || "—"}</span>
+                                </div>
+                              )}
+                            </td>
+                            <td>{poDate(row.expected)}</td>
+                            <td>{(row.products || []).length}</td>
+                            <td>{poMoney(poTotal(row), row.currency)}</td>
+                            <td>
+                              <span className={"po-status status-" + row.status.toLowerCase().replaceAll(" ", "-")}>
+                                {row.status}
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                className="dashboard-link"
+                                aria-label={`${action(row)} ${row.id}`}
+                                onClick={() => {
+                                  setView(
+                                    {
+                                      "In Transit": "track",
+                                      "Partially Received": "partial",
+                                      Overdue: "overdue",
+                                      Received: "completed",
+                                    }[row.status] || "details"
+                                  );
+                                  setSelected(row.id);
+                                  setNotice("");
+                                  setError("");
+                                  window.scrollTo(0, 0);
+                                }}
+                              >
+                                {action(row)} ›
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                       {!visible.length && (
                         <tr>
                           <td colSpan="7">No purchase orders match these filters.</td>
@@ -639,6 +674,7 @@ function PurchaseOrders({
               racks={racks}
               shipments={shipments}
               manager={manager}
+              suppliers={suppliers}
               onReceive={(draft2) => onReceive(order.id, draft2)}
               onRevise={(values) => onRevise(order.id, values)}
               onBack={back}
@@ -669,14 +705,54 @@ function PurchaseOrders({
                       ["Deliver to", order.deliverTo || warehouseName],
                       ["Reference", order.reference || "—"],
                       ["Expected date", poDate(order.expected)],
-                      ["Notes", order.notes || "—"],
                       ["Payment terms", order.terms || "Not recorded"],
+                      ["Notes", order.notes || "—"],
                     ].map(([label, value]) => (
                       <div key={label}>
                         <dt>{label}</dt>
                         <dd>{value}</dd>
                       </div>
                     ))}
+                    <div>
+                      <dt>Rekening Bank</dt>
+                      <dd>
+                        {(() => {
+                          const orderSup = (suppliers || []).find(
+                            (s) => s.name?.toLowerCase().trim() === order.supplier?.toLowerCase().trim()
+                          );
+                          if (orderSup?.bank_name || orderSup?.bank_account) {
+                            return (
+                              <div className="po-bank-detail-inline">
+                                <span className="supplier-bank-badge">
+                                  <span>🏦</span> {orderSup.bank_name || "Bank"}
+                                </span>
+                                <span className="supplier-bank-num">{orderSup.bank_account || "—"}</span>
+                                {orderSup.bank_account && (
+                                  <button
+                                    type="button"
+                                    className="btn-copy-account"
+                                    onClick={() => {
+                                      navigator.clipboard?.writeText(orderSup.bank_account);
+                                      setNotice(
+                                        `Nomor rekening ${orderSup.bank_name ? orderSup.bank_name + " " : ""}${orderSup.bank_account} berhasil disalin!`
+                                      );
+                                      setTimeout(() => setNotice(""), 3500);
+                                    }}
+                                    title="Salin No. Rekening"
+                                  >
+                                    📋
+                                  </button>
+                                )}
+                                {orderSup.bank_holder && (
+                                  <span className="supplier-bank-holder">(a.n. {orderSup.bank_holder})</span>
+                                )}
+                              </div>
+                            );
+                          }
+                          return <span style={{ color: "#737b6c", fontStyle: "italic" }}>Belum tercatat</span>;
+                        })()}
+                      </dd>
+                    </div>
                   </dl>
                 </section>
                 <aside className="po-approval">
@@ -818,10 +894,6 @@ function PurchaseOrders({
               {error}
             </p>
           )}
-          <p className="dashboard-demo">
-            Frontend demo · Counts and totals use these orders. Approval does not add inventory; receiving uses the
-            Inbound flow. Refresh resets demo state.
-          </p>
         </main>
       </div>
 
@@ -849,220 +921,257 @@ function PurchaseOrders({
           aria-labelledby="po-create-title"
           onCancel={() => setCreating(false)}
         >
-          <h2 id="po-create-title">New Purchase Order</h2>
-          <form onSubmit={create} noValidate>
-            <div className="po-create-fields">
-              <label>
-                Supplier <span style={{ color: "#ba1a1a" }}>*</span>
-                <select
-                  aria-label="New PO supplier"
-                  value={draft.supplier}
-                  onChange={(e) => {
-                    const nextSupplier = e.target.value;
-                    setDraft((prev) => ({
-                      ...prev,
-                      supplier: nextSupplier,
-                      products: [{ name: "", code: "", category: categories[0]?.name || "General", quantity: "", unitPrice: "" }],
-                    }));
-                    setError("");
-                  }}
-                  required
-                >
-                  <option value="">-- Pilih Supplier --</option>
-                  {supplierOptions.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                  {draft.supplier && !supplierOptions.includes(draft.supplier) && (
-                    <option value={draft.supplier}>{draft.supplier}</option>
-                  )}
-                </select>
-              </label>
-              <label>
-                Expected date <span style={{ color: "#ba1a1a" }}>*</span>
-                <input
-                  aria-label="New PO expected date"
-                  type="date"
-                  min={poToday()}
-                  value={draft.expected}
-                  onChange={(e) => setDraft({ ...draft, expected: e.target.value })}
-                  required
-                />
-              </label>
-              <label>
-                Payment terms
-                <input
-                  value={draft.terms}
-                  onChange={(e) => setDraft({ ...draft, terms: e.target.value })}
-                />
-              </label>
-              <label>
-                Reference
-                <input
-                  value={draft.reference}
-                  maxLength={100}
-                  placeholder="Optional reference"
-                  onChange={(e) => setDraft({ ...draft, reference: e.target.value })}
-                />
-              </label>
-            </div>
-
-            <h3>Order items (IDR)</h3>
-            {!draft.supplier ? (
-              <div style={{ margin: "4px 0 12px", fontSize: "12px", color: "var(--olive, #5c732b)", background: "var(--sage, #eef3e9)", padding: "8px 12px", borderRadius: "6px", border: "1px solid #d3e0cb" }}>
-                ℹ Silakan pilih Supplier / PT di atas terlebih dahulu untuk menampilkan daftar produk yang tersedia.
-              </div>
-            ) : (
-              <div style={{ margin: "4px 0 12px", fontSize: "12px", color: "var(--olive, #5c732b)", background: "var(--sage, #eef3e9)", padding: "8px 12px", borderRadius: "6px", border: "1px solid #d3e0cb" }}>
-                {supplierProducts.length > 0 ? (
-                  <>✓ Terhubung dengan Katalog <strong>{draft.supplier}</strong> ({supplierProducts.length} produk ditemukan). Pilih ID Produk untuk otomatis mengisi data.</>
-                ) : (
-                  <>ℹ Belum ada produk terdaftar untuk PT <strong>{draft.supplier}</strong>. Silakan tambahkan katalog produk melalui menu Suppliers terlebih dahulu.</>
-                )}
-              </div>
-            )}
-            {draft.products.map((row, i) => (
-              <div className="po-create-item" key={i}>
-                <label>
-                  ID Produk (SKU) <span style={{ color: "#ba1a1a" }}>*</span>
-                  <select
-                    aria-label={`New PO SKU ${i + 1}`}
-                    value={row.code || ""}
-                    onChange={(e) => handleSelectProductSku(i, e.target.value)}
-                    disabled={!draft.supplier}
-                    required
-                  >
-                    {!draft.supplier ? (
-                      <option value="">-- Pilih Supplier / PT terlebih dahulu --</option>
-                    ) : supplierProducts.length === 0 ? (
-                      <option value="" disabled>-- Belum ada produk dari {draft.supplier} --</option>
-                    ) : (
-                      <>
-                        <option value="">-- Pilih ID Produk ({draft.supplier}) --</option>
-                        {supplierProducts.map((p) => (
-                          <option key={p.sku} value={p.sku}>
-                            {p.sku} — {p.name}
-                          </option>
-                        ))}
-                      </>
-                    )}
-                    {row.code && !supplierProducts.some((p) => p.sku.toLowerCase() === row.code.toLowerCase()) && (
-                      <option value={row.code}>{row.code}</option>
-                    )}
-                  </select>
-                </label>
-
-                <label>
-                  Nama Produk <span style={{ color: "#ba1a1a" }}>*</span>
-                  <input
-                    type="text"
-                    autoComplete="off"
-                    placeholder="Nama produk"
-                    aria-label={`New PO product ${i + 1}`}
-                    value={row.name || ""}
-                    onChange={(e) => changeProduct(i, e.target.value)}
-                    required
-                  />
-                </label>
-
-                <label>
-                  Kategori <span style={{ color: "#ba1a1a" }}>*</span>
-                  <select
-                    aria-label={`New PO category ${i + 1}`}
-                    value={row.category || ""}
-                    onChange={(e) => changeItem(i, "category", e.target.value)}
-                    required
-                  >
-                    <option value="">-- Pilih Kategori --</option>
-                    {categories.map((c) => (
-                      <option key={c.id || c.name || c} value={c.name || c}>
-                        {c.name || c}
-                      </option>
-                    ))}
-                    {row.category &&
-                      !categories.some((c) => (c.name || c).toLowerCase() === row.category.toLowerCase()) && (
-                        <option value={row.category}>{row.category}</option>
-                      )}
-                  </select>
-                </label>
-
-                <label>
-                  Qty <span style={{ color: "#ba1a1a" }}>*</span>
-                  <input
-                    aria-label={`New PO quantity ${i + 1}`}
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={row.quantity}
-                    onChange={(e) => changeItem(i, "quantity", e.target.value)}
-                    required
-                  />
-                </label>
-
-                <label>
-                  Unit price (IDR) <span style={{ color: "#ba1a1a" }}>*</span>
-                  <input
-                    aria-label={`New PO price ${i + 1}`}
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={row.unitPrice}
-                    onChange={(e) => changeItem(i, "unitPrice", e.target.value)}
-                    required
-                  />
-                </label>
-
-                <button
-                  type="button"
-                  className="dashboard-link"
-                  aria-label={`Remove PO item ${i + 1}`}
-                  onClick={() =>
-                    setDraft({
-                      ...draft,
-                      products: draft.products.filter((_, index) => index !== i),
-                    })
-                  }
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-
+          <div className="po-modal-header">
+            <h2 id="po-create-title">New Purchase Order</h2>
             <button
               type="button"
-              className="inbound-secondary"
-              onClick={() => {
-                const defaultCat = categories[0]?.name || "Electronics";
-                setDraft({
-                  ...draft,
-                  products: [
-                    ...draft.products,
-                    { name: "", code: "", category: defaultCat, quantity: "", unitPrice: "" },
-                  ],
-                });
-              }}
+              className="po-modal-close"
+              onClick={() => setCreating(false)}
+              aria-label="Tutup dialog"
             >
-              + Add Item
+              ✕
             </button>
+          </div>
+          <form onSubmit={create} noValidate className="po-create-form">
+            <div className="po-modal-scroll">
+              <div className="po-create-fields">
+                <label>
+                  <span className="po-label-title">
+                    Supplier <span className="po-required">*</span>
+                  </span>
+                  <select
+                    aria-label="New PO supplier"
+                    value={draft.supplier}
+                    onChange={(e) => {
+                      const nextSupplier = e.target.value;
+                      setDraft((prev) => ({
+                        ...prev,
+                        supplier: nextSupplier,
+                        products: [{ name: "", code: "", category: categories[0]?.name || "General", quantity: "", unitPrice: "", min_order: 0,}],
+                      }));
+                      setError("");
+                    }}
+                    required
+                  >
+                    <option value="">-- Pilih Supplier --</option>
+                    {supplierOptions.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                    {draft.supplier && !supplierOptions.includes(draft.supplier) && (
+                      <option value={draft.supplier}>{draft.supplier}</option>
+                    )}
+                  </select>
+                </label>
+                <label>
+                  <span className="po-label-title">
+                    Expected date <span className="po-required">*</span>
+                  </span>
+                  <input
+                    aria-label="New PO expected date"
+                    type="date"
+                    min={poToday()}
+                    value={draft.expected}
+                    onChange={(e) => setDraft({ ...draft, expected: e.target.value })}
+                    required
+                  />
+                </label>
+                <label>
+                  <span className="po-label-title">Payment terms</span>
+                  <input
+                    value={draft.terms}
+                    onChange={(e) => setDraft({ ...draft, terms: e.target.value })}
+                  />
+                </label>
+                <label>
+                  <span className="po-label-title">Reference</span>
+                  <input
+                    value={draft.reference}
+                    maxLength={100}
+                    placeholder="Optional reference"
+                    onChange={(e) => setDraft({ ...draft, reference: e.target.value })}
+                  />
+                </label>
+              </div>
 
-            <label className="po-notes-label">
-              Notes
-              <textarea
-                value={draft.notes}
-                maxLength={2000}
-                placeholder="Optional notes"
-                onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-              />
-            </label>
+              {matchedSupplierObj && (matchedSupplierObj.bank_name || matchedSupplierObj.bank_account) && (
+                <div className="po-create-bank-card">
+                  <div className="po-create-bank-inner">
+                    <span className="po-create-bank-title">🏦 Rekening Tujuan Transfer:</span>
+                    <span className="supplier-bank-badge">{matchedSupplierObj.bank_name || "Bank"}</span>
+                    <span className="supplier-bank-num">{matchedSupplierObj.bank_account || "—"}</span>
+                    {matchedSupplierObj.bank_account && (
+                      <button
+                        type="button"
+                        className="btn-copy-account"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(matchedSupplierObj.bank_account);
+                          setNotice(
+                            `Nomor rekening ${matchedSupplierObj.bank_name ? matchedSupplierObj.bank_name + " " : ""}${matchedSupplierObj.bank_account} berhasil disalin!`
+                          );
+                          setTimeout(() => setNotice(""), 3500);
+                        }}
+                        title="Salin No. Rekening"
+                      >
+                        📋
+                      </button>
+                    )}
+                    {matchedSupplierObj.bank_holder && (
+                      <span className="supplier-bank-holder">a.n. {matchedSupplierObj.bank_holder}</span>
+                    )}
+                  </div>
+                </div>
+              )}
 
-            {error && (
-              <p role="alert" className="field-error">
-                {error}
-              </p>
-            )}
+              <h3>Order item</h3>
+              {!draft.supplier ? (
+                <div style={{ margin: "4px 0 12px", fontSize: "12px", color: "var(--olive, #5c732b)", background: "var(--sage, #eef3e9)", padding: "8px 12px", borderRadius: "6px", border: "1px solid #d3e0cb" }}>
+                  ℹ Silakan pilih Supplier / PT di atas terlebih dahulu untuk menampilkan daftar produk yang tersedia.
+                </div>
+              ) : (
+                <div style={{ margin: "4px 0 12px", fontSize: "12px", color: "var(--olive, #5c732b)", background: "var(--sage, #eef3e9)", padding: "8px 12px", borderRadius: "6px", border: "1px solid #d3e0cb" }}>
+                  {supplierProducts.length > 0 ? (
+                    <>✓ Terhubung dengan Katalog <strong>{draft.supplier}</strong> ({supplierProducts.length} produk ditemukan). Pilih ID Produk untuk otomatis mengisi data.</>
+                  ) : (
+                    <>ℹ Belum ada produk terdaftar untuk PT <strong>{draft.supplier}</strong>. Silakan tambahkan katalog produk melalui menu Suppliers terlebih dahulu.</>
+                  )}
+                </div>
+              )}
+              {draft.products.map((row, i) => (
+                <div className="po-create-item" key={i}>
+                  <label>
+                    <span className="po-label-title">
+                      ID Produk (SKU) <span className="po-required">*</span>
+                    </span>
+                    <select
+                      aria-label={`New PO SKU ${i + 1}`}
+                      value={row.code || ""}
+                      onChange={(e) => handleSelectProductSku(i, e.target.value)}
+                      disabled={!draft.supplier}
+                      required
+                    >
+                      {!draft.supplier ? (
+                        <option value="">-- Pilih Supplier / PT terlebih dahulu --</option>
+                      ) : supplierProducts.length === 0 ? (
+                        <option value="" disabled>-- Belum ada produk dari {draft.supplier} --</option>
+                      ) : (
+                        <>
+                          <option value="">-- Pilih ID Produk ({draft.supplier}) --</option>
+                          {supplierProducts.map((p) => (
+                            <option key={p.sku} value={p.sku}>
+                              {p.sku} — {p.name}
+                            </option>
+                          ))}
+                        </>
+                      )}
+                      {row.code && !supplierProducts.some((p) => p.sku.toLowerCase() === row.code.toLowerCase()) && (
+                        <option value={row.code}>{row.code}</option>
+                      )}
+                    </select>
+                  </label>
 
-            <div className="inbound-form-actions">
+                  <label>
+                    <span className="po-label-title">Kategori</span>
+                    <input
+                      type="text"
+                      readOnly
+                      className="po-readonly-field"
+                      value={row.category || "—"}
+                      placeholder="Kategori"
+                      title="Kategori otomatis terisi sesuai katalog produk"
+                    />
+                  </label>
+
+                  <label>
+                    <span className="po-label-title">Harga Satuan (IDR)</span>
+                    <input
+                      type="text"
+                      readOnly
+                      className="po-readonly-field"
+                      value={row.unitPrice ? poMoney(row.unitPrice, "IDR") : "—"}
+                      title="Harga satuan otomatis terisi sesuai katalog produk"
+                    />
+                  </label>
+
+                  <label className="po-qty-label">
+                    <span className="po-label-title">
+                      Qty <span className="po-required">*</span>
+                    </span>
+                    <div className="po-qty-container">
+                      <div className={`po-qty-wrapper ${row.min_order > 0 && row.quantity && Number(row.quantity) < row.min_order ? 'po-qty-error' : ''}`}>
+                        <input
+                          aria-label={`New PO quantity ${i + 1}`}
+                          type="number"
+                          min="1"
+                          step="1"
+                          placeholder="0"
+                          value={row.quantity}
+                          onChange={(e) => changeItem(i, "quantity", e.target.value)}
+                          required
+                        />
+                        <span className="po-unit-tag" title="Satuan kemasan produk">{row.unit || "pcs"}</span>
+                      </div>
+                      {row.min_order > 0 && row.quantity !== "" && Number(row.quantity) < row.min_order && (
+                        <div className="po-min-order-tooltip" role="alert">
+                          <span>⚠️</span> Min. order: {row.min_order} {row.unit || "unit"}
+                        </div>
+                      )}
+                    </div>
+                  </label>
+
+                  <button
+                    type="button"
+                    className="po-remove-btn"
+                    title="Hapus baris item ini"
+                    aria-label={`Hapus item ${i + 1}`}
+                    onClick={() =>
+                      setDraft({
+                        ...draft,
+                        products: draft.products.filter((_, index) => index !== i),
+                      })
+                    }
+                  >
+                    <Icon name="trash" size={17} />
+                  </button>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                className="inbound-secondary"
+                onClick={() => {
+                  const defaultCat = categories[0]?.name || "Electronics";
+                  setDraft({
+                    ...draft,
+                    products: [
+                      ...draft.products,
+                      { name: "", code: "", category: defaultCat, quantity: "", unitPrice: "", min_order: 0, unit: "pcs" },
+                    ],
+                  });
+                }}
+              >
+                + Add Item
+              </button>
+
+              <label className="po-notes-label">
+                <span className="po-label-title">Notes</span>
+                <textarea
+                  value={draft.notes}
+                  maxLength={2000}
+                  placeholder="Optional notes"
+                  onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+                />
+              </label>
+
+              {error && (
+                <p role="alert" className="field-error">
+                  {error}
+                </p>
+              )}
+            </div>
+
+            <div className="inbound-form-actions po-modal-actions">
               <button type="button" className="inbound-secondary" onClick={() => setCreating(false)}>
                 Cancel
               </button>

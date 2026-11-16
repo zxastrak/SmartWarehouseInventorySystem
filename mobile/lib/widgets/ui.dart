@@ -210,8 +210,8 @@ class StockSummaryTable extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         for (final pair in [
-          ('STOCK', '${formatNumber(item.quantity)} Units'),
-          ('MIN SAFE', '${formatNumber(item.minimum)} Units'),
+          ('STOCK', '${formatNumber(item.quantity)} ${item.unit}'),
+          ('MIN SAFE', '${formatNumber(item.minimum)} ${item.unit}'),
           ('DAYS LEFT', '${item.daysLeft.toStringAsFixed(1)} Days'),
         ])
           Column(
@@ -416,9 +416,7 @@ class StockCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            item.price > 0
-                                ? '${formatRupiah(item.price)} / ${item.unit}'
-                                : 'Satuan: ${item.unit}',
+                            'Satuan: ${item.unit}',
                             textAlign: TextAlign.right,
                             style: const TextStyle(
                               fontSize: 11,
@@ -759,9 +757,7 @@ class StockCountBox extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    item.price > 0
-                        ? '${formatRupiah(item.price)} / ${item.unit}'
-                        : 'Satuan: ${item.unit}',
+                    'Satuan: ${item.unit}',
                     textAlign: TextAlign.right,
                     style: const TextStyle(
                       fontSize: 11,

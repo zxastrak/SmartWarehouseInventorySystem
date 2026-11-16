@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../core/app_theme.dart';
-import 'dev_qr_bypass.dart';
 import 'qr_scanner.dart';
 import 'web_camera_helper.dart';
 
@@ -318,31 +317,6 @@ class _BarcodeInputState extends State<BarcodeInput> {
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 8),
-            // === DEV SKIP BARCODE: Tombol lewati scan (Hapus saat produksi) ===
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: const Color(0xfffffbeb),
-                  foregroundColor: const Color(0xffb45309),
-                  side: const BorderSide(color: Color(0xfffde68a), width: 1.5),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-                onPressed: () {
-                  final code = widget.demoCode.isNotEmpty
-                      ? widget.demoCode
-                      : DevQrBypass.generateBarcode(title: widget.title);
-                  accept(code);
-                },
-                icon: const Icon(Icons.bolt, size: 16, color: Color(0xffd97706)),
-                label: Text(
-                  '⚡ Skip Barcode (${widget.demoCode.isNotEmpty ? widget.demoCode : "Otomatis"})',
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-                ),
-              ),
             ),
           ],
         ),

@@ -618,27 +618,48 @@ export default function App() {
       // 1. Ambil data produk dari backend MySQL
       const prods = await productsApi.getAll();
       if (Array.isArray(prods)) {
-        const mapped = prods.map((p) => ({
-          id: p.id,
-          sku: p.sku,
-          name: p.name,
-          category: p.category_name || 'General',
-          category_id: p.category_id,
-          current: Number(p.stock_quantity) || 0,
-          reorder: Number(p.reorder_level) || 15,
-          unit: p.unit || 'pcs',
-          price: Number(p.price) || 0,
-          rack: p.location_code || p.zone_location || 'A-01',
-          zone: p.zone || 'Zone A',
-          location_id: p.location_id,
-          image_url: p.image_url || null,
-          description: p.description || '',
-          notes: p.description || '',
-          status: stockStatus({ current: Number(p.stock_quantity) || 0, reorder: Number(p.reorder_level) || 15 }),
-          warehouse: 'Main Warehouse',
-          supplier: p.supplier_name || 'Warehouse Partner',
-          supplier_id: p.supplier_id,
-        }));
+        const mapped = prods.map((p) => {
+          const hasLocation = Boolean(p.location_id && p.location_id > 0);
+          const hasStock = Number(p.stock_quantity) > 0;
+          const hasStockInTx = Number(p.total_stock_in) > 0;
+          const isPendingInbound = Boolean(p.pending_inbound_count && p.pending_inbound_count > 0);
+
+          // Produk sah masuk inventaris HANYA jika:
+          // 1. Sudah memiliki stok aktual, ATAU
+          // 2. Sudah ditempatkan di rak lokasi gudang yang valid, ATAU
+          // 3. Sudah pernah ada transaksi penerimaan (stock_in) yang di-ACC manager.
+          const inInventory = p.is_in_inventory !== undefined
+            ? Boolean(p.is_in_inventory)
+            : (hasStock || hasLocation || hasStockInTx);
+
+          return {
+            id: p.id,
+            sku: p.sku,
+            name: p.name,
+            category: p.category_name || 'General',
+            category_id: p.category_id,
+            current: Number(p.stock_quantity) || 0,
+            reorder: Number(p.reorder_level) || 15,
+            unit: p.unit || 'pcs',
+            weight: p.weight !== null && p.weight !== undefined ? Number(p.weight) : null,
+            weight_unit: p.weight_unit || 'kg',
+            price: Number(p.price) || 0,
+            rack: p.location_code || p.zone_location || (hasLocation ? 'A-01' : 'Unassigned'),
+            zone: p.zone || (hasLocation ? 'Zone A' : 'Pending Placement'),
+            location_id: p.location_id,
+            image_url: p.image_url || null,
+            description: p.description || '',
+            notes: p.description || '',
+            status: stockStatus({ current: Number(p.stock_quantity) || 0, reorder: Number(p.reorder_level) || 15 }),
+            warehouse: 'Main Warehouse',
+            supplier: p.supplier_name || 'Warehouse Partner',
+            supplier_id: p.supplier_id,
+            updated: p.updated_at || p.created_at || new Date().toISOString(),
+            barcode: p.barcode || p.code || ('899' + String(p.id).padStart(9, '0')),
+            is_in_inventory: inInventory,
+            pending_inbound: isPendingInbound || (!inInventory && !hasStock),
+          };
+        });
         setInventoryItems(mapped);
       } else {
         setInventoryItems([]);
@@ -990,7 +1011,7 @@ export default function App() {
             id: u.id,
             fullName: u.name,
             contact: u.email,
-            role: u.role_title || 'Inventory Staff',
+            role: u.role_title || 'Staf',
             username: u.email ? u.email.split('@')[0] : `staff_${u.id}`,
             warehouse: u.warehouse || 'Main Warehouse',
             warehouseCode: 'WH-01',
@@ -1002,6 +1023,8 @@ export default function App() {
             suspended: !u.is_active,
           }))
         );
+      } else {
+        setStaffAccounts([]);
       }
 
       console.log('[Susuno Web] Database loaded successfully:', {
@@ -1025,8 +1048,10 @@ export default function App() {
 
   // Staff Management operations
   async function createStaff(draft) {
+    const roleFinal = draft.role && draft.role.trim() !== '' ? draft.role.trim() : 'Staf';
     draft = {
       ...draft,
+      role: roleFinal,
       warehouse:
         assignedWarehouses.find((name) => name.toLowerCase() === draft.warehouse.trim().toLowerCase()) ||
         draft.warehouse.trim(),
@@ -1086,15 +1111,17 @@ export default function App() {
   }
 
   async function editStaff(id, values) {
+    const roleFinal = values.role && values.role.trim() !== '' ? values.role.trim() : 'Staf';
     values = {
       ...values,
+      role: roleFinal,
       warehouse:
         assignedWarehouses.find((name) => name.toLowerCase() === values.warehouse.trim().toLowerCase()) ||
         values.warehouse.trim(),
     };
     const row = staffAccounts.find((item) => item.id === id);
     if (!row) return { error: 'Staff account not found.' };
-    if (!staffRoles.includes(values.role) || !assignedWarehouses.includes(values.warehouse))
+    if (!values.role || !assignedWarehouses.includes(values.warehouse))
       return { error: 'Choose a valid role and warehouse.' };
     const changes = ['role', 'warehouse']
       .filter((key) => row[key] !== values[key])
@@ -1395,100 +1422,130 @@ export default function App() {
       user: effectiveManager.fullName,
       date: new Date().toISOString(),
     });
-    if (!result.error) {
-      let supplierId = 1;
-      let matchedSupplier = suppliersList.find((s) => s.name?.toLowerCase().trim() === values.supplier.toLowerCase().trim());
+    if (result.error) {
+      return result;
+    }
 
-      try {
-        if (!matchedSupplier || !matchedSupplier.id || typeof matchedSupplier.id !== 'number') {
+    try {
+      let supplierId = values.supplier_id || null;
+      let matchedSupplier = suppliersList.find(
+        (s) =>
+          (values.supplier_id && s.id === values.supplier_id) ||
+          (s.name && s.name.toLowerCase().trim() === values.supplier.toLowerCase().trim())
+      );
+
+      if (!matchedSupplier || !matchedSupplier.id || typeof matchedSupplier.id !== 'number') {
+        const freshSups = await suppliersApi.getAll();
+        if (Array.isArray(freshSups) && freshSups.length > 0) {
+          setSuppliersList(freshSups);
+          matchedSupplier = freshSups.find(
+            (s) =>
+              (values.supplier_id && s.id === values.supplier_id) ||
+              (s.name && s.name.toLowerCase().trim() === values.supplier.toLowerCase().trim())
+          );
+        }
+      }
+
+      if (matchedSupplier?.id) {
+        supplierId = matchedSupplier.id;
+      } else {
+        try {
           const createSupRes = await suppliersApi.create({ name: values.supplier.trim() });
-          if (createSupRes.success && createSupRes.data?.supplierId) {
-            supplierId = createSupRes.data.supplierId;
+          if (createSupRes.success && (createSupRes.data?.supplierId || createSupRes.data?.id)) {
+            supplierId = createSupRes.data?.supplierId || createSupRes.data?.id;
             matchedSupplier = { id: supplierId, name: values.supplier.trim() };
             setSuppliersList((curr) => [...curr, matchedSupplier]);
           }
-        } else {
-          supplierId = matchedSupplier.id;
-        }
-
-        const orderWithSup = {
-          ...result.order,
-          supplier: values.supplier.trim(),
-          supplier_id: supplierId,
-        };
-
-        setPoOrders((current) => [orderWithSup, ...current]);
-        logEvent({
-          module: 'Purchase Orders',
-          action: 'Order created',
-          reference: result.order.id,
-          details: `${values.supplier.trim()} · Pending approval`,
-          changes: [{ field: 'PO status', before: 'Not created', after: 'Pending' }],
-        });
-
-        const poItems = [];
-        for (const p of values.products) {
-          const matchedItem = inventoryItems.find(
-            (it) =>
-              (it.sku && it.sku.toLowerCase() === p.code?.toLowerCase()) ||
-              (it.code && it.code.toLowerCase() === p.code?.toLowerCase()) ||
-              it.id === p.product_id ||
-              (it.name && it.name.toLowerCase() === p.name?.toLowerCase())
-          );
-          let productId = matchedItem?.id;
-          if (!productId || typeof productId !== 'number') {
-            try {
-              const createProdRes = await productsApi.create({
-                name: p.name || p.code || 'Product',
-                sku: p.code || `SKU-${Date.now()}`,
-                price: Number(p.unitPrice) || 0,
-                supplier_id: supplierId,
-                stock_quantity: 0,
-                unit: 'pcs',
-              });
-              if (createProdRes.success && (createProdRes.data?.productId || createProdRes.data?.id)) {
-                productId = createProdRes.data?.productId || createProdRes.data?.id;
-              }
-            } catch (_) {}
-          }
-          if (!productId && inventoryItems.length > 0) {
-            productId = inventoryItems[0].id;
-          }
-          poItems.push({
-            product_id: productId || 6,
-            quantity: Number(p.quantity) || 1,
-            price: Number(p.unitPrice) || 0,
-          });
-        }
-        if (poItems.length > 0) {
-          const res = await purchaseOrdersApi.create({
-            po_number: result.order.id,
-            supplier_id: supplierId,
-            expected_date: values.expected,
-            payment_terms: values.terms || 'Net 30',
-            reference: values.reference || '',
-            notes: values.notes || '',
-            deliver_to: values.deliverTo || 'Main Warehouse',
-            total_amount: result.order.total,
-            status: 'pending',
-            items: poItems,
-          });
-          if (res.success && (res.data?.poId || res.data?.id)) {
-            const backendId = res.data?.poId || res.data?.id;
-            setPoOrders((current) =>
-              current.map((row) =>
-                row.id === result.order.id
-                  ? { ...row, backendId, supplier: values.supplier.trim(), supplier_id: supplierId }
-                  : row
-              )
-            );
-          }
-        }
-      } catch (err) {
-        console.error('Failed to create PO on backend:', err);
+        } catch (_) {}
       }
+
+      if (!supplierId) {
+        return { error: `Supplier "${values.supplier}" tidak ditemukan di database. Pastikan supplier terdaftar terlebih dahulu.` };
+      }
+
+      let currentInventory = inventoryItems;
+      if (!currentInventory || currentInventory.length === 0) {
+        const prods = await productsApi.getAll();
+        if (Array.isArray(prods) && prods.length > 0) {
+          currentInventory = prods;
+        }
+      }
+
+      const poItems = [];
+      for (const p of values.products) {
+        let matchedItem = currentInventory.find(
+          (it) =>
+            (it.sku && it.sku.toLowerCase() === p.code?.toLowerCase()) ||
+            (it.code && it.code.toLowerCase() === p.code?.toLowerCase()) ||
+            it.id === p.product_id ||
+            it.id === p.id ||
+            (it.name && it.name.toLowerCase() === p.name?.toLowerCase())
+        );
+
+        let productId = matchedItem?.id;
+        if (!productId || typeof productId !== 'number') {
+          try {
+            const bySku = await productsApi.getBySku(p.code);
+            if (bySku?.id) {
+              productId = bySku.id;
+            }
+          } catch (_) {}
+        }
+
+        if (!productId) {
+          return { error: `Produk "${p.name || p.code}" (SKU: ${p.code}) tidak ditemukan di database gudang.` };
+        }
+
+        poItems.push({
+          product_id: productId,
+          quantity: Number(p.quantity) || 1,
+          price: Number(p.unitPrice) || 0,
+        });
+      }
+
+      if (poItems.length === 0) {
+        return { error: 'Tambahkan minimal 1 produk pesanan yang valid.' };
+      }
+
+      const res = await purchaseOrdersApi.create({
+        po_number: result.order.id,
+        supplier_id: supplierId,
+        expected_date: values.expected,
+        payment_terms: values.terms || 'Net 30',
+        reference: values.reference || '',
+        notes: values.notes || '',
+        deliver_to: values.deliverTo || 'Main Warehouse',
+        total_amount: result.order.total,
+        status: 'pending',
+        items: poItems,
+      });
+
+      if (!res.success) {
+        return { error: res.data?.message || 'Gagal menyimpan Purchase Order ke database server.' };
+      }
+
+      const backendId = res.data?.poId || res.data?.id;
+      const orderWithSup = {
+        ...result.order,
+        backendId,
+        supplier: values.supplier.trim(),
+        supplier_id: supplierId,
+      };
+
+      setPoOrders((current) => [orderWithSup, ...current]);
+      logEvent({
+        module: 'Purchase Orders',
+        action: 'Order created',
+        reference: result.order.id,
+        details: `${values.supplier.trim()} · Pending approval`,
+        changes: [{ field: 'PO status', before: 'Not created', after: 'Pending' }],
+      });
+
+      return { order: orderWithSup };
+    } catch (err) {
+      console.error('Failed to create PO on backend:', err);
+      return { error: err.message || 'Terjadi kesalahan saat memproses Purchase Order.' };
     }
-    return result;
   }
 
   // Suppliers Management
@@ -1615,13 +1672,17 @@ export default function App() {
         }
       }
 
+      const reorderVal = Number(productData.reorder ?? productData.reorder_level) || 15;
       const res = await productsApi.create({
         name: productData.name.trim(),
         sku: productData.sku.trim(),
         category_id: productData.category_id ? Number(productData.category_id) : null,
         supplier_id: productData.supplier_id ? Number(productData.supplier_id) : null,
         stock_quantity: Number(productData.stock_quantity) || 0,
+        reorder_level: reorderVal,
         unit: productData.unit || 'pcs',
+        weight: productData.weight !== undefined && productData.weight !== '' && !isNaN(Number(productData.weight)) ? Number(productData.weight) : null,
+        weight_unit: productData.weight_unit || 'kg',
         price: Number(productData.price) || 0,
         location_id: productData.location_id ? Number(productData.location_id) : 1,
         image_url: finalImageUrl,
@@ -1646,6 +1707,8 @@ export default function App() {
         current: Number(productData.stock_quantity) || 0,
         reorder: Number(productData.reorder) || 15,
         unit: productData.unit || 'pcs',
+        weight: productData.weight !== undefined && productData.weight !== '' && !isNaN(Number(productData.weight)) ? Number(productData.weight) : null,
+        weight_unit: productData.weight_unit || 'kg',
         price: Number(productData.price) || 0,
         rack: 'A-01',
         zone: 'Zone A',
@@ -1673,6 +1736,8 @@ export default function App() {
             current: Number(p.stock_quantity) || 0,
             reorder: Number(p.reorder_level) || 15,
             unit: p.unit || 'pcs',
+          weight: p.weight !== null && p.weight !== undefined ? Number(p.weight) : null,
+          weight_unit: p.weight_unit || 'kg',
             price: Number(p.price) || 0,
             rack: p.location_code || p.zone_location || 'A-01',
             zone: p.zone || 'Zone A',
@@ -1684,6 +1749,8 @@ export default function App() {
             warehouse: 'Main Warehouse',
             supplier: p.supplier_name || 'Warehouse Partner',
             supplier_id: p.supplier_id,
+            updated: p.updated_at || p.created_at || new Date().toISOString(),
+            barcode: p.barcode || p.code || ('899' + String(p.id).padStart(9, '0')),
           }));
           setInventoryItems(mapped);
         }
@@ -2034,6 +2101,12 @@ export default function App() {
     };
     setShipments((current) => current.map((row) => (row.id === id ? updated : row)));
 
+    try {
+      await inboundApi.update(id, { assigned_staff: staffName });
+    } catch (apiErr) {
+      console.error('Failed to sync staff to backend:', apiErr);
+    }
+
     logEvent({
       module: 'Inbound',
       action: 'Inspection dispatched to staff',
@@ -2065,6 +2138,9 @@ export default function App() {
   async function completeReceiving(id, draft) {
     const shipment = shipments.find((row) => row.id === id);
     if (!shipment) return 'Shipment not found.';
+    if (shipment.status !== 'Inspected') {
+      return 'Inbound shipment belum diinspeksi oleh staf dok. Staf dok wajib menginput kuantitas fisik dan memindai barcode unit di Mobile terlebih dahulu sebelum Manager memberikan persetujuan (ACC).';
+    }
     const linkedPO = poOrders.find((row) => row.id === shipment.po);
     if (linkedPO && !preferences.warehouse?.allowPartial && inspectionSummary(draft.rows).accepted < poReceivingTotals(linkedPO).remaining) {
       return 'Partial PO receipts are disabled in Warehouse Preferences.';
@@ -2245,6 +2321,12 @@ export default function App() {
     };
     setShipments((current) => current.map((row) => (row.id === id ? updated : row)));
 
+    try {
+      await inboundApi.update(id, { assigned_staff: staffName });
+    } catch (apiErr) {
+      console.error('Failed to sync staff to backend:', apiErr);
+    }
+
     logEvent({
       module: 'Inbound',
       action: 'Staff assignment updated',
@@ -2263,6 +2345,58 @@ export default function App() {
     } catch (err) {
       console.error('Failed to sync staff assignment to backend:', err);
     }
+
+    return { success: true, shipment: updated };
+  }
+
+  async function updateInboundItemStaff(id, sku, assignedStaff) {
+    const shipment = shipments.find((row) => row.id === id);
+    if (!shipment) return { error: 'Shipment not found.' };
+
+    const staffName = (assignedStaff || '').trim() || 'Semua Staf Lapangan';
+    let oldStaff = 'Semua Staf Lapangan';
+
+    const updatedProducts = (shipment.products || []).map((p) => {
+      if (p.sku === sku || p.code === sku) {
+        oldStaff = p.assigned_staff || p.staff || shipment.staff || 'Semua Staf Lapangan';
+        return { ...p, assigned_staff: staffName, staff: staffName };
+      }
+      return p;
+    });
+
+    const updatedItems = Array.isArray(shipment.items)
+      ? shipment.items.map((it) => {
+          if (it.sku === sku || it.product_sku === sku || it.code === sku) {
+            return { ...it, assigned_staff: staffName, staff: staffName };
+          }
+          return it;
+        })
+      : shipment.items;
+
+    const updated = {
+      ...shipment,
+      products: updatedProducts,
+      items: updatedItems,
+    };
+
+    setShipments((current) => current.map((row) => (row.id === id ? updated : row)));
+
+    try {
+      await inboundApi.updateItemStaff(id, sku, staffName);
+    } catch (apiErr) {
+      console.error('Failed to sync item staff to backend:', apiErr);
+    }
+
+    logEvent({
+      module: 'Inbound',
+      action: 'Item staff assignment updated',
+      reference: `${id} · ${sku}`,
+      status: 'Updated',
+      details: `Item ${sku} ditugaskan ke: ${staffName}`,
+      changes: [
+        { field: `Assigned to (${sku})`, before: oldStaff, after: staffName },
+      ],
+    });
 
     return { success: true, shipment: updated };
   }
@@ -2400,7 +2534,10 @@ export default function App() {
           category_id: item.category_id !== undefined ? item.category_id : original.category_id,
           supplier_id: item.supplier_id !== undefined ? item.supplier_id : original.supplier_id,
           unit: item.unit || original.unit,
+          weight: item.weight !== undefined ? (item.weight ? Number(item.weight) : null) : (original.weight ? Number(original.weight) : null),
+          weight_unit: item.weight_unit || original.weight_unit || 'kg',
           stock_quantity: item.current !== undefined ? item.current : original.current,
+          reorder_level: item.reorder !== undefined ? Number(item.reorder) : original.reorder,
           price: item.price !== undefined ? item.price : original.price,
           location_id: item.location_id !== undefined ? item.location_id : original.location_id,
           image_url: finalImageUrl,
@@ -2435,6 +2572,8 @@ export default function App() {
           stock_quantity: item.current || 0,
           price: item.price || 0,
           unit: item.unit || 'pcs',
+          weight: item.weight ? Number(item.weight) : null,
+          weight_unit: item.weight_unit || 'kg',
           location_id: item.location_id || 1,
           image_url: finalImageUrl,
           description: item.notes || item.description || '',
@@ -2776,6 +2915,7 @@ export default function App() {
         onCompleteReceiving={completeReceiving}
         onResolveIssue={resolveIssue}
         onUpdateStaff={updateInboundStaff}
+        onUpdateItemStaff={updateInboundItemStaff}
         onViewMovements={(reference) => {
           setReportOrigin(null);
           setReportSku(null);

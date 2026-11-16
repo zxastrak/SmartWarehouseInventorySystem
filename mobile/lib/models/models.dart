@@ -18,6 +18,9 @@ class StockItem {
   final String unit;
   final String? category;
   final String? supplier;
+  final String? barcode;
+  final bool isInInventory;
+  final bool pendingInbound;
   bool anomaly, discrepancy, pendingVerification;
   DateTime? verifiedAt;
   final Map<String, int> rackCounts = {};
@@ -34,6 +37,9 @@ class StockItem {
     this.unit = 'pcs',
     this.category,
     this.supplier,
+    this.barcode,
+    this.isInInventory = true,
+    this.pendingInbound = false,
     this.anomaly = false,
     this.discrepancy = false,
     this.pendingVerification = false,
@@ -138,6 +144,7 @@ class InboundShipmentItemModel {
   int damagedQty;
   List<String> barcodes;
   String notes;
+  final String? assignedStaff;
 
   InboundShipmentItemModel({
     this.id,
@@ -149,6 +156,7 @@ class InboundShipmentItemModel {
     this.damagedQty = 0,
     List<String>? barcodes,
     this.notes = '',
+    this.assignedStaff,
   }) : barcodes = barcodes ?? [];
 
   factory InboundShipmentItemModel.fromJson(Map<String, dynamic> json) {
@@ -183,6 +191,7 @@ class InboundShipmentItemModel {
       damagedQty: dam is int ? dam : int.tryParse(dam.toString()) ?? 0,
       barcodes: parsedBarcodes,
       notes: json['notes']?.toString() ?? '',
+      assignedStaff: json['assigned_staff']?.toString() ?? json['staff']?.toString(),
     );
   }
 
@@ -197,6 +206,7 @@ class InboundShipmentItemModel {
       'damaged_qty': damagedQty,
       'barcodes': barcodes,
       'notes': notes,
+      if (assignedStaff != null) 'assigned_staff': assignedStaff,
     };
   }
 }

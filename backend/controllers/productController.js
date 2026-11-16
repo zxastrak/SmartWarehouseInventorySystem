@@ -5,23 +5,31 @@ const logAudit = require('../utils/audit');
 const productController = {
   create: async (req, res) => {
     try {
-      const { name, sku, category_id, supplier_id, stock_quantity, unit, price, location_id, image_url, description } = req.body;
+      const { name, sku, category_id, supplier_id, stock_quantity, reorder_level, reorder, unit, price, location_id, image_url, description, weight, weight_unit } = req.body;
 
       if (!name || !sku) {
         return res.status(400).json({ message: 'Nama dan SKU produk wajib diisi' });
       }
 
+      const cleanSku = String(sku).trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+      if (!cleanSku || cleanSku.length > 7 || !/^[A-Z0-9]{1,7}$/.test(cleanSku)) {
+        return res.status(400).json({ message: 'SKU harus berupa huruf kapital dan angka (maksimal 7 karakter)' });
+      }
+
       const result = await productModel.create({
         name,
-        sku,
+        sku: cleanSku,
         category_id,
         supplier_id,
         stock_quantity: stock_quantity || 0,
+        reorder_level: reorder_level !== undefined ? reorder_level : reorder,
         unit: unit || 'pcs',
         price: price || 0,
         location_id,
         image_url: image_url || null,
         description: description || null,
+        weight,
+        weight_unit,
       });
 
       await logAudit({
@@ -43,7 +51,8 @@ const productController = {
 
   getAll: async (req, res) => {
     try {
-      const products = await productModel.getAll();
+      const { inventory_only } = req.query;
+      const products = await productModel.getAll({ inventory_only: inventory_only === 'true' });
       res.status(200).json(products);
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
@@ -170,7 +179,7 @@ const productController = {
   update: async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, sku, category_id, supplier_id, stock_quantity, unit, price, location_id, image_url, description } = req.body;
+      const { name, sku, category_id, supplier_id, stock_quantity, reorder_level, reorder, unit, price, location_id, image_url, description, weight, weight_unit } = req.body;
 
       const existing = await productModel.getById(id);
       if (existing.length === 0) {
@@ -178,17 +187,21 @@ const productController = {
       }
 
       const current = existing[0];
+      const targetReorder = reorder_level !== undefined ? reorder_level : reorder;
       await productModel.update(id, {
         name: name !== undefined ? name : current.name,
         sku: sku !== undefined ? sku : current.sku,
         category_id: category_id !== undefined ? category_id : current.category_id,
         supplier_id: supplier_id !== undefined ? supplier_id : current.supplier_id,
         stock_quantity: stock_quantity !== undefined ? stock_quantity : current.stock_quantity,
+        reorder_level: targetReorder !== undefined ? targetReorder : current.reorder_level,
         unit: unit !== undefined ? unit : current.unit,
         price: price !== undefined ? price : current.price,
         location_id: location_id !== undefined ? location_id : current.location_id,
         image_url: image_url !== undefined ? image_url : current.image_url,
         description: description !== undefined ? description : current.description,
+        weight: weight !== undefined ? weight : current.weight,
+        weight_unit: weight_unit !== undefined ? weight_unit : current.weight_unit,
       });
 
       await logAudit({

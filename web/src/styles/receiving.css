@@ -84,17 +84,17 @@
 .receiving-inspect-grid {
   display: grid;
   grid-template-columns: minmax(0, 2.3fr) minmax(0, 1fr);
-  gap: 20px;
+  gap: 16px;
 }
 .receiving-left,
 .receiving-right {
   min-width: 0;
   display: grid;
-  gap: 16px;
+  gap: 14px;
   align-content: start;
 }
 .receiving-content .dashboard-card {
-  padding: 16px 20px;
+  padding: 14px 18px;
 }
 .receiving-card-heading {
   display: flex;
@@ -625,7 +625,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  margin-top: 18px;
+  margin-top: 14px;
 }
 .receiving-footer p {
   font-size: 12px;
@@ -1178,5 +1178,29 @@
   color: #e11d48;
   font-weight: 700;
 }
+
+.inbound-top-nav-bar {
+  margin-bottom: 12px;
+}
+
+.inbound-back-nav-btn {
+  text-decoration: none;
+}
+.inbound-back-nav-btn:hover {
+  text-decoration: none;
+  background: #eef3e6 !important;
+  border-color: #5c732b !important;
+}
+
+.inbound-item-staff-select {
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.inbound-item-staff-select:focus {
+  border-color: #5c732b !important;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(92, 115, 43, 0.15);
+}
+
 
 
