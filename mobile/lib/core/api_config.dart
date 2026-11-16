@@ -1,20 +1,34 @@
-import 'package:flutter/foundation.dart';
 
 class ApiConfig {
+  static const String _envBaseUrl = String.fromEnvironment('BASE_URL');
   static String? _overrideBaseUrl;
 
   static void setCustomBaseUrl(String? url) {
-    _overrideBaseUrl = url;
+    if (url == null || url.trim().isEmpty) {
+      _overrideBaseUrl = null;
+      return;
+    }
+    String clean = url.trim();
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      clean = 'http://$clean';
+    }
+    while (clean.endsWith('/')) {
+      clean = clean.substring(0, clean.length - 1);
+    }
+    if (!clean.endsWith('/api')) {
+      clean = '$clean/api';
+    }
+    _overrideBaseUrl = clean;
   }
 
   static String get baseUrl {
     if (_overrideBaseUrl != null && _overrideBaseUrl!.isNotEmpty) {
       return _overrideBaseUrl!;
     }
-    // Android emulator uses 10.0.2.2 to access host machine localhost
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:5000/api';
+    if (_envBaseUrl.isNotEmpty) {
+      return _envBaseUrl;
     }
+    // Default to localhost:5000 (accessible via adb reverse over USB or desktop)
     return 'http://localhost:5000/api';
   }
 
@@ -44,4 +58,11 @@ class ApiConfig {
   static String get locations => '$baseUrl/locations';
   static String get categories => '$baseUrl/categories';
   static String get suppliers => '$baseUrl/suppliers';
+  static String get inbound => '$baseUrl/inbound';
+  static String inboundDetail(dynamic id) => '$baseUrl/inbound/$id';
+  static String inboundInspect(dynamic id) => '$baseUrl/inbound/$id/inspect';
+  static String get outbound => '$baseUrl/outbound';
+  static String outboundDetail(dynamic id) => '$baseUrl/outbound/$id';
+  static String outboundInspect(dynamic id) => '$baseUrl/outbound/$id/inspect';
+  static String get auditLogsMe => '$baseUrl/audit-logs/me';
 }

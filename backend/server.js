@@ -1,9 +1,11 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 require('./config/db');
+const initCategories = require('./config/initCategories');
+initCategories();
 
 const { apiLimiter } = require('./middlewares/rateLimiter');
 
@@ -19,6 +21,12 @@ const attendanceRoute = require('./routes/attendanceRoute');
 const purchaseOrderRoute = require('./routes/purchaseOrderRoute');
 const auditLogRoute = require('./routes/auditLogRoute');
 const userRoute = require('./routes/userRoute');
+const uploadRoute = require('./routes/uploadRoute');
+const inboundRoute = require('./routes/inboundRoute');
+const outboundRoute = require('./routes/outboundRoute');
+const appUpdateRoute = require('./routes/appUpdateRoute');
+const qrHistoryRoute = require('./routes/qrHistoryRoute');
+const unitRoute = require('./routes/unitRoute');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -30,6 +38,9 @@ app.use(
   })
 );
 app.disable('x-powered-by');
+
+// Static file serving untuk folder uploads gambar
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // 2. CORS: Origin Whitelist (Mencegah domain asing menembak API)
 const allowedOrigins = [
@@ -68,8 +79,8 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // 3. Body Parser dengan Limit Ukuran JSON (mencegah DoS payload besar)
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 // 4. FLOODING / RATE LIMITING: Batasi request ke semua endpoint /api/*
 app.use('/api/', apiLimiter);
@@ -77,6 +88,7 @@ app.use('/api/', apiLimiter);
 // 5. Routes
 app.use('/api/auth', authRoute);
 app.use('/api/categories', categoryRoute);
+app.use('/api/units', unitRoute);
 app.use('/api/locations', locationRoute);
 app.use('/api/suppliers', supplierRoute);
 app.use('/api/products', productRoute);
@@ -85,8 +97,13 @@ app.use('/api/tasks', taskRoute);
 app.use('/api/shifts', shiftRoute);
 app.use('/api/attendances', attendanceRoute);
 app.use('/api/purchase-orders', purchaseOrderRoute);
+app.use('/api/inbound', inboundRoute);
+app.use('/api/outbound', outboundRoute);
 app.use('/api/audit-logs', auditLogRoute);
+app.use('/api/qr-history', qrHistoryRoute);
 app.use('/api/users', userRoute);
+app.use('/api/upload', uploadRoute);
+app.use('/api/app', appUpdateRoute);
 
 app.get('/', (req, res) => {
   res.send('Backend Smart Warehouse jalan!');

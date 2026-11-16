@@ -1,16 +1,26 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'web_camera_helper.dart';
 
 /// Format barcode standar industri gudang SUSUNO:
 /// Mendukung 1D Barcode (Code 128, Code 39, EAN-13) dan 2D Barcode (QR Code, DataMatrix).
+/// Mendukung 1D Barcode (Code 128, Code 39, Code 93, EAN-13, EAN-8, UPC-A, UPC-E)
+/// dan 2D Barcode (QR Code, DataMatrix, Aztec, PDF417).
 const List<BarcodeFormat> defaultWarehouseFormats = [
   BarcodeFormat.qrCode,
   BarcodeFormat.code128,
   BarcodeFormat.code39,
+  BarcodeFormat.code93,
   BarcodeFormat.ean13,
+  BarcodeFormat.ean8,
+  BarcodeFormat.upcA,
+  BarcodeFormat.upcE,
   BarcodeFormat.dataMatrix,
+  BarcodeFormat.aztec,
+  BarcodeFormat.pdf417,
 ];
 
 /// Modul Barcode & QR Scanner Mandiri (Self-Contained Scanner Module)
@@ -21,37 +31,34 @@ const List<BarcodeFormat> defaultWarehouseFormats = [
 class QrScannerScreen extends StatefulWidget {
   final String title;
   final String hintText;
+  final String? demoCode;
   final List<BarcodeFormat> formats;
 
   const QrScannerScreen({
     super.key,
     this.title = 'Scan Barcode / QR',
     this.hintText = 'Arahkan kamera ke Barcode atau QR Code',
+    this.demoCode,
     this.formats = defaultWarehouseFormats,
   });
 
   /// Helper statis untuk membuka scanner dan langsung mendapatkan teks yang dipindai.
-  ///
-  /// Contoh pemanggilan:
-  /// ```dart
-  /// final scannedData = await QrScannerScreen.scan(context);
-  /// if (scannedData != null) {
-  ///   print('Hasil: $scannedData');
-  /// }
-  /// ```
   static Future<String?> scan(
     BuildContext context, {
     String title = 'Scan Barcode / QR',
     String hintText = 'Arahkan kamera ke Barcode atau QR Code',
+    String? demoCode,
     List<BarcodeFormat> formats = defaultWarehouseFormats,
   }) {
     return Navigator.of(context).push<String>(
       MaterialPageRoute(
-        builder: (_) => QrScannerScreen(
-          title: title,
-          hintText: hintText,
-          formats: formats,
-        ),
+        builder:
+            (_) => QrScannerScreen(
+              title: title,
+              hintText: hintText,
+              demoCode: demoCode,
+              formats: formats,
+            ),
       ),
     );
   }
@@ -61,51 +68,77 @@ class QrScannerScreen extends StatefulWidget {
 }
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
-  final GlobalKey<QrScannerViewState> _scannerKey = GlobalKey<QrScannerViewState>();
+  final GlobalKey<QrScannerViewState> _scannerKey =
+      GlobalKey<QrScannerViewState>();
   bool _torchOn = false;
 
   void resetScan() => _scannerKey.currentState?.resetScan();
 
+  Future<void> _handleClose() async {
+    await _scannerKey.currentState?.stopCamera();
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) {
+        _scannerKey.currentState?.stopCamera();
+      },
+      child: Scaffold(
         backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text(
-          widget.title,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          IconButton(
-            tooltip: _torchOn ? 'Matikan Senter' : 'Nyalakan Senter',
-            icon: Icon(
-              _torchOn ? Icons.flash_on : Icons.flash_off,
-              color: _torchOn ? const Color(0xffeab308) : Colors.white,
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            tooltip: 'Tutup Kamera',
+            icon: const Icon(
+              Icons.close_rounded,
+              size: 28,
+              color: Colors.white,
             ),
-            onPressed: () async {
-              await _scannerKey.currentState?.toggleTorch();
-              setState(() {
-                _torchOn = !_torchOn;
-              });
-            },
+            onPressed: _handleClose,
           ),
-          IconButton(
-            tooltip: 'Putar Kamera',
-            icon: const Icon(Icons.flip_camera_ios, color: Colors.white),
-            onPressed: () => _scannerKey.currentState?.switchCamera(),
+          title: Text(
+            widget.title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: QrScannerView(
+          actions: [
+            IconButton(
+              tooltip: _torchOn ? 'Matikan Senter' : 'Nyalakan Senter',
+              icon: Icon(
+                _torchOn ? Icons.flash_on : Icons.flash_off,
+                color: _torchOn ? const Color(0xffeab308) : Colors.white,
+              ),
+              onPressed: () async {
+                await _scannerKey.currentState?.toggleTorch();
+                setState(() {
+                  _torchOn = !_torchOn;
+                });
+              },
+            ),
+            IconButton(
+              tooltip: 'Putar Kamera',
+              icon: const Icon(Icons.flip_camera_ios, color: Colors.white),
+              onPressed: () => _scannerKey.currentState?.switchCamera(),
+            ),
+          ],
+        ),
+        body: QrScannerView(
           key: _scannerKey,
           hintText: widget.hintText,
+          demoCode: widget.demoCode,
           formats: widget.formats,
-          onScanned: (value) {
-            Navigator.of(context).pop(value);
+          onScanned: (value) async {
+            await _scannerKey.currentState?.stopCamera();
+            if (context.mounted) {
+              Navigator.of(context).pop(value);
+            }
           },
         ),
       ),
@@ -117,6 +150,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
 class QrScannerView extends StatefulWidget {
   final ValueChanged<String> onScanned;
   final String hintText;
+  final String? demoCode;
   final List<BarcodeFormat> formats;
   final double scanWindowSize;
   final Color cornerColor;
@@ -127,6 +161,7 @@ class QrScannerView extends StatefulWidget {
     super.key,
     required this.onScanned,
     this.hintText = 'Arahkan kamera ke Barcode atau QR Code',
+    this.demoCode,
     this.formats = defaultWarehouseFormats,
     this.scanWindowSize = 250.0,
     this.cornerColor = const Color(0xff22c55e),
@@ -145,6 +180,7 @@ class QrScannerViewState extends State<QrScannerView>
   late final Animation<double> _animPosition;
   bool _isDispatched = false;
   bool _torchEnabled = false;
+  bool _isFlashing = false;
 
   @override
   void initState() {
@@ -178,6 +214,24 @@ class QrScannerViewState extends State<QrScannerView>
     }
   }
 
+  Future<void> stopCamera() async {
+    try {
+      if (_torchEnabled) {
+        await _controller.toggleTorch();
+        _torchEnabled = false;
+      }
+      await _controller.stop();
+    } catch (_) {}
+    stopWebMediaTracks();
+  }
+
+  void _stopSilently() {
+    try {
+      _controller.stop();
+    } catch (_) {}
+    stopWebMediaTracks();
+  }
+
   Future<void> toggleTorch() async {
     await _controller.toggleTorch();
     if (mounted) {
@@ -191,6 +245,24 @@ class QrScannerViewState extends State<QrScannerView>
     await _controller.switchCamera();
   }
 
+  void _takePhotoSnapshot() {
+    if (_isDispatched) return;
+    HapticFeedback.heavyImpact().ignore();
+    setState(() {
+      _isFlashing = true;
+    });
+    Future.delayed(const Duration(milliseconds: 160), () {
+      if (mounted) {
+        setState(() {
+          _isFlashing = false;
+        });
+      }
+    });
+
+    final photoId = 'FOTO-${DateTime.now().millisecondsSinceEpoch}';
+    widget.onScanned(photoId);
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_controller.value.hasCameraPermission) {
@@ -200,14 +272,21 @@ class QrScannerViewState extends State<QrScannerView>
       unawaited(_controller.start());
     } else if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
-      unawaited(_controller.stop());
+      _stopSilently();
     }
+  }
+
+  @override
+  void deactivate() {
+    _stopSilently();
+    super.deactivate();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _animController.dispose();
+    _stopSilently();
     unawaited(_controller.dispose());
     super.dispose();
   }
@@ -230,10 +309,8 @@ class QrScannerViewState extends State<QrScannerView>
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final boxSize = widget.scanWindowSize.clamp(
-          160.0,
-          constraints.maxWidth * 0.75,
-        );
+        final minDim = math.min(constraints.maxWidth, constraints.maxHeight);
+        final boxSize = (minDim * 0.65).clamp(190.0, 320.0);
 
         return Stack(
           alignment: Alignment.center,
@@ -294,7 +371,7 @@ class QrScannerViewState extends State<QrScannerView>
               ),
             ),
 
-            // Semi-transparan cutout overlay di luar kotak pemindaian
+            // Semi-transparan cutout overlay di luar kotak pemindaian (Presisi Tengah Layar)
             Positioned.fill(
               child: CustomPaint(
                 painter: _CutoutOverlayPainter(
@@ -304,104 +381,191 @@ class QrScannerViewState extends State<QrScannerView>
               ),
             ),
 
-            // Bingkai & Laser Pemindaian
-            SizedBox(
-              width: boxSize,
-              height: boxSize,
-              child: Stack(
-                children: [
-                  // Sudut bingkai QR (Corner Reticles)
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _QrCornerPainter(
-                        color: widget.cornerColor,
-                        cornerLength: 26,
-                        strokeWidth: 4,
+            // Bingkai & Laser Pemindaian Tepat di Tengah (Center Aligned)
+            Center(
+              child: SizedBox(
+                width: boxSize,
+                height: boxSize,
+                child: Stack(
+                  children: [
+                    // Sudut bingkai QR (Corner Reticles)
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _QrCornerPainter(
+                          color: widget.cornerColor,
+                          cornerLength: 26,
+                          strokeWidth: 4,
+                        ),
                       ),
                     ),
-                  ),
 
-                  // Garis Laser Animasi (Positioned.fill langsung anak dari Stack)
-                  Positioned.fill(
-                    child: AnimatedBuilder(
-                      animation: _animPosition,
-                      builder: (context, child) {
-                        return Align(
-                          alignment: Alignment(0, -1.0 + (_animPosition.value * 2.0)),
-                          child: Container(
-                            height: 2.5,
-                            margin: const EdgeInsets.symmetric(horizontal: 12),
-                            decoration: BoxDecoration(
-                              color: widget.scanLineColor,
-                              borderRadius: BorderRadius.circular(2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: widget.scanLineColor.withValues(alpha: 0.8),
-                                  blurRadius: 10,
-                                  spreadRadius: 2,
-                                ),
-                              ],
+                    // Garis Laser Animasi
+                    Positioned.fill(
+                      child: AnimatedBuilder(
+                        animation: _animPosition,
+                        builder: (context, child) {
+                          return Align(
+                            alignment: Alignment(
+                              0,
+                              -1.0 + (_animPosition.value * 2.0),
                             ),
-                          ),
-                        );
-                      },
+                            child: Container(
+                              height: 2.5,
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: widget.scanLineColor,
+                                borderRadius: BorderRadius.circular(2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: widget.scanLineColor.withValues(
+                                      alpha: 0.8,
+                                    ),
+                                    blurRadius: 10,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
 
             // Petunjuk Teks di Bawah Kotak Scanner
             Positioned(
-              top: (constraints.maxHeight / 2) + (boxSize / 2) + 24,
+              top: (constraints.maxHeight / 2) + (boxSize / 2) + 20,
               left: 24,
               right: 24,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.65),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: Text(
-                  widget.hintText,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.3,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.65),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Text(
+                    widget.hintText,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.3,
+                    ),
                   ),
                 ),
               ),
             ),
 
-            // Kontrol Cepat di Bawah (Flashlight & Switch Camera)
+            // Shutter Flash Effect
+            if (_isFlashing)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(color: Colors.white.withValues(alpha: 0.85)),
+                ),
+              ),
+
+            // Bar Kontrol Bawah (Flashlight, Tombol Shutter Ambil Foto & Putar Kamera)
             if (widget.showControls)
               Positioned(
-                bottom: 30,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _RoundControlButton(
-                      icon: _torchEnabled ? Icons.flash_on : Icons.flash_off,
-                      isActive: _torchEnabled,
-                      label: 'Flash',
-                      onTap: toggleTorch,
-                    ),
-                    const SizedBox(width: 24),
-                    _RoundControlButton(
-                      icon: Icons.flip_camera_ios,
-                      isActive: false,
-                      label: 'Putar',
-                      onTap: switchCamera,
-                    ),
-                  ],
+                bottom: 32,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  top: false,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _RoundControlButton(
+                        icon: _torchEnabled ? Icons.flash_on : Icons.flash_off,
+                        isActive: _torchEnabled,
+                        label: 'Flash',
+                        onTap: toggleTorch,
+                      ),
+                      _ShutterCaptureButton(onTap: _takePhotoSnapshot),
+                      _RoundControlButton(
+                        icon: Icons.flip_camera_ios,
+                        isActive: false,
+                        label: 'Putar',
+                        onTap: switchCamera,
+                      ),
+                    ],
+                  ),
                 ),
               ),
           ],
         );
       },
+    );
+  }
+}
+
+/// Tombol shutter melingkar besar untuk mengambil foto / bukti visual
+class _ShutterCaptureButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ShutterCaptureButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 4),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x66000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.camera_alt_rounded,
+                  size: 26,
+                  color: Color(0xff1f2937),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Ambil Foto',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+              shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -432,7 +596,8 @@ class _RoundControlButton extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: isActive ? Colors.white : Colors.black.withValues(alpha: 0.6),
+              color:
+                  isActive ? Colors.white : Colors.black.withValues(alpha: 0.6),
               shape: BoxShape.circle,
               border: Border.all(
                 color: isActive ? Colors.white : Colors.white30,
@@ -465,10 +630,7 @@ class _CutoutOverlayPainter extends CustomPainter {
   final double cutoutSize;
   final Color overlayColor;
 
-  _CutoutOverlayPainter({
-    required this.cutoutSize,
-    required this.overlayColor,
-  });
+  _CutoutOverlayPainter({required this.cutoutSize, required this.overlayColor});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -480,10 +642,11 @@ class _CutoutOverlayPainter extends CustomPainter {
       height: cutoutSize,
     );
 
-    final path = Path()
-      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(16)))
-      ..fillType = PathFillType.evenOdd;
+    final path =
+        Path()
+          ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
+          ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(16)))
+          ..fillType = PathFillType.evenOdd;
 
     canvas.drawPath(path, paint);
   }
@@ -508,11 +671,12 @@ class _QrCornerPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+    final paint =
+        Paint()
+          ..color = color
+          ..strokeWidth = strokeWidth
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round;
 
     final w = size.width;
     final h = size.height;

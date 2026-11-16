@@ -216,6 +216,12 @@
   background: #f8d2ce;
   color: #8a5a5b;
 }
+.inbound-status-inspected {
+  background: #ecfeff;
+  color: #0891b2;
+  border: 1px solid #a5f3fc;
+  font-weight: 600;
+}
 .inbound-steps {
   padding: 0;
   margin: 32px 6% 28px;
@@ -796,3 +802,5 @@
     width: calc(100% - 90px);
   }
 }
+
+.inbound-list-filters>input,.inbound-po-filters>input{min-width:0}

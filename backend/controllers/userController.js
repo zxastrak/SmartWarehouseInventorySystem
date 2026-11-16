@@ -75,25 +75,27 @@ const userController = {
   update: async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, email } = req.body || {};
-
-      if (!name || !email) {
-        return res.status(400).json({ message: 'Name dan email wajib diisi' });
-      }
+      const { name, email, photo, role_title, warehouse } = req.body || {};
 
       const target = await getStafTarget(id);
       if (target.error) {
         return res.status(target.error.status).json({ message: target.error.message });
       }
 
-      await userModel.update(id, { name, email });
+      await userModel.update(id, {
+        name: name !== undefined ? name : target.user.name,
+        email: email !== undefined ? email : target.user.email,
+        photo,
+        role_title: role_title !== undefined ? (role_title && role_title.trim() ? role_title.trim() : 'Staf') : (target.user.role_title || 'Staf'),
+        warehouse,
+      });
 
       await logAudit({
-        user_id: req.user.id,
+        user_id: req.user?.id || null,
         action: 'USER_UPDATED',
         table_affected: 'users',
         record_id: Number(id),
-      });
+      }).catch(() => {});
 
       res.status(200).json({ message: 'Data staf berhasil diupdate' });
     } catch (err) {

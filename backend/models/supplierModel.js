@@ -2,9 +2,18 @@ const db = require('../config/db');
 
 const supplierModel = {
   create: async (supplierData) => {
-    const { name, contact_person, phone, address } = supplierData;
-    const sql = 'INSERT INTO suppliers (name, contact_person, phone, address) VALUES (?, ?, ?, ?)';
-    const [result] = await db.query(sql, [name, contact_person, phone, address]);
+    const { name, contact_person, email, phone, address, bank_name, bank_account, bank_holder } = supplierData;
+    const sql = 'INSERT INTO suppliers (name, contact_person, email, phone, address, bank_name, bank_account, bank_holder) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+    const [result] = await db.query(sql, [
+      name,
+      contact_person || null,
+      email || null,
+      phone || null,
+      address || null,
+      bank_name || null,
+      bank_account || null,
+      bank_holder || null,
+    ]);
     return result;
   },
 
@@ -21,9 +30,19 @@ const supplierModel = {
   },
 
   update: async (id, supplierData) => {
-    const { name, contact_person, phone, address } = supplierData;
-    const sql = 'UPDATE suppliers SET name = ?, contact_person = ?, phone = ?, address = ? WHERE id = ?';
-    const [result] = await db.query(sql, [name, contact_person, phone, address, id]);
+    const { name, contact_person, email, phone, address, bank_name, bank_account, bank_holder } = supplierData;
+    const sql = 'UPDATE suppliers SET name = ?, contact_person = ?, email = ?, phone = ?, address = ?, bank_name = ?, bank_account = ?, bank_holder = ? WHERE id = ?';
+    const [result] = await db.query(sql, [
+      name,
+      contact_person || null,
+      email || null,
+      phone || null,
+      address || null,
+      bank_name || null,
+      bank_account || null,
+      bank_holder || null,
+      id,
+    ]);
     return result;
   },
 

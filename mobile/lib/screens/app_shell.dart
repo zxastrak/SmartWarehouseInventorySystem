@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../state/warehouse_state.dart';
 import '../models/models.dart';
 import '../core/app_theme.dart';
+import '../core/api_config.dart';
 import 'shift_hub_screen.dart';
 import 'stock_screen.dart';
 import 'scanner_screen.dart';
@@ -78,12 +79,20 @@ class _AppShellState extends State<AppShell> {
                   alignment: Alignment.topCenter,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 500),
-                    child: s.page == 0 || s.page == 1
-                        ? body
-                        : SingleChildScrollView(
-                            padding: EdgeInsets.fromLTRB(16, topPadding, 16, 100),
-                            child: body,
-                          ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      child: KeyedSubtree(
+                        key: ValueKey<int>(s.page),
+                        child: s.page == 0 || s.page == 1
+                            ? body
+                            : SingleChildScrollView(
+                                padding: EdgeInsets.fromLTRB(16, topPadding, 16, 100),
+                                child: body,
+                              ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -106,7 +115,14 @@ class _AppShellState extends State<AppShell> {
                       child: _TopNavbar(
                         isScrolled: _isScrolled,
                         unreadCount: s.unreadNotificationCount,
-                        onNotificationTap: () => _showNotificationSheet(context, s),
+                        isOnline: s.isOnline,
+                        onConnectionTap: () => _showConnectionDetailSheet(context, s),
+                        onNotificationTap: () {
+                          if (s.unreadNotificationCount > 0) {
+                            s.markNotificationsRead();
+                          }
+                          _showNotificationSheet(context, s);
+                        },
                       ),
                     ),
                   ),
@@ -156,47 +172,87 @@ class _AppShellState extends State<AppShell> {
                               ),
                             ],
                           ),
-                          child: Row(
+                          child: Stack(
+                            alignment: Alignment.center,
                             children: [
-                              _InteractiveNavTabItem(
-                                label: 'Tugas',
-                                icon: Icons.assignment_outlined,
-                                activeIcon: Icons.assignment,
-                                isSelected: activeBottomTab == 0,
-                                badgeCount: s.pendingCount,
-                                onTap: () => s.navigate(0),
+                              // Kapsul highlight yang meluncur halus secara horizontal
+                              AnimatedAlign(
+                                duration: const Duration(milliseconds: 280),
+                                curve: Curves.fastOutSlowIn,
+                                alignment: Alignment(
+                                  -1.0 + (activeBottomTab * 0.5),
+                                  0.0,
+                                ),
+                                child: AnimatedOpacity(
+                                  duration: const Duration(milliseconds: 200),
+                                  curve: Curves.easeInOut,
+                                  opacity: activeBottomTab == 2 ? 0.0 : 1.0,
+                                  child: FractionallySizedBox(
+                                    widthFactor: 0.19,
+                                    heightFactor: 0.82,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xffedf4e4),
+                                        borderRadius: BorderRadius.circular(22),
+                                        border: Border.all(
+                                          color: const Color(0xffdcebd9),
+                                          width: 1.0,
+                                        ),
+                                        boxShadow: const [
+                                          BoxShadow(
+                                            color: Color(0x0d5c732b),
+                                            blurRadius: 6,
+                                            offset: Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
-                              _InteractiveNavTabItem(
-                                label: 'Stok & Rak',
-                                icon: Icons.inventory_2_outlined,
-                                activeIcon: Icons.inventory_2,
-                                isSelected: activeBottomTab == 1,
-                                onTap: () => s.navigate(1),
-                              ),
-                              const Expanded(child: SizedBox()),
-                              _InteractiveNavTabItem(
-                                label: 'Aktivitas',
-                                icon: Icons.history,
-                                activeIcon: Icons.history_toggle_off,
-                                isSelected: activeBottomTab == 3,
-                                onTap: () => s.navigate(3),
-                              ),
-                              _InteractiveNavTabItem(
-                                label: 'Profil',
-                                icon: Icons.person_outline,
-                                activeIcon: Icons.person,
-                                isSelected: activeBottomTab == 4,
-                                onTap: () => s.navigate(4),
+                              Row(
+                                children: [
+                                  _InteractiveNavTabItem(
+                                    label: 'Tugas',
+                                    icon: Icons.assignment_outlined,
+                                    activeIcon: Icons.assignment,
+                                    isSelected: activeBottomTab == 0,
+                                    badgeCount: s.pendingCount,
+                                    onTap: () => s.navigate(0),
+                                  ),
+                                  _InteractiveNavTabItem(
+                                    label: 'Stok & Rak',
+                                    icon: Icons.inventory_2_outlined,
+                                    activeIcon: Icons.inventory_2,
+                                    isSelected: activeBottomTab == 1,
+                                    onTap: () => s.navigate(1),
+                                  ),
+                                  const Expanded(child: SizedBox()),
+                                  _InteractiveNavTabItem(
+                                    label: 'Aktivitas',
+                                    icon: Icons.history,
+                                    activeIcon: Icons.history_toggle_off,
+                                    isSelected: activeBottomTab == 3,
+                                    onTap: () => s.navigate(3),
+                                  ),
+                                  _InteractiveNavTabItem(
+                                    label: 'Profil',
+                                    icon: Icons.person_outline,
+                                    activeIcon: Icons.person,
+                                    isSelected: activeBottomTab == 4,
+                                    onTap: () => s.navigate(4),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
                       ),
-                      // Bulatan Hijau Besar di Tengah (Scanner Cepat)
+                      // Bulatan Hijau Besar di Tengah (Scanner Cepat Otomatis Alur Tugas)
                       Positioned(
                         top: 0,
                         child: GestureDetector(
-                          onTap: () => s.navigate(2),
+                          onTap: () => s.launchActiveTaskScanner(),
                           behavior: HitTestBehavior.opaque,
                           child: Container(
                             width: 56,
@@ -226,6 +282,169 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  // Modal Detail Status Koneksi Server
+  void _showConnectionDetailSheet(BuildContext context, WarehouseState s) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        bool isChecking = false;
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            final online = s.isOnline;
+
+            return Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Handle Bar
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xffcbd5e1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+
+                    // Status Icon
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: online ? const Color(0xfff0fdf4) : const Color(0xfffef2f2),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: online ? const Color(0xff86efac) : const Color(0xfffca5a5),
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(
+                        online ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
+                        color: online ? const Color(0xff16a34a) : const Color(0xffdc2626),
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    Text(
+                      online ? 'Server Backend Terhubung' : 'Server Backend Terputus',
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        color: brandInk,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 6),
+
+                    Text(
+                      online
+                          ? 'Aplikasi terhubung dengan server SUSUNO. Seluruh transaksi pemindaian, absensi, dan laporan inspeksi tersinkronisasi otomatis.'
+                          : 'Aplikasi saat ini beroperasi dalam mode offline. Anda tetap dapat memindai barang & membaca data lokal, namun pengiriman laporan ke web manager memerlukan koneksi internet/server.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: brandSlate,
+                        height: 1.4,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xfff8fafc),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xffe2e8f0)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.dns_rounded, size: 16, color: brandSlate),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Host: ${ApiConfig.baseUrl}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontFamily: 'monospace',
+                                color: brandInk,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: online ? const Color(0xffdcfce7) : const Color(0xfffee2e2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              online ? 'ONLINE' : 'OFFLINE',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                color: online ? const Color(0xff166534) : const Color(0xff991b1b),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: brand,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        onPressed: isChecking
+                            ? null
+                            : () async {
+                                setModalState(() => isChecking = true);
+                                final ok = await s.checkConnectivity();
+                                setModalState(() => isChecking = false);
+                                if (!ctx.mounted) return;
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  SnackBar(
+                                    content: Text(ok
+                                        ? 'Berhasil terhubung ke server SUSUNO!'
+                                        : 'Gagal terhubung ke server SUSUNO (${ApiConfig.baseUrl})'),
+                                    backgroundColor: ok ? const Color(0xff16a34a) : const Color(0xffdc2626),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                        icon: const Icon(Icons.refresh_rounded, size: 18),
+                        label: Text(
+                          isChecking ? 'Memeriksa Koneksi...' : 'Uji Ulang Koneksi',
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   // Bottom Sheet Notifikasi Tugas dari Manajer
   void _showNotificationSheet(BuildContext context, WarehouseState s) {
     showModalBottomSheet(
@@ -235,6 +454,11 @@ class _AppShellState extends State<AppShell> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
+            final activeNotifications = s.notifications.where((n) {
+              final st = (n['status'] ?? 'pending').toString().toLowerCase();
+              return st != 'done' && st != 'completed' && st != 'cancelled';
+            }).toList();
+
             return Container(
               constraints: BoxConstraints(
                 maxHeight: MediaQuery.of(ctx).size.height * 0.85,
@@ -326,9 +550,9 @@ class _AppShellState extends State<AppShell> {
 
                     const Divider(height: 1, thickness: 1, color: Color(0xfff1f5f9)),
 
-                    // Daftar Tugas Notifikasi
+                    // Daftar Tugas Notifikasi (hanya tugas aktif yang belum selesai)
                     Flexible(
-                      child: s.notifications.isEmpty
+                      child: activeNotifications.isEmpty
                           ? Container(
                               padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
                               alignment: Alignment.center,
@@ -342,14 +566,14 @@ class _AppShellState extends State<AppShell> {
                                       shape: BoxShape.circle,
                                     ),
                                     child: const Icon(
-                                      Icons.notifications_none_rounded,
+                                      Icons.check_circle_outline_rounded,
                                       size: 40,
                                       color: brand,
                                     ),
                                   ),
                                   const SizedBox(height: 14),
                                   const Text(
-                                    'Belum Ada Notifikasi Tugas',
+                                    'Semua Tugas Selesai',
                                     style: TextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w800,
@@ -358,7 +582,7 @@ class _AppShellState extends State<AppShell> {
                                   ),
                                   const SizedBox(height: 6),
                                   const Text(
-                                    'Tugas yang ditugaskan oleh manajer gudang akan muncul di sini secara real-time.',
+                                    'Tidak ada tugas operasional yang menunggu dikerjakan saat ini.',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontSize: 12,
@@ -373,14 +597,14 @@ class _AppShellState extends State<AppShell> {
                           : ListView.separated(
                               shrinkWrap: true,
                               padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-                              itemCount: s.notifications.length,
+                              itemCount: activeNotifications.length,
                               separatorBuilder: (_, __) => const SizedBox(height: 12),
                               itemBuilder: (context, index) {
-                                final n = s.notifications[index];
+                                final n = activeNotifications[index];
                                 final id = _parseInt(n['id']);
                                 final isUnread = !s.readNotificationIds.contains(id);
                                 final status = (n['status'] ?? 'pending').toString().toLowerCase();
-                                final isCompleted = status == 'completed';
+                                final isCompleted = status == 'done' || status == 'completed';
                                 final isInProgress = status == 'in_progress';
                                 final sku = (n['sku'] ?? '').toString();
                                 final location = (n['location_code'] ?? '').toString();
@@ -555,7 +779,7 @@ class _AppShellState extends State<AppShell> {
                                             size: 20,
                                           ),
                                           label: Text(
-                                            isInProgress ? 'Selesaikan Tugas' : 'Mulai Kerjakan',
+                                            isInProgress ? 'Selesaikan Tugas' : 'Kerjakan',
                                             style: const TextStyle(
                                               fontSize: 13,
                                               fontWeight: FontWeight.w800,
@@ -567,12 +791,16 @@ class _AppShellState extends State<AppShell> {
 
                                             if (!isInProgress) {
                                               await s.updateTaskStatus(id, 'in_progress');
+                                              final taskTitle = (n['title'] ?? 'Tugas Lapangan').toString();
+                                              s.openScanner(
+                                                sku,
+                                                mode: ScanMode.single,
+                                                taskTitle: taskTitle,
+                                                taskId: id,
+                                                rack: location.isNotEmpty ? location : null,
+                                              );
                                             } else {
-                                              await s.updateTaskStatus(id, 'completed');
-                                            }
-
-                                            if (sku.isNotEmpty) {
-                                              s.openScanner(sku, mode: ScanMode.single);
+                                              await s.updateTaskStatus(id, 'done');
                                             }
 
                                             if (context.mounted) {
@@ -581,7 +809,7 @@ class _AppShellState extends State<AppShell> {
                                                   content: Text(
                                                     isInProgress
                                                         ? 'Tugas #${n['id']} telah diselesaikan!'
-                                                        : 'Mulai mengerjakan tugas #${n['id']} ($sku)',
+                                                        : 'Mulai mengerjakan tugas #${n['id']}${sku.isNotEmpty ? ' ($sku)' : ''}',
                                                   ),
                                                   backgroundColor: brand,
                                                   behavior: SnackBarBehavior.floating,
@@ -619,11 +847,15 @@ class _AppShellState extends State<AppShell> {
 class _TopNavbar extends StatelessWidget {
   final bool isScrolled;
   final int unreadCount;
+  final bool isOnline;
+  final VoidCallback onConnectionTap;
   final VoidCallback onNotificationTap;
 
   const _TopNavbar({
     required this.isScrolled,
     required this.unreadCount,
+    required this.isOnline,
+    required this.onConnectionTap,
     required this.onNotificationTap,
   });
 
@@ -692,12 +924,96 @@ class _TopNavbar extends StatelessWidget {
 
           const Spacer(),
 
-          // 3. Ikon Lonceng / Bell Warna Kuning
+          // 3. Indikator Online/Offline di sebelah lonceng
+          _ConnectionStatusBadge(
+            isOnline: isOnline,
+            onTap: onConnectionTap,
+          ),
+          const SizedBox(width: 8),
+
+          // 4. Ikon Lonceng / Bell Warna Kuning
           _NotificationBellButton(
             unreadCount: unreadCount,
             onTap: onNotificationTap,
           ),
         ],
+      ),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Badge Indikator Online / Offline di Sebelah Lonceng
+// -----------------------------------------------------------------------------
+
+class _ConnectionStatusBadge extends StatelessWidget {
+  final bool isOnline;
+  final VoidCallback onTap;
+
+  const _ConnectionStatusBadge({
+    required this.isOnline,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          decoration: BoxDecoration(
+            color: isOnline
+                ? const Color(0xfff0fdf4)
+                : const Color(0xfffef2f2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isOnline
+                  ? const Color(0xff86efac)
+                  : const Color(0xfffca5a5),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  color: isOnline
+                      ? const Color(0xff16a34a)
+                      : const Color(0xffdc2626),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: (isOnline
+                              ? const Color(0xff16a34a)
+                              : const Color(0xffdc2626))
+                          .withValues(alpha: 0.4),
+                      blurRadius: 4,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                isOnline ? 'Online' : 'Offline',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                  color: isOnline
+                      ? const Color(0xff166534)
+                      : const Color(0xff991b1b),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -810,20 +1126,18 @@ class _InteractiveNavTabItem extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 240),
-          curve: Curves.easeOutCubic,
-          transform: Matrix4.translationValues(0, isSelected ? -5 : 0, 0),
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.fastOutSlowIn,
+          transform: Matrix4.translationValues(0, isSelected ? -2 : 0, 0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 240),
+              SizedBox(
                 width: 44,
                 height: 28,
-                alignment: Alignment.center,
-                decoration: null,
                 child: Stack(
+                  alignment: Alignment.center,
                   clipBehavior: Clip.none,
                   children: [
                     Icon(
@@ -861,7 +1175,10 @@ class _InteractiveNavTabItem extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               AnimatedCrossFade(
-                duration: const Duration(milliseconds: 200),
+                duration: const Duration(milliseconds: 240),
+                firstCurve: Curves.easeOut,
+                secondCurve: Curves.easeIn,
+                sizeCurve: Curves.fastOutSlowIn,
                 crossFadeState: isSelected
                     ? CrossFadeState.showFirst
                     : CrossFadeState.showSecond,

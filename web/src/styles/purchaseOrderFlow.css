@@ -7,3 +7,28 @@
 .po-paper-info>section{grid-column:span 3}
 .po-paper-info>section:nth-child(n+3){grid-column:span 2}
 @media(max-width:700px){.po-paper-info{grid-template-columns:1fr}.po-paper-info>section,.po-paper-info>section:nth-child(n+3){grid-column:auto}}
+
+/* Center table headers and align content symmetrically */
+.po-items table th,
+.po-paper table th,
+.po-paper th {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.po-items table td {
+  text-align: center;
+  vertical-align: middle;
+}
+.po-items table td:first-child {
+  text-align: left;
+}
+
+.po-paper table td {
+  text-align: center;
+  vertical-align: middle;
+}
+.po-paper table td:first-child {
+  text-align: left;
+}
+

@@ -5,18 +5,31 @@ const logAudit = require('../utils/audit');
 const productController = {
   create: async (req, res) => {
     try {
-      const { name, sku, category_id, supplier_id, stock_quantity, unit, price, location_id } = req.body;
+      const { name, sku, category_id, supplier_id, stock_quantity, reorder_level, reorder, unit, price, location_id, image_url, description, weight, weight_unit } = req.body;
 
       if (!name || !sku) {
         return res.status(400).json({ message: 'Nama dan SKU produk wajib diisi' });
       }
 
+      const cleanSku = String(sku).trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+      if (!cleanSku || cleanSku.length > 7 || !/^[A-Z0-9]{1,7}$/.test(cleanSku)) {
+        return res.status(400).json({ message: 'SKU harus berupa huruf kapital dan angka (maksimal 7 karakter)' });
+      }
+
       const result = await productModel.create({
-        name, sku, category_id, supplier_id,
+        name,
+        sku: cleanSku,
+        category_id,
+        supplier_id,
         stock_quantity: stock_quantity || 0,
+        reorder_level: reorder_level !== undefined ? reorder_level : reorder,
         unit: unit || 'pcs',
         price: price || 0,
         location_id,
+        image_url: image_url || null,
+        description: description || null,
+        weight,
+        weight_unit,
       });
 
       await logAudit({
@@ -37,7 +50,8 @@ const productController = {
 
   getAll: async (req, res) => {
     try {
-      const products = await productModel.getAll();
+      const { inventory_only } = req.query;
+      const products = await productModel.getAll({ inventory_only: inventory_only === 'true' });
       res.status(200).json(products);
     } catch (err) {
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
@@ -55,6 +69,92 @@ const productController = {
 
       res.status(200).json(product[0]);
     } catch (err) {
+      res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
+    }
+  },
+
+  // Relokasi rak / Putaway oleh staf atau manajer
+  updateLocation: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { location } = req.body || {};
+
+      if (!location || typeof location !== 'string' || location.trim().length === 0) {
+        return res.status(400).json({ message: 'Lokasi rak tujuan wajib diisi' });
+      }
+
+      const products = await productModel.getById(id);
+      if (products.length === 0) {
+        return res.status(404).json({ message: 'Produk tidak ditemukan' });
+      }
+
+      const targetLoc = location.trim().toUpperCase();
+      await productModel.updateLocation(id, targetLoc);
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'PUTAWAY_RELOCATION',
+        table_affected: 'products',
+        record_id: Number(id),
+      });
+
+      res.status(200).json({
+        message: 'Lokasi rak berhasil diperbarui (Putaway sukses)',
+        zone_location: targetLoc,
+      });
+    } catch (err) {
+      console.error('[ERROR updateLocation]', err);
+      res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
+    }
+  },
+
+  // Penyesuaian stok opname / verifikasi fisik di rak
+  adjustStock: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { physical_quantity, notes } = req.body || {};
+
+      if (physical_quantity === undefined || physical_quantity === null || isNaN(Number(physical_quantity)) || Number(physical_quantity) < 0) {
+        return res.status(400).json({ message: 'Jumlah fisik valid wajib diisi (minimal 0)' });
+      }
+
+      const products = await productModel.getById(id);
+      if (products.length === 0) {
+        return res.status(404).json({ message: 'Produk tidak ditemukan' });
+      }
+
+      const currentStock = products[0].stock_quantity;
+      const newStock = Number(physical_quantity);
+      const diff = newStock - currentStock;
+
+      if (diff !== 0) {
+        const type = diff > 0 ? 'in' : 'out';
+        const qty = Math.abs(diff);
+        const note = notes ? notes.trim() : `Penyesuaian stok opname rak (Sistem: ${currentStock} -> Fisik: ${newStock})`;
+
+        await stockTransactionModel.processStockMovement({
+          product_id: Number(id),
+          user_id: req.user.id,
+          type: type,
+          quantity: qty,
+          notes: note,
+        });
+      }
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'RACK_STOCK_VERIFIED',
+        table_affected: 'products',
+        record_id: Number(id),
+      });
+
+      const updated = await productModel.getById(id);
+      res.status(200).json({
+        message: 'Stok fisik rak berhasil diverifikasi',
+        stock_quantity: updated[0] ? updated[0].stock_quantity : newStock,
+      });
+    } catch (err) {
+      console.error('[ERROR adjustStock]', err);
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
     }
   },
@@ -163,14 +263,30 @@ const productController = {
   update: async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, sku, category_id, supplier_id, stock_quantity, unit, price, location_id } = req.body;
+      const { name, sku, category_id, supplier_id, stock_quantity, reorder_level, reorder, unit, price, location_id, image_url, description, weight, weight_unit } = req.body;
 
       const existing = await productModel.getById(id);
       if (existing.length === 0) {
         return res.status(404).json({ message: 'Produk tidak ditemukan' });
       }
 
-      await productModel.update(id, { name, sku, category_id, supplier_id, stock_quantity, unit, price, location_id });
+      const current = existing[0];
+      const targetReorder = reorder_level !== undefined ? reorder_level : reorder;
+      await productModel.update(id, {
+        name: name !== undefined ? name : current.name,
+        sku: sku !== undefined ? sku : current.sku,
+        category_id: category_id !== undefined ? category_id : current.category_id,
+        supplier_id: supplier_id !== undefined ? supplier_id : current.supplier_id,
+        stock_quantity: stock_quantity !== undefined ? stock_quantity : current.stock_quantity,
+        reorder_level: targetReorder !== undefined ? targetReorder : current.reorder_level,
+        unit: unit !== undefined ? unit : current.unit,
+        price: price !== undefined ? price : current.price,
+        location_id: location_id !== undefined ? location_id : current.location_id,
+        image_url: image_url !== undefined ? image_url : current.image_url,
+        description: description !== undefined ? description : current.description,
+        weight: weight !== undefined ? weight : current.weight,
+        weight_unit: weight_unit !== undefined ? weight_unit : current.weight_unit,
+      });
 
       await logAudit({
         user_id: req.user.id,

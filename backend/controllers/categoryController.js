@@ -59,7 +59,11 @@ const categoryController = {
         return res.status(404).json({ message: 'Kategori tidak ditemukan' });
       }
 
-      await categoryModel.update(id, { name, description });
+      const current = existing[0];
+      const updatedName = name !== undefined && name.trim() ? name.trim() : current.name;
+      const updatedDesc = description !== undefined ? description : current.description;
+
+      await categoryModel.update(id, { name: updatedName, description: updatedDesc });
 
       await logAudit({
         user_id: req.user.id,

@@ -19,6 +19,11 @@ class _StockScreenState extends State<StockScreen> {
   void initState() {
     super.initState();
     search = TextEditingController(text: context.read<WarehouseState>().search);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<WarehouseState>().loadFromApi();
+      }
+    });
   }
 
   @override
@@ -33,9 +38,11 @@ class _StockScreenState extends State<StockScreen> {
     final items = s.filteredItems;
     final hasFilter = s.filter.active;
     final topPadding = MediaQuery.paddingOf(context).top + 72;
-    return CustomScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      slivers: [
+    return RefreshIndicator(
+      onRefresh: () => s.loadFromApi(),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
         SliverPadding(
           padding: EdgeInsets.fromLTRB(16, topPadding, 16, 8),
           sliver: SliverToBoxAdapter(
@@ -192,7 +199,7 @@ class _StockScreenState extends State<StockScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            '${items.length} matching products',
+                            '${formatNumber(items.length)} matching products',
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -235,8 +242,9 @@ class _StockScreenState extends State<StockScreen> {
             ),
           ),
       ],
-    );
-  }
+    ),
+  );
+}
 }
 
 class _StockMetric extends StatelessWidget {

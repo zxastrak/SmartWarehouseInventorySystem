@@ -4,13 +4,22 @@ const logAudit = require('../utils/audit');
 const supplierController = {
   create: async (req, res) => {
     try {
-      const { name, contact_person, phone, address } = req.body;
+      const { name, contact_person, email, phone, address, bank_name, bank_account, bank_holder } = req.body;
 
       if (!name) {
         return res.status(400).json({ message: 'Nama supplier wajib diisi' });
       }
 
-      const result = await supplierModel.create({ name, contact_person, phone, address });
+      const result = await supplierModel.create({
+        name,
+        contact_person,
+        email,
+        phone,
+        address,
+        bank_name,
+        bank_account,
+        bank_holder,
+      });
 
       await logAudit({
         user_id: req.user.id,
@@ -52,14 +61,23 @@ const supplierController = {
   update: async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, contact_person, phone, address } = req.body;
+      const { name, contact_person, email, phone, address, bank_name, bank_account, bank_holder } = req.body;
 
       const existing = await supplierModel.getById(id);
       if (existing.length === 0) {
         return res.status(404).json({ message: 'Supplier tidak ditemukan' });
       }
 
-      await supplierModel.update(id, { name, contact_person, phone, address });
+      await supplierModel.update(id, {
+        name,
+        contact_person,
+        email,
+        phone,
+        address,
+        bank_name,
+        bank_account,
+        bank_holder,
+      });
 
       await logAudit({
         user_id: req.user.id,

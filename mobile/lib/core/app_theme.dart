@@ -158,8 +158,13 @@ ThemeData appTheme(bool contrast) => ThemeData(
   ),
 );
 
-String formatRupiah(num number) {
+String formatNumber(num number) {
   final str = number.toStringAsFixed(0);
   final regex = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
-  return 'Rp ${str.replaceAllMapped(regex, (m) => '${m[1]}.')}';
+  return str.replaceAllMapped(regex, (m) => '${m[1]}.');
 }
+
+String formatRupiah(num number) {
+  return 'Rp ${formatNumber(number)}';
+}
+

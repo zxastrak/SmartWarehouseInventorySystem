@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/warehouse_state.dart';
 import '../core/app_theme.dart';
+import '../core/api_config.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -55,6 +56,155 @@ class _LoginScreenState extends State<LoginScreen> {
         _errorMessage = result;
       }
     });
+  }
+
+  Future<void> _showServerConfigDialog() async {
+    final urlCtrl = TextEditingController(text: ApiConfig.baseUrl);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 24,
+              bottom: MediaQuery.viewInsetsOf(ctx).bottom + 24,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xffcbd5e1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xfff0fdf4),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.dns_rounded, color: Color(0xff5c732b), size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Konfigurasi Server Backend',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: brandInk,
+                              ),
+                            ),
+                            Text(
+                              'Atur URL / IP server API Susuno',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xff64748b),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Pilihan Cepat:',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xff64748b)),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ActionChip(
+                        avatar: const Icon(Icons.cable, size: 16, color: Color(0xff5c732b)),
+                        label: const Text('USB Cable (localhost)'),
+                        onPressed: () {
+                          setModalState(() {
+                            urlCtrl.text = 'http://localhost:5000/api';
+                          });
+                        },
+                      ),
+                      ActionChip(
+                        avatar: const Icon(Icons.phone_android, size: 16, color: Color(0xff0284c7)),
+                        label: const Text('Emulator (10.0.2.2)'),
+                        onPressed: () {
+                          setModalState(() {
+                            urlCtrl.text = 'http://10.0.2.2:5000/api';
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: urlCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Server Base URL',
+                      hintText: 'http://192.168.x.x:5000/api',
+                      prefixIcon: const Icon(Icons.link_rounded),
+                      filled: true,
+                      fillColor: const Color(0xfff8fafc),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xffe2e8f0)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        ApiConfig.setCustomBaseUrl(urlCtrl.text);
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Server API diatur ke: ${ApiConfig.baseUrl}'),
+                            backgroundColor: const Color(0xff5c732b),
+                          ),
+                        );
+                        setState(() {});
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xff5c732b),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text('Simpan Pengaturan', style: TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _showForgotPasswordDialog() async {
@@ -365,12 +515,27 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
 
-          // LAYER 2: branding kiri atas
+          // LAYER 2: branding kiri atas & setting server kanan atas
           Positioned(
-            top: topPad + 16,
+            top: topPad + 12,
             left: 20,
-            right: 20,
-            child: const _Branding(),
+            right: 16,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const _Branding(),
+                IconButton(
+                  icon: const Icon(
+                    Icons.settings_outlined,
+                    color: brandHeroInk,
+                    size: 24,
+                  ),
+                  tooltip: 'Pengaturan Server API',
+                  onPressed: _showServerConfigDialog,
+                ),
+              ],
+            ),
           ),
 
           // LAYER 2.5: karakter di BELAKANG sheet, jadi bagian bawah badan

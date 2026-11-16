@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../core/app_theme.dart';
+import 'qr_scanner.dart';
+import 'web_camera_helper.dart';
 
 class BarcodeInput extends StatefulWidget {
   final String title, demoCode;
@@ -26,6 +28,15 @@ class _BarcodeInputState extends State<BarcodeInput> {
   int zoom = 1;
   bool cameraError = false;
   final cameraKey = GlobalKey<_CameraState>();
+  @override
+  void deactivate() {
+    if (camera) {
+      camera = false;
+    }
+    stopWebMediaTracks();
+    super.deactivate();
+  }
+
   void accept(String code) {
     if (code.trim().isEmpty) {
       return;
@@ -40,8 +51,14 @@ class _BarcodeInputState extends State<BarcodeInput> {
   }
 
   Future<void> activateCamera() async {
-    if (mounted) {
-      setState(() => camera = true);
+    final scanned = await QrScannerScreen.scan(
+      context,
+      title: widget.title,
+      hintText: 'Arahkan kamera ke barcode fisik atau QR Code',
+      demoCode: widget.demoCode,
+    );
+    if (scanned != null && scanned.trim().isNotEmpty) {
+      accept(scanned.trim().toUpperCase());
     }
   }
 
@@ -130,19 +147,28 @@ class _BarcodeInputState extends State<BarcodeInput> {
                             ),
                           ),
                           child: const Icon(
-                            Icons.camera_alt_outlined,
+                            Icons.qr_code_scanner,
                             size: 30,
-                            color: Colors.white70,
+                            color: Color(0xffd7e7b0),
                           ),
                         ),
                         const SizedBox(height: 14),
                         const Text(
-                          'Ketuk untuk mengaktifkan kamera',
+                          'Ketuk untuk Buka Scanner Kamera QR',
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white70,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
                             letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Mendukung QR Code, Code 128, Code 39, EAN',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white60,
                           ),
                         ),
                       ],
@@ -251,6 +277,47 @@ class _BarcodeInputState extends State<BarcodeInput> {
                 ),
               ),
             ],
+          ],
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: brand,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    onPressed: activateCamera,
+                    icon: const Icon(Icons.qr_code_scanner, size: 18),
+                    label: const Text('Buka Kamera QR', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: brandInk,
+                      side: const BorderSide(color: line),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onPressed: manual,
+                    icon: const Icon(Icons.keyboard_outlined, size: 18, color: brandSlate),
+                    label: const Text('Manual', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -411,10 +478,19 @@ class _CameraState extends State<_Camera> with WidgetsBindingObserver {
   }
 
   @override
+  void deactivate() {
+    unawaited(controller.stop());
+    stopWebMediaTracks();
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     controller.removeListener(onControllerChanged);
+    unawaited(controller.stop());
     unawaited(controller.dispose());
+    stopWebMediaTracks();
     super.dispose();
   }
 

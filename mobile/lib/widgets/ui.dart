@@ -209,8 +209,8 @@ class StockSummaryTable extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         for (final pair in [
-          ('STOCK', '${item.quantity} Units'),
-          ('MIN SAFE', '${item.minimum} Units'),
+          ('STOCK', '${formatNumber(item.quantity)} ${item.unit}'),
+          ('MIN SAFE', '${formatNumber(item.minimum)} ${item.unit}'),
           ('DAYS LEFT', '${item.daysLeft.toStringAsFixed(1)} Days'),
         ])
           Column(
@@ -269,11 +269,7 @@ class StockCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Tag(
-                label,
-                color: color,
-                solid: true,
-              ),
+              Tag(label, color: color, solid: true),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -375,7 +371,7 @@ class StockCard extends StatelessWidget {
                               ),
                               children: [
                                 TextSpan(
-                                  text: '${item.quantity}',
+                                  text: formatNumber(item.quantity),
                                   style: const TextStyle(
                                     fontSize: 28,
                                     fontWeight: FontWeight.w900,
@@ -409,7 +405,7 @@ class StockCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 5),
                           Text(
-                            '${item.minimum} ${item.unit}',
+                            '${formatNumber(item.minimum)} ${item.unit}',
                             textAlign: TextAlign.right,
                             style: const TextStyle(
                               fontSize: 14,
@@ -728,7 +724,7 @@ class StockCountBox extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    '${item.quantity} ${item.unit}',
+                    '${formatNumber(item.quantity)} ${item.unit}',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w900,
@@ -752,7 +748,7 @@ class StockCountBox extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    '${item.minimum} ${item.unit}',
+                    '${formatNumber(item.minimum)} ${item.unit}',
                     textAlign: TextAlign.right,
                     style: const TextStyle(
                       fontSize: 14,
