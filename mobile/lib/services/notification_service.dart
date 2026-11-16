@@ -36,7 +36,7 @@ class NotificationService {
 
     try {
       await _notificationsPlugin.initialize(
-        settings: initSettings,
+        initSettings,
         onDidReceiveNotificationResponse: (NotificationResponse response) {
           debugPrint('SUSUNO: Notifikasi diklik: ${response.payload}');
         },
@@ -99,10 +99,10 @@ class NotificationService {
       );
 
       await _notificationsPlugin.show(
-        id: id,
-        title: title,
-        body: body,
-        notificationDetails: notificationDetails,
+        id,
+        title,
+        body,
+        notificationDetails,
         payload: payload,
       );
       debugPrint('SUSUNO: Notifikasi status bar Android terkirim: $title');
