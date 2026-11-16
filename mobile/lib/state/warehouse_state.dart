@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
+import '../services/notification_service.dart';
 import '../core/api_config.dart';
 
 int _parseInt(dynamic val) {
@@ -87,6 +88,8 @@ class WarehouseState extends ChangeNotifier {
     }
   }
 
+  final Set<int> _notifiedTaskIds = <int>{};
+
   Future<void> loadNotifications() async {
     if (token == null) return;
     try {
@@ -96,6 +99,28 @@ class WarehouseState extends ChangeNotifier {
         if (!isBackendConnected) {
           isBackendConnected = true;
         }
+
+        // Tembakkan notifikasi asli Android ke Status Bar jika ada tugas baru
+        for (final n in list) {
+          final taskId = _parseInt(n['id']);
+          final status = (n['status'] ?? '').toString().toUpperCase();
+          if (taskId > 0 && status != 'DONE' && status != 'COMPLETED' && status != 'CANCELLED') {
+            if (!_notifiedTaskIds.contains(taskId)) {
+              _notifiedTaskIds.add(taskId);
+              final title = (n['title'] ?? 'Tugas Baru dari Manajer').toString();
+              final desc = (n['description'] ?? 'Tugas baru telah ditugaskan ke Anda.').toString();
+              unawaited(
+                NotificationService().showTaskNotification(
+                  id: taskId,
+                  title: 'SUSUNO: $title',
+                  body: desc,
+                  payload: taskId.toString(),
+                ),
+              );
+            }
+          }
+        }
+
         notifyListeners();
       }
     } catch (e) {
