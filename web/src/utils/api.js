@@ -688,3 +688,29 @@ export const attendanceApi = {
     return all.filter((a) => String(a.user_id) === String(userId));
   },
 };
+
+export const aiApi = {
+  chat: async ({ message, history = [] }) => {
+    const res = await apiFetch('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, history }),
+    });
+    return {
+      success: res.ok && res.data?.success,
+      reply: res.data?.reply || (res.ok ? '' : 'Gagal menghubungi server backend.'),
+      configured: res.data?.configured ?? false,
+      data: res.data,
+      errorDetail: res.data?.errorDetail,
+    };
+  },
+  reloadKb: async () => {
+    const res = await apiFetch('/ai/reload-kb', {
+      method: 'POST',
+    });
+    return { success: res.ok, data: res.data };
+  },
+  getStatus: async () => {
+    const res = await apiFetch('/ai/status');
+    return res.ok ? res.data : null;
+  },
+};

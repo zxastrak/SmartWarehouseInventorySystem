@@ -1,14 +1,67 @@
 import { typeOf } from "./productTypes.js";
 import { acceptedUnits, inspectionSummary } from "./receiving.js";
-function completedRecord(shipment, movements = []) {
-  const receipt = shipment.receipt;
-  if (!receipt) return null;
+function completedRecord(shipment, movements = [], inventory = []) {
+  if (!shipment) return null;
+  let receipt = shipment.receipt;
+  if (!receipt) {
+    if (Array.isArray(shipment.products) && shipment.products.length > 0) {
+      const rows = shipment.products.map((p) => {
+        const sku = p.sku || p.code;
+        const history = movements.filter((entry) => entry.reference === shipment.id && entry.sku === sku && entry.type === "Inbound received");
+        const rec = p.received != null ? Number(p.received) : Number(p.ordered || p.quantity || 0);
+        const dam = Number(p.damaged || 0);
+        const rej = Number(p.rejected || 0);
+        const ord = Number(p.ordered || p.quantity || 0);
+        const invMatch = inventory.find((i) => i.sku === sku || i.code === sku);
+        const assignedRack = p.rack || invMatch?.rack || (invMatch?.zone ? `${invMatch.zone} - Staging` : "Staging Dok (Pending Putaway)");
+        return {
+          sku,
+          name: p.name,
+          category: p.category || "",
+          rack: assignedRack,
+          received: rec,
+          accepted: Math.max(0, rec - dam - rej),
+          damaged: dam,
+          rejected: rej,
+          short: Math.max(0, ord - rec),
+          before: history[0]?.before ?? null,
+          after: history.at(-1)?.after ?? null,
+          allocations: [{ rack: assignedRack, quantity: Math.max(0, rec - dam - rej) }],
+        };
+      });
+      const totalRec = rows.reduce((s, r) => s + r.received, 0);
+      const totalAcc = shipment.accepted_units != null && Number(shipment.accepted_units) > 0
+        ? Number(shipment.accepted_units)
+        : rows.reduce((s, r) => s + r.accepted, 0);
+      receipt = {
+        completedAt: shipment.completed_at || shipment.completedAt || shipment.date,
+        user: shipment.inspector || shipment.staff || "Warehouse Manager",
+        notes: shipment.notes || "",
+        evidence: shipment.evidence_url ? [{ name: shipment.evidence_url }] : [],
+        stockChanges: rows,
+        summary: {
+          ordered: rows.reduce((s, r) => s + (Number(r.ordered) || Number(r.received)), 0),
+          received: totalRec,
+          accepted: totalAcc,
+          damaged: rows.reduce((s, r) => s + r.damaged, 0),
+          rejected: rows.reduce((s, r) => s + r.rejected, 0),
+          short: rows.reduce((s, r) => s + r.short, 0),
+        },
+        dispositions: [],
+      };
+    } else {
+      return null;
+    }
+  }
   const items = receipt.stockChanges || (receipt.rows || []).map((row) => {
     const history = movements.filter((entry) => entry.reference === shipment.id && entry.sku === row.sku && entry.type === "Inbound received");
+    const invMatch = inventory.find((i) => i.sku === row.sku || i.code === row.sku);
+    const assignedRack = row.rack || invMatch?.rack || (receipt.allocations?.[row.sku]?.[0]?.rack) || "Staging Dok (Pending Putaway)";
     return {
       sku: row.sku,
       name: row.name,
       category: row.category,
+      rack: assignedRack,
       received: Number(row.received),
       accepted: acceptedUnits(row),
       damaged: Number(row.damaged),
@@ -32,6 +85,20 @@ function completedTime(value) {
   const time = new Intl.DateTimeFormat("en-GB", { ...options, hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
   return `${day} \xB7 ${time}`;
 }
+function formatProcessDuration(startVal, endVal) {
+  if (!startVal || !endVal) return "-";
+  const startNorm = /(?:Z|[+-]\d\d:\d\d)$/.test(startVal) ? startVal : startVal + "+07:00";
+  const endNorm = /(?:Z|[+-]\d\d:\d\d)$/.test(endVal) ? endVal : endVal + "+07:00";
+  const start = new Date(startNorm);
+  const end = new Date(endNorm);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return "-";
+  const diffMinutes = Math.round((end - start) / 60000);
+  if (diffMinutes < 1) return "< 1 menit";
+  if (diffMinutes < 60) return `${diffMinutes} menit`;
+  const hours = Math.floor(diffMinutes / 60);
+  const mins = diffMinutes % 60;
+  return mins > 0 ? `${hours} jam ${mins} mnt` : `${hours} jam`;
+}
 function downloadReceivingReport(shipment, record, warehouseName) {
   if (!record?.items.length) throw new Error("A detailed receiving record is not available for this sample shipment.");
   const header = ["Inbound ID", "Purchase order", "Supplier", "Warehouse", "Completed (Jakarta)", "Received by", "SKU", "Product", "Product Type", "Received", "Accepted", "Damaged", "Rejected", "Missing", "Rack allocation", "Stock before", "Stock after", "PO status", "Inspection notes", "Evidence filenames", "Resolution", "Resolution reference", "Excluded stock disposition", "Notification request"];
@@ -52,5 +119,6 @@ function downloadReceivingReport(shipment, record, warehouseName) {
 export {
   completedRecord,
   completedTime,
+  formatProcessDuration,
   downloadReceivingReport
 };

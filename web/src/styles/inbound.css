@@ -207,19 +207,52 @@
   background: #dcebd9;
   color: #5c732b;
 }
+.inbound-status-order,
 .inbound-status-scheduled {
-  background: #eef0ea;
-  color: #737b6c;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  font-weight: 600;
 }
-.inbound-status-inspecting,
-.inbound-status-issue {
-  background: #f8d2ce;
-  color: #8a5a5b;
+.inbound-status-arrived {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  font-weight: 600;
 }
+.inbound-status-inspect,
+.inbound-status-inspecting {
+  background: #fef9c3;
+  color: #854d0e;
+  border: 1px solid #fde047;
+  font-weight: 600;
+}
+.inbound-status-review,
 .inbound-status-inspected {
   background: #ecfeff;
   color: #0891b2;
   border: 1px solid #a5f3fc;
+  font-weight: 600;
+}
+.inbound-status-complete,
+.inbound-status-received {
+  background: #dcebd9;
+  color: #5c732b;
+  border: 1px solid #c2dec0;
+  font-weight: 600;
+}
+.inbound-status-issue,
+.inbound-status-issues {
+  background: #fdecec;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  font-weight: 600;
+}
+.inbound-status-nodata,
+.inbound-status-empty {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
   font-weight: 600;
 }
 .inbound-steps {

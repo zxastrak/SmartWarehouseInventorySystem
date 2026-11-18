@@ -1,6 +1,7 @@
 const taskModel = require('../models/taskModel');
 const userModel = require('../models/userModel');
 const productModel = require('../models/productModel');
+const db = require('../config/db');
 const logAudit = require('../utils/audit');
 
 const VALID_STATUS = ['pending', 'in_progress', 'done'];
@@ -8,11 +9,112 @@ const VALID_STATUS = ['pending', 'in_progress', 'done'];
 const taskController = {
   getNotifications: async (req, res) => {
     try {
-      const notifications = await taskModel.getNotificationsByUserId(req.user.id);
-      const pendingCount = notifications.filter((n) => n.status === 'pending').length;
+      const userId = req.user.id;
+      const rawNotifications = await taskModel.getNotificationsByUserId(userId);
+
+      // Ambil data pengiriman inbound aktif untuk memperkaya detail tugas
+      const [inbounds] = await db.query(
+        'SELECT id, inbound_number, po_number, supplier_name, carrier, dock, status FROM inbound_shipments WHERE status IN ("Arrived", "Inspect", "Inspecting", "Order", "Scheduled")'
+      ).catch(() => [[]]);
+
+      const inbMap = {};
+      for (const inb of inbounds) {
+        inbMap[inb.inbound_number] = inb;
+      }
+
+      const notifications = rawNotifications.map((t) => {
+        const isDockTask = (t.title || '').includes('[TUGAS DOK]') || (t.title || '').includes('[PENUGASAN DOK]');
+        const isAssignedToMe = t.current_assignee_id !== null && Number(t.current_assignee_id) === Number(userId);
+        const hasAssignee = t.current_assignee_id !== null && t.current_assignee_id !== undefined;
+
+        let template_type = 'default';
+        let display_title = t.title;
+        let display_desc = t.description;
+        let badge_label = 'TUGAS DOK';
+
+        // Cari data shipment yang sesuai jika ada
+        let matchedShipment = null;
+        for (const inbNum in inbMap) {
+          if (t.title.includes(inbNum) || (t.description && t.description.includes(inbNum))) {
+            matchedShipment = inbMap[inbNum];
+            break;
+          }
+        }
+
+        const inboundNum = matchedShipment?.inbound_number || '';
+        const dockName = matchedShipment?.dock ? `Dok ${matchedShipment.dock}` : 'Dok Penerimaan';
+
+        if (isDockTask) {
+          if (!hasAssignee) {
+            // Template Default: Semua staf mendapat notifikasi kedatangan dok
+            template_type = 'default';
+            badge_label = 'KEDATANGAN DOK • SEMUA STAF';
+            display_title = `[TUGAS DOK] Kedatangan Armada ${inboundNum || 'Inbound'}`;
+            display_desc = `Armada pengiriman ${inboundNum} telah tiba di ${dockName}. Menunggu pemeriksaan fisik barang & scan barcode satuan unit.`;
+          } else if (isAssignedToMe) {
+            // Template 1: Khusus untuk staf yang menerima tugas (konsep: ia mendapat tugas)
+            template_type = 'assigned_to_me';
+            badge_label = 'TUGAS KHUSUS ANDA';
+            display_title = `[PENUGASAN DOK] Anda Ditugaskan: Inspeksi ${inboundNum || 'Inbound'}`;
+            display_desc = `Anda telah ditugaskan secara khusus oleh Manajer untuk melakukan pemeriksaan fisik barang dan pemindaian barcode armada ${inboundNum} di ${dockName}. Silakan menuju dok penerimaan.`;
+          } else {
+            // Template 2: Tugas dialihkan ke staf lain, namun staf ini tetap bisa melihat detail tugas
+            template_type = 'reassigned_to_other';
+            const assigneeName = t.assignee_name || 'Staf Lain';
+            badge_label = `DIALIHKAN KE ${assigneeName.toUpperCase()}`;
+            display_title = `[INFO DOK] Tugas Inspeksi ${inboundNum || ''} Dialihkan ke ${assigneeName}`;
+            display_desc = `Tugas inspeksi armada ${inboundNum} di ${dockName} telah dialihkan kepada ${assigneeName}. Anda tetap dapat memantau dan melihat rincian detail tugas ini.`;
+          }
+        } else {
+          if (isAssignedToMe) {
+            template_type = 'assigned_to_me';
+            badge_label = 'TUGAS ANDA';
+          } else {
+            template_type = 'general';
+            badge_label = 'INFO OPERASIONAL';
+          }
+        }
+
+        return {
+          ...t,
+          template_type,
+          is_assigned_to_me: isAssignedToMe,
+          badge_label,
+          display_title,
+          display_desc,
+          assignee_name: t.assignee_name || (hasAssignee ? 'Staf Lain' : 'Semua Staf Lapangan'),
+          shipment_info: matchedShipment || null,
+        };
+      });
+
+      // Deduplikasi ketat per pengiriman Inbound (TIDAK BOLEH ADA DOUBLE NOTIFIKASI)
+      const seenInbound = new Set();
+      const uniqueNotifications = [];
+
+      for (const n of notifications) {
+        let inbKey = n.shipment_info?.inbound_number;
+        if (!inbKey && n.title) {
+          const match = n.title.match(/INB-[0-9A-Za-z-]+/);
+          if (match) inbKey = match[0];
+        }
+
+        if (inbKey) {
+          if (seenInbound.has(inbKey)) {
+            continue; // Lewati duplikasi untuk nomor INB yang sama
+          }
+          seenInbound.add(inbKey);
+        }
+
+        uniqueNotifications.push(n);
+      }
+
+      const pendingCount = uniqueNotifications.filter(
+        (n) => n.status === 'pending' && n.template_type !== 'reassigned_to_other'
+      ).length;
+
       res.status(200).json({
-        notifications,
-        total: notifications.length,
+        notifications: uniqueNotifications,
+        total: uniqueNotifications.length,
         pending: pendingCount,
       });
     } catch (err) {

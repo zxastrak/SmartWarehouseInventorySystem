@@ -235,12 +235,24 @@ function StaffManagement({
   const [shiftModal, setShiftModal] = useState(null); // 'create' | 'edit' | 'delete'
   const [shiftTarget, setShiftTarget] = useState(null);
 
-  // Attendances Tab State
+  // Attendances Tab State (Riwayat Shift)
   const [attendances, setAttendances] = useState([]);
   const [attendancesLoading, setAttendancesLoading] = useState(false);
   const [attendanceQuery, setAttendanceQuery] = useState("");
   const [attendanceFilterStaff, setAttendanceFilterStaff] = useState("all");
-  const [attendanceFilterDate, setAttendanceFilterDate] = useState("");
+  const [attendanceFilterDate, setAttendanceFilterDate] = useState(() => {
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Jakarta",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+    } catch {
+      return new Date().toISOString().slice(0, 10);
+    }
+  });
+  const [expandedShifts, setExpandedShifts] = useState({ 0: true, 1: true, 2: true });
   const [shiftForm, setShiftForm] = useState({
     id: null,
     userId: "",
@@ -494,6 +506,236 @@ function StaffManagement({
       return true;
     });
   }, [pairedSessions, attendanceFilterStaff, attendanceFilterDate, attendanceQuery]);
+
+  const shiftIsoDate = (dateStr, days) => {
+    const base = dateStr || new Date().toISOString().slice(0, 10);
+    const parts = String(base).split("-").map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) {
+      return new Date().toISOString().slice(0, 10);
+    }
+    const [y, m, d] = parts;
+    const utcDate = new Date(Date.UTC(y, m - 1, d));
+    utcDate.setUTCDate(utcDate.getUTCDate() + days);
+    return utcDate.toISOString().slice(0, 10);
+  };
+
+  const handlePrevDate = () => {
+    const base = attendanceFilterDate || new Date().toISOString().slice(0, 10);
+    const d = new Date(base + "T00:00:00");
+    d.setDate(d.getDate() - 1);
+    setAttendanceFilterDate(d.toISOString().slice(0, 10));
+    setAttendanceFilterDate((cur) => shiftIsoDate(cur, -1));
+  };
+
+  const handleNextDate = () => {
+    const base = attendanceFilterDate || new Date().toISOString().slice(0, 10);
+    const d = new Date(base + "T00:00:00");
+    d.setDate(d.getDate() + 1);
+    setAttendanceFilterDate(d.toISOString().slice(0, 10));
+    setAttendanceFilterDate((cur) => shiftIsoDate(cur, 1));
+  };
+
+  const handleTodayDate = () => {
+    try {
+      setAttendanceFilterDate(
+        new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Jakarta",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date())
+      );
+    } catch {
+      setAttendanceFilterDate(new Date().toISOString().slice(0, 10));
+    }
+  };
+
+  const formatHeaderDate = (dateStr) => {
+    if (!dateStr) return "";
+    try {
+      const d = new Date(dateStr + "T00:00:00");
+      return new Intl.DateTimeFormat("id-ID", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }).format(d);
+      const parts = String(dateStr).split("-").map(Number);
+      if (parts.length === 3 && !parts.some(isNaN)) {
+        const [y, m, d] = parts;
+        const utcDate = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+        return new Intl.DateTimeFormat("id-ID", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          timeZone: "UTC",
+        }).format(utcDate);
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const toggleShiftAccordion = (idx) => {
+    setExpandedShifts((prev) => ({
+      ...prev,
+      [idx]: !prev[idx],
+    }));
+  };
+
+  const toggleAllShiftAccordions = (expand) => {
+    setExpandedShifts({ 0: expand, 1: expand, 2: expand });
+  };
+
+  // Grouping 3 baris shift kerja dengan siapa saja yang masuk, jam check-in, check-out, & total jam kerja
+  const threeShiftGroups = useMemo(() => {
+    const todayDefault = (() => {
+      try {
+        return new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Jakarta",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date());
+      } catch {
+        return new Date().toISOString().slice(0, 10);
+      }
+    })();
+    const targetDate = attendanceFilterDate || todayDefault;
+
+    // 3 Macam Shift Operasional Gudang
+    const shiftDefs = [
+      {
+        id: "shift-1",
+        name: "Shift 1 (Pagi)",
+        shortName: "Pagi",
+        icon: "1",
+        startTime: "07:00",
+        endTime: "15:00",
+        color: "#5c732b",
+      },
+      {
+        id: "shift-2",
+        name: "Shift 2 (Siang)",
+        shortName: "Siang",
+        icon: "2",
+        startTime: "15:00",
+        endTime: "23:00",
+        color: "#0891b2",
+      },
+      {
+        id: "shift-3",
+        name: "Shift 3 (Malam)",
+        shortName: "Malam",
+        icon: "3",
+        startTime: "23:00",
+        endTime: "07:00",
+        color: "#d97706",
+      },
+    ];
+
+    if (Array.isArray(shiftPackages) && shiftPackages.length >= 3) {
+      [0, 1, 2].forEach((idx) => {
+        const p = shiftPackages[idx];
+        if (p) {
+          shiftDefs[idx].name = p.name || shiftDefs[idx].name;
+          shiftDefs[idx].shortName = p.shortName || shiftDefs[idx].shortName;
+          shiftDefs[idx].icon = p.icon || String(idx + 1);
+          shiftDefs[idx].startTime = p.startTime || shiftDefs[idx].startTime;
+          shiftDefs[idx].endTime = p.endTime || shiftDefs[idx].endTime;
+          shiftDefs[idx].color = p.color || shiftDefs[idx].color;
+        }
+      });
+    }
+
+    // Filter sesi kehadiran pada tanggal yang dipilih
+    const dateSessions = pairedSessions.filter((sess) => {
+      const rawTime = sess.checkIn?.scan_time || sess.checkOut?.scan_time;
+      if (!rawTime) return false;
+      try {
+        const d = new Date(rawTime);
+        const sDate = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Jakarta",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(d);
+        return sDate === targetDate;
+      } catch {
+        return String(rawTime).slice(0, 10) === targetDate;
+      }
+    });
+
+    // Jadwal shift resmi yang terdaftar pada tanggal yang dipilih
+    const targetShifts = shifts.filter((sh) => {
+      const sDate = sh.shift_date ? String(sh.shift_date).slice(0, 10) : "";
+      return sDate === targetDate;
+    });
+
+    return shiftDefs.map((def, idx) => {
+      // 1. Staf yang hadir / check-in pada shift ini
+      const attendedStaff = dateSessions.filter((sess) => {
+        const assigned = targetShifts.find(
+          (sh) => String(sh.user_id) === String(sess.userId)
+        );
+        if (assigned) {
+          const sStart = assigned.start_time ? String(assigned.start_time).slice(0, 5) : "";
+          if (assigned.package_id === def.id || sStart === def.startTime) {
+            return true;
+          }
+        }
+
+        const rawTime = sess.checkIn?.scan_time || sess.checkOut?.scan_time;
+        if (rawTime) {
+          const d = new Date(rawTime);
+          const hourStr = new Intl.DateTimeFormat("en-GB", {
+            hour: "2-digit",
+            hour12: false,
+            timeZone: "Asia/Jakarta",
+          }).format(d);
+          const hour = parseInt(hourStr, 10);
+          if (idx === 0) return hour >= 5 && hour < 13;
+          if (idx === 1) return hour >= 13 && hour < 21;
+          if (idx === 2) return hour >= 21 || hour < 5;
+        }
+        return idx === 0;
+      });
+
+      // 2. Staf yang terjadwal namun belum check-in
+      const attendedUserIds = new Set(attendedStaff.map((s) => String(s.userId)));
+      const notCheckedInScheduled = targetShifts
+        .filter((sh) => {
+          const sStart = sh.start_time ? String(sh.start_time).slice(0, 5) : "";
+          const isThisShift = sh.package_id === def.id || sStart === def.startTime;
+          return isThisShift && !attendedUserIds.has(String(sh.user_id));
+        })
+        .map((sh) => {
+          const stf = staff.find((s) => String(s.id) === String(sh.user_id));
+          return {
+            id: `sched-${sh.id}`,
+            userId: sh.user_id,
+            userName: sh.user_name || stf?.fullName || `Staf #${sh.user_id}`,
+            userEmail: stf?.contact || "",
+            userRole: stf?.role || sh.user_system_role || "Staf Gudang",
+            checkIn: null,
+            checkOut: null,
+            isScheduledOnly: true,
+            statusLabel: "Belum Check-In",
+            statusCls: "ss-shift-status upcoming",
+          };
+        });
+
+      return {
+        ...def,
+        attendedCount: attendedStaff.length,
+        workingNowCount: attendedStaff.filter((s) => s.isWorkingNow).length,
+        finishedCount: attendedStaff.filter((s) => s.checkOut).length,
+        staffList: [...attendedStaff, ...notCheckedInScheduled],
+      };
+    });
+  }, [pairedSessions, shifts, staff, shiftPackages, attendanceFilterDate]);
 
   // Sync selected staffId with browser URL query params
   useEffect(() => {
@@ -1520,15 +1762,6 @@ Akun terhubung ke database SUSUNO.`);
                   </table>
                 </div>
 
-                <section className="ss-callout">
-                  <strong>Mobile access</strong>
-                  <p>
-                    Staf menggunakan email/username dan password untuk masuk.
-                    Akun terhubung langsung dengan backend dan database MySQL
-                    SUSUNO.
-                  </p>
-                </section>
-
                 <div className="inventory-pagination">
                   <span>
                     Showing{" "}
@@ -2264,7 +2497,7 @@ Akun terhubung ke database SUSUNO.`);
                       loadAttendances();
                     }}
                   >
-                    ⏱️ Riwayat Absensi
+                    ⏱️ Riwayat Shift
                   </button>
                 </div>
 
@@ -2283,7 +2516,7 @@ Akun terhubung ke database SUSUNO.`);
                 ? "💡 Warna dan label chip di kalender otomatis mengikuti Macam-Macam Shift di atas. Klik kotak tanggal untuk menambah shift, atau klik chip shift staf untuk mengeditnya."
                 : shiftView === "table"
                 ? "Daftar jadwal seluruh staf dengan filter dan aksi cepat."
-                : "Daftar riwayat absensi aktual dengan jam check-in dan check-out staf gudang dari aplikasi mobile."}
+                : "Pantau riwayat shift per tanggal dengan rincian kehadiran 3 shift operasional, status check-in dan check-out, serta total jam kerja staf."}
             </p>
 
             {/* VIEW 1: GOOGLE CALENDAR MONTH GRID */}
@@ -2537,175 +2770,231 @@ Akun terhubung ke database SUSUNO.`);
               </>
             )}
 
-            {/* VIEW 3: RIWAYAT ABSENSI STAF (CHECK-IN & CHECK-OUT REAL-TIME) */}
+            {/* VIEW 3: RIWAYAT SHIFT (3 ROW DENGAN DROPDOWN ACCORDION & NAVIGASI TANGGAL) */}
             {shiftView === "attendance" && (
               <>
-                <div
-                  className="ss-list-filters"
-                  style={{
-                    marginTop: "10px",
-                    display: "flex",
-                    gap: "12px",
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center", flex: 1 }}>
+                {/* BARIS TANGGAL & AKSI CEPAT */}
+                <div className="ss-history-datebar">
+                  <div className="ss-history-date-nav">
+                    <button
+                      type="button"
+                      className="ss-cal-nav-btn ss-cal-nav-arrow"
+                      onClick={handlePrevDate}
+                      title="Lihat hari sebelumnya"
+                    >
+                      ‹
+                    </button>
                     <input
-                      type="text"
-                      className="ss-search-input"
-                      placeholder="Cari nama atau email staf..."
-                      value={attendanceQuery}
-                      onChange={(e) => setAttendanceQuery(e.target.value)}
-                      style={{ minWidth: "220px", height: "38px" }}
-                      aria-label="Cari nama atau email staf di riwayat absensi"
+                      type="date"
+                      className="ss-history-date-input"
+                      value={attendanceFilterDate}
+                      onChange={(e) => setAttendanceFilterDate(e.target.value)}
+                      aria-label="Pilih tanggal riwayat shift"
                     />
-
-                    <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13px" }}>
-                      <span className="ss-muted">Filter Staf:</span>
-                      <select
-                        value={attendanceFilterStaff}
-                        onChange={(e) => setAttendanceFilterStaff(e.target.value)}
-                        style={{ height: "38px" }}
-                        aria-label="Filter berdasarkan staf"
-                      >
-                        <option value="all">Semua Staf</option>
-                        {staff.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.fullName} ({s.role})
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13px" }}>
-                      <span className="ss-muted">Tanggal:</span>
-                      <input
-                        type="date"
-                        value={attendanceFilterDate}
-                        onChange={(e) => setAttendanceFilterDate(e.target.value)}
-                        style={{ height: "38px" }}
-                        aria-label="Filter berdasarkan tanggal absensi"
-                      />
-                    </label>
-
-                    {(attendanceFilterDate || attendanceFilterStaff !== "all" || attendanceQuery) && (
-                      <button
-                        type="button"
-                        className="dashboard-link"
-                        onClick={() => {
-                          setAttendanceFilterDate("");
-                          setAttendanceFilterStaff("all");
-                          setAttendanceQuery("");
-                        }}
-                        style={{ fontSize: "12px", fontWeight: 600 }}
-                      >
-                        ✕ Reset Filter
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="ss-cal-nav-btn ss-cal-nav-arrow"
+                      onClick={handleNextDate}
+                      title="Lihat hari berikutnya"
+                    >
+                      ›
+                    </button>
+                    <button
+                      type="button"
+                      className="ss-cal-nav-btn"
+                      onClick={handleTodayDate}
+                      title="Kembali ke hari ini"
+                    >
+                      Hari Ini
+                    </button>
+                    <span className="ss-history-date-label">
+                      {formatHeaderDate(attendanceFilterDate)}
+                    </span>
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span className="ss-muted" style={{ fontSize: "12px" }}>
-                      Total {filteredSessions.length} sesi absensi
-                    </span>
+                  <div className="ss-history-actions">
+                    <button
+                      type="button"
+                      className="dashboard-link"
+                      onClick={() => {
+                        const allOpen = Object.values(expandedShifts).every(Boolean);
+                        toggleAllShiftAccordions(!allOpen);
+                      }}
+                      style={{ fontSize: "12.5px", fontWeight: 600 }}
+                    >
+                      {Object.values(expandedShifts).every(Boolean)
+                        ? "▲ Tutup Semua Dropdown"
+                        : "▼ Buka Semua Dropdown"}
+                    </button>
                     <button
                       type="button"
                       className="inbound-secondary"
                       onClick={loadAttendances}
                       title="Muat ulang absensi dari database"
                     >
-                      🔄 Refresh Absensi
+                      🔄 Refresh Data
                     </button>
                   </div>
                 </div>
 
-                <div className="inventory-table-wrap" style={{ marginTop: "14px" }}>
-                  <table className="ss-staff-table">
-                    <thead>
-                      <tr>
-                        <th>Staf</th>
-                        <th>Role / Posisi</th>
-                        <th>Tanggal</th>
-                        <th>Jam Check-In</th>
-                        <th>Jam Check-Out</th>
-                        <th>Durasi Kerja</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredSessions.map((sess) => (
-                        <tr key={sess.id}>
-                          <td>
-                            <div className="ss-person">
-                              <span className="ss-avatar small">
-                                {initials(sess.userName)}
-                              </span>
-                              <div>
-                                <strong>{sess.userName}</strong>
-                                <small>{sess.userEmail}</small>
+                {/* 3 ROW SHIFT DENGAN DROPDOWN ACCORDION */}
+                <div className="ss-history-shift-list">
+                  {threeShiftGroups.map((group, idx) => {
+                    const isExpanded = !!expandedShifts[idx];
+                    return (
+                      <div key={group.id} className="ss-history-shift-card">
+                        {/* HEADER ROW / DROPDOWN TRIGGER */}
+                        <div
+                          className="ss-history-shift-header"
+                          onClick={() => toggleShiftAccordion(idx)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              toggleShiftAccordion(idx);
+                            }
+                          }}
+                        >
+                          <div className="ss-history-shift-left">
+                            <span
+                              className="ss-history-shift-badge"
+                              style={{
+                                backgroundColor: `${group.color}20`,
+                                color: group.color,
+                                borderColor: `${group.color}40`,
+                              }}
+                            >
+                              #{group.icon}
+                            </span>
+                            <div>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                                <h3 className="ss-history-shift-title">{group.name}</h3>
+                                <span className="ss-history-shift-time">
+                                  ⏱️ {group.startTime} – {group.endTime} WIB
+                                </span>
+                              </div>
+                              <div className="ss-history-shift-meta">
+                                <span className="ss-badge-attended">
+                                  👥 <strong>{group.attendedCount}</strong> Staf Masuk
+                                </span>
+                                {group.workingNowCount > 0 && (
+                                  <span className="ss-badge-working">
+                                    🟢 {group.workingNowCount} Sedang Bekerja
+                                  </span>
+                                )}
+                                {group.finishedCount > 0 && (
+                                  <span className="ss-badge-finished">
+                                    ✅ {group.finishedCount} Selesai Shift
+                                  </span>
+                                )}
                               </div>
                             </div>
-                          </td>
-                          <td>{sess.userRole}</td>
-                          <td>
-                            <strong>{sessionDate(sess.checkIn?.scan_time || sess.checkOut?.scan_time)}</strong>
-                          </td>
-                          <td>
-                            {sess.checkIn ? (
-                              <span className="ss-time-badge check-in">
-                                🟢 {formatClockTime(sess.checkIn.scan_time)}
-                              </span>
+                          </div>
+
+                          <div className="ss-history-shift-right">
+                            <button
+                              type="button"
+                              className="ss-accordion-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleShiftAccordion(idx);
+                              }}
+                            >
+                              <span>{isExpanded ? "▲ Sembunyikan Staf" : "▼ Tampilkan Staf"}</span>
+                              <span className="ss-accordion-count">({group.staffList.length})</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* DROPDOWN EXPANDED CONTENT: DAFTAR SIAPA SAJA YANG MASUK */}
+                        {isExpanded && (
+                          <div className="ss-history-shift-body">
+                            {group.staffList.length > 0 ? (
+                              <div className="inventory-table-wrap">
+                                <table className="ss-staff-table">
+                                  <thead>
+                                    <tr>
+                                      <th>Staf Lapangan</th>
+                                      <th>Role / Posisi</th>
+                                      <th>Jam Check-In</th>
+                                      <th>Jam Check-Out</th>
+                                      <th>Total Jam Kerja</th>
+                                      <th>Status</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {group.staffList.map((item) => (
+                                      <tr key={item.id}>
+                                        <td>
+                                          <div className="ss-person">
+                                            <span className="ss-avatar small">
+                                              {initials(item.userName)}
+                                            </span>
+                                            <div>
+                                              <strong>{item.userName}</strong>
+                                              <small>{item.userEmail || "–"}</small>
+                                            </div>
+                                          </div>
+                                        </td>
+                                        <td>{item.userRole}</td>
+                                        <td>
+                                          {item.checkIn ? (
+                                            <span className="ss-time-badge check-in">
+                                              🟢 {formatClockTime(item.checkIn.scan_time)}
+                                            </span>
+                                          ) : (
+                                            <span className="ss-muted">–</span>
+                                          )}
+                                        </td>
+                                        <td>
+                                          {item.checkOut ? (
+                                            <span className="ss-time-badge check-out">
+                                              🔴 {formatClockTime(item.checkOut.scan_time)}
+                                            </span>
+                                          ) : item.checkIn ? (
+                                            <span className="ss-shift-status current">
+                                              ⏳ Sedang Bekerja
+                                            </span>
+                                          ) : (
+                                            <span className="ss-muted">–</span>
+                                          )}
+                                        </td>
+                                        <td>
+                                          {item.checkIn ? (
+                                            <span className="ss-duration-badge">
+                                              {formatSessionDuration(
+                                                item.checkIn?.scan_time,
+                                                item.checkOut?.scan_time
+                                              )}
+                                            </span>
+                                          ) : (
+                                            <span className="ss-muted">–</span>
+                                          )}
+                                        </td>
+                                        <td>
+                                          <span className={item.statusCls || "ss-shift-status upcoming"}>
+                                            {item.statusLabel || "–"}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
                             ) : (
-                              <span className="ss-muted">–</span>
-                            )}
-                          </td>
-                          <td>
-                            {sess.checkOut ? (
-                              <span className="ss-time-badge check-out">
-                                🔴 {formatClockTime(sess.checkOut.scan_time)}
-                              </span>
-                            ) : sess.checkIn ? (
-                              <span className="ss-shift-status current">
-                                ⏳ Sedang Bekerja
-                              </span>
-                            ) : (
-                              <span className="ss-muted">–</span>
-                            )}
-                          </td>
-                          <td>
-                            <span className="ss-duration-badge">
-                              {formatSessionDuration(sess.checkIn?.scan_time, sess.checkOut?.scan_time)}
-                            </span>
-                          </td>
-                          <td>
-                            <span className={sess.statusCls}>
-                              {sess.statusLabel}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                      {!filteredSessions.length && (
-                        <tr>
-                          <td colSpan="7" style={{ textAlign: "center", padding: "36px" }}>
-                            {attendancesLoading ? (
-                              "Memuat data absensi dari server..."
-                            ) : (
-                              <div>
-                                <p style={{ fontWeight: 600, margin: "0 0 6px" }}>
-                                  Belum ada riwayat absensi staf tercatat.
-                                </p>
+                              <div className="ss-history-empty-row">
+                                <p>⚪ Belum ada staf yang masuk pada shift ini.</p>
                                 <small className="ss-muted">
-                                  Data absensi otomatis masuk saat staf melakukan check-in dan check-out melalui aplikasi mobile.
+                                  Data absensi otomatis masuk saat staf melakukan check-in melalui aplikasi mobile.
                                 </small>
                               </div>
                             )}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             )}

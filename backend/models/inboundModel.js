@@ -136,7 +136,7 @@ const inboundModel = {
       reference,
       units,
       items_count,
-      status = 'Scheduled',
+      status = 'Order',
       notes,
       scheduled_by,
       items = [],
@@ -237,46 +237,80 @@ const inboundModel = {
     const [result] = await db.query(sql, params);
 
     // Sinkronisasi otomatis ke tabel tasks bila assigned_staff diupdate oleh Manager
-    if (data.assigned_staff) {
+    if (data.assigned_staff !== undefined) {
       try {
         const [inbRows] = await db.query(
-          `SELECT id, inbound_number, dock, carrier, status FROM inbound_shipments ${whereClause}`,
+          `SELECT id, inbound_number, dock, carrier, status, assigned_staff FROM inbound_shipments ${whereClause}`,
           isNum ? [Number(id), String(id)] : [String(id)]
         );
         if (inbRows.length > 0) {
           const shipment = inbRows[0];
           let staffId = null;
-          const assignedName = data.assigned_staff.trim();
+          let assignedName = (data.assigned_staff || '').trim();
+          const isAllStaff = !assignedName || assignedName.toLowerCase().includes('semua');
 
-          const [userRows] = await db.query(
-            'SELECT id FROM users WHERE name = ? OR email = ? OR username = ? LIMIT 1',
-            [assignedName, assignedName, assignedName]
-          );
-          if (userRows.length > 0) {
-            staffId = userRows[0].id;
-          } else {
-            const [defStaff] = await db.query('SELECT id FROM users WHERE role = "staf" LIMIT 1');
-            if (defStaff.length > 0) staffId = defStaff[0].id;
+          if (!isAllStaff && assignedName) {
+            const [userRows] = await db.query(
+              'SELECT id, name FROM users WHERE name = ? OR email = ? OR username = ? LIMIT 1',
+              [assignedName, assignedName, assignedName]
+            );
+            if (userRows.length > 0) {
+              staffId = userRows[0].id;
+              assignedName = userRows[0].name;
+            }
           }
 
           const taskTitle = `[TUGAS DOK] Inspeksi Fisik & Scan Barcode ${shipment.inbound_number}`;
-          const [existTask] = await db.query(
-            'SELECT id FROM tasks WHERE title = ? AND status IN ("pending", "in_progress")',
-            [taskTitle]
+          const [existTasks] = await db.query(
+            'SELECT id, current_assignee_id FROM tasks WHERE title LIKE ? AND status IN ("pending", "in_progress") ORDER BY id ASC',
+            [`%${shipment.inbound_number}%`]
           );
 
-          if (existTask.length > 0) {
+          const taskDesc = staffId
+            ? `Armada pengiriman ${shipment.inbound_number} (${shipment.carrier || 'Logistik'}) telah tiba di Dok ${shipment.dock || 'D-01'}. Ditugaskan kepada ${assignedName} untuk pemeriksaan fisik barang dan pemindaian barcode satuan unit.`
+            : `Armada pengiriman ${shipment.inbound_number} (${shipment.carrier || 'Logistik'}) telah tiba di Dok ${shipment.dock || 'D-01'}. Silakan lakukan pemeriksaan fisik barang dan pemindaian barcode satuan unit.`;
+
+          if (existTasks.length > 0) {
+            const currentTaskId = existTasks[0].id;
+            const previousAssigneeId = existTasks[0].current_assignee_id;
+
+            if (previousAssigneeId !== staffId) {
+              // Catat riwayat pelepasan dan pengalihan tugas di task_assignments
+              await db.query(
+                'UPDATE task_assignments SET released_at = NOW() WHERE task_id = ? AND released_at IS NULL',
+                [currentTaskId]
+              );
+              if (staffId) {
+                await db.query(
+                  'INSERT INTO task_assignments (task_id, user_id, reason) VALUES (?, ?, "reassigned_by_manager")',
+                  [currentTaskId, staffId]
+                );
+              }
+            }
+
+            // Update in-place tugas utama (tidak membuat record baru)
             await db.query(
-              'UPDATE tasks SET current_assignee_id = ? WHERE id = ?',
-              [staffId, existTask[0].id]
+              'UPDATE tasks SET current_assignee_id = ?, description = ? WHERE id = ?',
+              [staffId, taskDesc, currentTaskId]
             );
-          } else if (shipment.status === 'Arrived' || shipment.status === 'Inspecting') {
-            const taskDesc = `Armada pengiriman ${shipment.inbound_number} (${shipment.carrier || 'Logistik'}) telah tiba di Dok ${shipment.dock || 'D-01'}. Ditugaskan kepada ${assignedName} untuk pemeriksaan fisik barang dan pemindaian barcode satuan unit.`;
-            await db.query(
+
+            // Bersihkan tugas duplikat jika ada lebih dari 1 tugas untuk inbound ini
+            if (existTasks.length > 1) {
+              const dupIds = existTasks.slice(1).map((t) => t.id);
+              await db.query('DELETE FROM tasks WHERE id IN (?)', [dupIds]);
+            }
+          } else if (shipment.status === 'Arrived' || shipment.status === 'Inspect' || shipment.status === 'Inspecting') {
+            const [insRes] = await db.query(
               `INSERT INTO tasks (title, description, current_assignee_id, created_by, status, created_at)
                VALUES (?, ?, ?, 1, 'pending', NOW())`,
-              [taskTitle, taskDesc, staffId || 6]
+              [taskTitle, taskDesc, staffId]
             );
+            if (staffId && insRes.insertId) {
+              await db.query(
+                'INSERT INTO task_assignments (task_id, user_id, reason) VALUES (?, ?, "initial")',
+                [insRes.insertId, staffId]
+              );
+            }
           }
         }
       } catch (assignErr) {
@@ -333,28 +367,38 @@ const inboundModel = {
       if (userRows.length > 0) staffId = userRows[0].id;
     }
 
-    // Sinkronisasi tugas item ke tabel tasks
+    // Sinkronisasi penugasan ke tugas utama di tabel tasks (in-place update, anti-duplikasi)
     try {
-      const itemTaskTitle = `[TUGAS DOK] ${sku} - ${productName} (${shipment.inbound_number})`;
-      const [existTask] = await db.query(
-        'SELECT id FROM tasks WHERE title = ? AND status IN ("pending", "in_progress")',
-        [itemTaskTitle]
+      const [existTasks] = await db.query(
+        'SELECT id, current_assignee_id FROM tasks WHERE title LIKE ? AND status IN ("pending", "in_progress") ORDER BY id ASC',
+        [`%${shipment.inbound_number}%`]
       );
-      if (existTask.length > 0) {
+
+      const taskDesc = staffId
+        ? `Armada pengiriman ${shipment.inbound_number} (${shipment.carrier || 'Logistik'}) telah tiba di Dok ${shipment.dock || 'D-01'}. Ditugaskan kepada ${staffName} untuk pemeriksaan fisik barang dan pemindaian barcode satuan unit.`
+        : `Armada pengiriman ${shipment.inbound_number} (${shipment.carrier || 'Logistik'}) telah tiba di Dok ${shipment.dock || 'D-01'}. Silakan lakukan pemeriksaan fisik barang dan pemindaian barcode satuan unit.`;
+
+      if (existTasks.length > 0) {
+        const primaryTask = existTasks[0];
         await db.query(
-          'UPDATE tasks SET current_assignee_id = ? WHERE id = ?',
-          [staffId, existTask[0].id]
+          'UPDATE tasks SET current_assignee_id = ?, description = ? WHERE id = ?',
+          [staffId, taskDesc, primaryTask.id]
         );
-      } else if (shipment.status === 'Arrived' || shipment.status === 'Inspecting') {
-        const itemTaskDesc = `Pemeriksaan fisik dan pemindaian barcode satuan unit untuk item ${productName} (${sku}) pada armada ${shipment.inbound_number} di Dok ${shipment.dock || 'D-01'}. Ditugaskan kepada: ${staffName}.`;
+        // Hapus task duplikat jika sebelumnya ada lebih dari 1 task untuk inbound ini
+        if (existTasks.length > 1) {
+          const dupIds = existTasks.slice(1).map((t) => t.id);
+          await db.query('DELETE FROM tasks WHERE id IN (?)', [dupIds]);
+        }
+      } else if (shipment.status === 'Arrived' || shipment.status === 'Inspect' || shipment.status === 'Inspecting') {
+        const taskTitle = `[TUGAS DOK] Inspeksi Fisik & Scan Barcode ${shipment.inbound_number}`;
         await db.query(
-          `INSERT INTO tasks (title, description, related_product_id, current_assignee_id, created_by, status, created_at)
-           VALUES (?, ?, ?, ?, 1, 'pending', NOW())`,
-          [itemTaskTitle, itemTaskDesc, productId, staffId]
+          `INSERT INTO tasks (title, description, current_assignee_id, created_by, status, created_at)
+           VALUES (?, ?, ?, 1, 'pending', NOW())`,
+          [taskTitle, taskDesc, staffId]
         );
       }
     } catch (tErr) {
-      console.error('Error syncing item task on updateItemStaff:', tErr);
+      console.error('Error syncing task on updateItemStaff:', tErr);
     }
 
     return { success: true, shipmentId: shipment.id, sku, assigned_staff: staffName };
@@ -368,7 +412,7 @@ const inboundModel = {
     let extraSet = '';
     if (status === 'Arrived') {
       extraSet = ', arrived_at = NOW()';
-    } else if (status === 'Received') {
+    } else if (status === 'Complete' || status === 'Received') {
       extraSet = ', completed_at = NOW()';
     }
 
@@ -394,30 +438,55 @@ const inboundModel = {
         if (inbRows.length > 0) {
           const shipment = inbRows[0];
           let staffId = null;
-          if (shipment.assigned_staff) {
+          let assignedName = (shipment.assigned_staff || '').trim();
+          const isAllStaff = !assignedName || assignedName.toLowerCase().includes('semua');
+
+          if (!isAllStaff && assignedName) {
             const [userRows] = await db.query(
-              'SELECT id FROM users WHERE name = ? OR email = ? LIMIT 1',
-              [shipment.assigned_staff, shipment.assigned_staff]
+              'SELECT id, name FROM users WHERE name = ? OR email = ? OR username = ? LIMIT 1',
+              [assignedName, assignedName, assignedName]
             );
-            if (userRows.length > 0) staffId = userRows[0].id;
-          }
-          if (!staffId) {
-            const [defaultStaff] = await db.query('SELECT id FROM users WHERE role = "staf" LIMIT 1');
-            if (defaultStaff.length > 0) staffId = defaultStaff[0].id;
+            if (userRows.length > 0) {
+              staffId = userRows[0].id;
+              assignedName = userRows[0].name;
+            }
           }
 
           const taskTitle = `[TUGAS DOK] Inspeksi Fisik & Scan Barcode ${shipment.inbound_number}`;
-          const [existTask] = await db.query(
-            'SELECT id FROM tasks WHERE title = ? AND status IN ("pending", "in_progress")',
-            [taskTitle]
+          const [existTasks] = await db.query(
+            'SELECT id FROM tasks WHERE title LIKE ? AND status IN ("pending", "in_progress") ORDER BY id ASC',
+            [`%${shipment.inbound_number}%`]
           );
-          if (existTask.length === 0) {
-            const taskDesc = `Armada pengiriman ${shipment.inbound_number} (${shipment.carrier || 'Logistik'}) telah tiba di Dok ${shipment.dock || 'D-01'}. Silakan lakukan pemeriksaan fisik barang dan pemindaian barcode satuan unit.`;
-            await db.query(
+
+          const taskDesc = staffId
+            ? `Armada pengiriman ${shipment.inbound_number} (${shipment.carrier || 'Logistik'}) telah tiba di Dok ${shipment.dock || 'D-01'}. Ditugaskan kepada ${assignedName} untuk pemeriksaan fisik barang dan pemindaian barcode satuan unit.`
+            : `Armada pengiriman ${shipment.inbound_number} (${shipment.carrier || 'Logistik'}) telah tiba di Dok ${shipment.dock || 'D-01'}. Silakan lakukan pemeriksaan fisik barang dan pemindaian barcode satuan unit.`;
+
+          if (existTasks.length === 0) {
+            const [insRes] = await db.query(
               `INSERT INTO tasks (title, description, current_assignee_id, created_by, status, created_at)
                VALUES (?, ?, ?, ?, 'pending', NOW())`,
-              [taskTitle, taskDesc, staffId || 6, userId || 1]
+              [taskTitle, taskDesc, staffId, userId || 1]
             );
+
+            if (staffId && insRes.insertId) {
+              await db.query(
+                `INSERT INTO task_assignments (task_id, user_id, reason) VALUES (?, ?, 'initial')`,
+                [insRes.insertId, staffId]
+              );
+            }
+          } else {
+            // Update penugasan terkini secara in-place
+            await db.query(
+              'UPDATE tasks SET current_assignee_id = ?, description = ? WHERE id = ?',
+              [staffId, taskDesc, existTasks[0].id]
+            );
+
+            // Bersihkan jika ada tugas duplikat untuk inbound ini
+            if (existTasks.length > 1) {
+              const dupIds = existTasks.slice(1).map((t) => t.id);
+              await db.query('DELETE FROM tasks WHERE id IN (?)', [dupIds]);
+            }
           }
         }
       } catch (taskErr) {
@@ -520,9 +589,9 @@ const inboundModel = {
         return (acc + dam) >= ord || acc > 0 || hasBarcode;
       });
 
-      // Jika belum semua item selesai, status pengiriman adalah 'Inspecting' (sedang berlangsung).
-      // Hanya jika seluruh item sudah selesai, status pengiriman beralih ke 'Inspected'.
-      const targetStatus = allInspected ? 'Inspected' : 'Inspecting';
+      // Jika belum semua item selesai, status pengiriman adalah 'Inspect' (sedang berlangsung).
+      // Hanya jika seluruh item sudah selesai, status pengiriman beralih ke 'Review'.
+      const targetStatus = allInspected ? 'Review' : 'Inspect';
 
       const setClauses = ['status = ?'];
       const updateParams = [targetStatus];
@@ -654,8 +723,8 @@ const inboundModel = {
 
       const shipment = shipments[0];
 
-      // Strict validation guard: Wajib Inspected terlebih dahulu oleh staf dok
-      if (shipment.status !== 'Inspected') {
+      // Strict validation guard: Wajib Review / Inspected terlebih dahulu oleh staf dok
+      if (shipment.status !== 'Review' && shipment.status !== 'Inspected') {
         throw new Error('Inbound shipment belum diinspeksi oleh staf dok. Staf dok wajib menginput kuantitas aktual dan memindai barcode fisik terlebih dahulu sebelum Manager memberikan ACC.');
       }
 
@@ -698,9 +767,9 @@ const inboundModel = {
         }
       }
 
-      // Update status shipment jadi 'Received'
+      // Update status shipment jadi 'Complete'
       await connection.query(
-        'UPDATE inbound_shipments SET status = "Received", accepted_units = ?, completed_at = NOW(), notes = COALESCE(?, notes) WHERE id = ?',
+        'UPDATE inbound_shipments SET status = "Complete", accepted_units = ?, completed_at = NOW(), notes = COALESCE(?, notes) WHERE id = ?',
         [totalAccepted, notes || null, shipment.id]
       );
 

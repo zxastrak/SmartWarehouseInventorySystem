@@ -68,7 +68,11 @@ class WarehouseState extends ChangeNotifier {
       final uri = Uri.parse(ApiConfig.baseUrl);
       final host = uri.host;
       final port = uri.port > 0 ? uri.port : 80;
-      final socket = await Socket.connect(host, port, timeout: const Duration(seconds: 3));
+      final socket = await Socket.connect(
+        host,
+        port,
+        timeout: const Duration(seconds: 3),
+      );
       socket.destroy();
       if (!isBackendConnected) {
         isBackendConnected = true;
@@ -164,7 +168,10 @@ class WarehouseState extends ChangeNotifier {
       if (assignedId != null && assignedId == myStaffId) return true;
       if (assignedStaff != null && assignedStaff.trim().isNotEmpty) {
         final a = assignedStaff.trim().toLowerCase();
-        if (myStaffName.isNotEmpty && (a == myStaffName || a.contains(myStaffName) || myStaffName.contains(a))) {
+        if (myStaffName.isNotEmpty &&
+            (a == myStaffName ||
+                a.contains(myStaffName) ||
+                myStaffName.contains(a))) {
           return true;
         }
       }
@@ -174,11 +181,25 @@ class WarehouseState extends ChangeNotifier {
     // 1. Cek tugas Inbound (Putaway) staf ini
     final myInbound = arrivedShipments.firstWhere(
       (sh) => isStaffMe(sh.assignedStaff, null),
-      orElse: () => InboundShipmentModel(id: null, inboundNumber: '', supplierName: '', scheduledDate: '', scheduledTime: '', dock: '', status: '', assignedStaff: '', units: 0, items: []),
+      orElse:
+          () => InboundShipmentModel(
+            id: null,
+            inboundNumber: '',
+            supplierName: '',
+            scheduledDate: '',
+            scheduledTime: '',
+            dock: '',
+            status: '',
+            assignedStaff: '',
+            units: 0,
+            items: [],
+          ),
     );
     if (myInbound.id != null) {
-      final firstSku = myInbound.items.isNotEmpty ? myInbound.items.first.sku : '';
-      final firstQty = myInbound.items.isNotEmpty ? myInbound.items.first.orderedQty : 1;
+      final firstSku =
+          myInbound.items.isNotEmpty ? myInbound.items.first.sku : '';
+      final firstQty =
+          myInbound.items.isNotEmpty ? myInbound.items.first.orderedQty : 1;
       openScanner(
         firstSku,
         mode: ScanMode.putaway,
@@ -193,12 +214,27 @@ class WarehouseState extends ChangeNotifier {
     // 2. Cek tugas Outbound (Dispatching) staf ini
     final myOutbound = arrivedOutbounds.firstWhere(
       (sh) => isStaffMe(sh.assignedStaff, null),
-      orElse: () => OutboundShipmentModel(id: null, outboundNumber: '', destination: '', scheduledDate: '', scheduledTime: '', dock: '', status: '', assignedStaff: '', units: 0, items: []),
+      orElse:
+          () => OutboundShipmentModel(
+            id: null,
+            outboundNumber: '',
+            destination: '',
+            scheduledDate: '',
+            scheduledTime: '',
+            dock: '',
+            status: '',
+            assignedStaff: '',
+            units: 0,
+            items: [],
+          ),
     );
     if (myOutbound.id != null) {
-      final firstSku = myOutbound.items.isNotEmpty ? myOutbound.items.first.sku : '';
-      final firstRack = myOutbound.items.isNotEmpty ? myOutbound.items.first.rack : 'A-01';
-      final firstQty = myOutbound.items.isNotEmpty ? myOutbound.items.first.orderedQty : 1;
+      final firstSku =
+          myOutbound.items.isNotEmpty ? myOutbound.items.first.sku : '';
+      final firstRack =
+          myOutbound.items.isNotEmpty ? myOutbound.items.first.rack : 'A-01';
+      final firstQty =
+          myOutbound.items.isNotEmpty ? myOutbound.items.first.orderedQty : 1;
       openScanner(
         firstSku,
         mode: ScanMode.dispatch,
@@ -222,9 +258,14 @@ class WarehouseState extends ChangeNotifier {
       final location = (myDbTask['location_code'] ?? '').toString();
       final taskId = _parseInt(myDbTask['id']);
       final combined = '${title.toLowerCase()} ${desc.toLowerCase()}';
-      final mode = (combined.contains('dispatch') || combined.contains('outbound') || combined.contains('pick') || combined.contains('kirim') || combined.contains('pengeluaran'))
-          ? ScanMode.dispatch
-          : ScanMode.putaway;
+      final mode =
+          (combined.contains('dispatch') ||
+                  combined.contains('outbound') ||
+                  combined.contains('pick') ||
+                  combined.contains('kirim') ||
+                  combined.contains('pengeluaran'))
+              ? ScanMode.dispatch
+              : ScanMode.putaway;
 
       openScanner(
         sku,
@@ -312,6 +353,7 @@ class WarehouseState extends ChangeNotifier {
           .where(
             (s) =>
                 s.status.toLowerCase() == 'arrived' ||
+                s.status.toLowerCase() == 'inspect' ||
                 s.status.toLowerCase() == 'inspecting',
           )
           .toList();
@@ -386,7 +428,8 @@ class WarehouseState extends ChangeNotifier {
       try {
         final decoded = jsonDecode(s);
         if (decoded is Map) {
-          final val = decoded['sku'] ??
+          final val =
+              decoded['sku'] ??
               decoded['code'] ??
               decoded['barcode'] ??
               decoded['item_sku'] ??
@@ -453,7 +496,8 @@ class WarehouseState extends ChangeNotifier {
 
     // 3. Cocokkan jika barcode adalah serial unit atau batch dari Web
     //    Format Web: SKU-YYMMDDINB (Master) atau SKU-YYMMDDINB-001 (Sequential)
-    final sortedItems = [..._items]..sort((a, b) => b.sku.length.compareTo(a.sku.length));
+    final sortedItems = [..._items]
+      ..sort((a, b) => b.sku.length.compareTo(a.sku.length));
     for (final i in sortedItems) {
       final skuUpper = i.sku.toUpperCase();
       if (normalized.startsWith('$skuUpper-') ||
@@ -466,7 +510,9 @@ class WarehouseState extends ChangeNotifier {
     for (final shipment in inboundShipments) {
       for (final it in shipment.items) {
         if (it.barcodes.any((b) => b.trim().toUpperCase() == normalized)) {
-          final matched = _items.where((i) => i.sku.toUpperCase() == it.sku.toUpperCase());
+          final matched = _items.where(
+            (i) => i.sku.toUpperCase() == it.sku.toUpperCase(),
+          );
           if (matched.isNotEmpty) return matched.first;
         }
       }
@@ -474,7 +520,9 @@ class WarehouseState extends ChangeNotifier {
     for (final shipment in outboundShipments) {
       for (final it in shipment.items) {
         if (it.barcodes.any((b) => b.trim().toUpperCase() == normalized)) {
-          final matched = _items.where((i) => i.sku.toUpperCase() == it.sku.toUpperCase());
+          final matched = _items.where(
+            (i) => i.sku.toUpperCase() == it.sku.toUpperCase(),
+          );
           if (matched.isNotEmpty) return matched.first;
         }
       }
@@ -482,7 +530,8 @@ class WarehouseState extends ChangeNotifier {
 
     // 5. Fallback token pertama jika string dipisahkan oleh strip/garis bawah/spasi
     //    Contoh "CYCGRG-26111601-001" -> token pertama "CYCGRG"
-    final tokens = normalized.split(RegExp(r'[-_/ ]')).where((t) => t.isNotEmpty).toList();
+    final tokens =
+        normalized.split(RegExp(r'[-_/ ]')).where((t) => t.isNotEmpty).toList();
     if (tokens.isNotEmpty) {
       final firstToken = tokens.first;
       for (final i in _items) {
@@ -508,9 +557,11 @@ class WarehouseState extends ChangeNotifier {
     }
 
     // 2. Terdaftar di rak barang atau rackCounts barang yang ada
-    if (_items.any((i) =>
-        i.rack.toUpperCase() == normalized ||
-        i.rackCounts.keys.any((k) => k.toUpperCase() == normalized))) {
+    if (_items.any(
+      (i) =>
+          i.rack.toUpperCase() == normalized ||
+          i.rackCounts.keys.any((k) => k.toUpperCase() == normalized),
+    )) {
       return true;
     }
 
@@ -524,7 +575,9 @@ class WarehouseState extends ChangeNotifier {
     // 4. Format rak standar gudang SUSUNO:
     //    - RACK-A1-01-A atau RACK-A-01
     //    - A-01, B-02, C-10, A1-01, D-03-B
-    if (RegExp(r'^(RACK-)?[A-D][0-9]*(-[0-9]+)*(-[A-Z0-9]+)*$').hasMatch(normalized)) {
+    if (RegExp(
+      r'^(RACK-)?[A-D][0-9]*(-[0-9]+)*(-[A-Z0-9]+)*$',
+    ).hasMatch(normalized)) {
       return true;
     }
     if (RegExp(r'^[A-Z]-[0-9]{1,3}$').hasMatch(normalized)) {
@@ -534,13 +587,18 @@ class WarehouseState extends ChangeNotifier {
     return false;
   }
 
-  List<StockItem> get activeInventoryItems => _items.where((i) {
-    if (!i.isInInventory) return false;
-    if (i.quantity == 0 && i.pendingInbound && (i.rack.contains('Dock') || i.rack.contains('Unassigned') || i.rack == 'RACK-A1-01-A')) {
-      return false;
-    }
-    return true;
-  }).toList();
+  List<StockItem> get activeInventoryItems =>
+      _items.where((i) {
+        if (!i.isInInventory) return false;
+        if (i.quantity == 0 &&
+            i.pendingInbound &&
+            (i.rack.contains('Dock') ||
+                i.rack.contains('Unassigned') ||
+                i.rack == 'RACK-A1-01-A')) {
+          return false;
+        }
+        return true;
+      }).toList();
 
   double get safePercent {
     final active = activeInventoryItems;
@@ -551,8 +609,10 @@ class WarehouseState extends ChangeNotifier {
             100);
   }
 
-  int get criticalCount => activeInventoryItems.where((i) => i.quantity < i.minimum).length;
-  int get pendingCount => activeInventoryItems.where((i) => i.pendingVerification).length;
+  int get criticalCount =>
+      activeInventoryItems.where((i) => i.quantity < i.minimum).length;
+  int get pendingCount =>
+      activeInventoryItems.where((i) => i.pendingVerification).length;
   int get inflow => _todayTotal(MovementKind.stockIn);
   int get outflow => _todayTotal(MovementKind.stockOut);
 
@@ -622,7 +682,8 @@ class WarehouseState extends ChangeNotifier {
         .length;
   }
 
-  int get totalStockUnits => activeInventoryItems.fold<int>(0, (sum, i) => sum + i.quantity);
+  int get totalStockUnits =>
+      activeInventoryItems.fold<int>(0, (sum, i) => sum + i.quantity);
   int get inboundTotal => inflow;
   int get outboundTotal => outflow;
   int get inboundTxCount => _todayCount(MovementKind.stockIn);
@@ -793,15 +854,18 @@ class WarehouseState extends ChangeNotifier {
           final catName = catId != null ? catMap[catId] : null;
           final supName = supId != null ? supMap[supId] : null;
 
-          final hasLoc = (p['location_id'] != null && _parseInt(p['location_id']) > 0);
+          final hasLoc =
+              (p['location_id'] != null && _parseInt(p['location_id']) > 0);
           final hasStock = qty > 0;
           final hasStockInTx = _parseInt(p['total_stock_in']) > 0;
           final isPendingInbound = _parseInt(p['pending_inbound_count']) > 0;
           final rawInInv = p['is_in_inventory'];
-          final inInventory = rawInInv != null
-              ? (rawInInv == 1 || rawInInv == true || rawInInv == '1')
-              : (hasStock || hasLoc || hasStockInTx);
-          final pendingInbound = isPendingInbound || (!inInventory && !hasStock);
+          final inInventory =
+              rawInInv != null
+                  ? (rawInInv == 1 || rawInInv == true || rawInInv == '1')
+                  : (hasStock || hasLoc || hasStockInTx);
+          final pendingInbound =
+              isPendingInbound || (!inInventory && !hasStock);
 
           _items.add(
             StockItem(
@@ -811,9 +875,10 @@ class WarehouseState extends ChangeNotifier {
               rack: rackCode,
               zone: zoneCode,
               quantity: qty,
-              minimum: _parseInt(p['reorder_level'] ?? p['reorder']) > 0
-                  ? _parseInt(p['reorder_level'] ?? p['reorder'])
-                  : 50,
+              minimum:
+                  _parseInt(p['reorder_level'] ?? p['reorder']) > 0
+                      ? _parseInt(p['reorder_level'] ?? p['reorder'])
+                      : 50,
               dailyUsage: 0.0,
               price: prc,
               unit: (p['unit'] ?? 'pcs').toString(),
@@ -983,7 +1048,8 @@ class WarehouseState extends ChangeNotifier {
         'inspector': staff.name.isNotEmpty ? staff.name : 'Staf Lapangan',
         'status': status ?? 'Inspected',
         'notes': notes ?? '',
-        if (evidenceUrl != null && evidenceUrl.isNotEmpty) 'evidence_url': evidenceUrl,
+        if (evidenceUrl != null && evidenceUrl.isNotEmpty)
+          'evidence_url': evidenceUrl,
         'items': items.map((it) => it.toJson()).toList(),
       };
       final res = await api.inspectInboundShipment(token!, shipmentId, payload);
@@ -1179,10 +1245,15 @@ class WarehouseState extends ChangeNotifier {
             return it;
           }).toList();
 
-      final allItemsDone = updatedItems.isNotEmpty && updatedItems.every(
-        (it) => (it.acceptedQty + it.damagedQty) >= it.orderedQty || it.acceptedQty > 0 || it.barcodes.isNotEmpty,
-      );
-      final newStatus = allItemsDone ? 'Inspected' : 'Inspecting';
+      final allItemsDone =
+          updatedItems.isNotEmpty &&
+          updatedItems.every(
+            (it) =>
+                (it.acceptedQty + it.damagedQty) >= it.orderedQty ||
+                it.acceptedQty > 0 ||
+                it.barcodes.isNotEmpty,
+          );
+      final newStatus = allItemsDone ? 'Review' : 'Inspect';
 
       // Optimistic update status pengiriman
       inboundShipments[index] = InboundShipmentModel(
@@ -1211,7 +1282,8 @@ class WarehouseState extends ChangeNotifier {
       scanQuantity = null;
 
       final damageText = damagedQty > 0 ? ', $damagedQty rusak dilaporkan' : '';
-      final photoText = photoEvidence != null ? ' (Bukti Foto: $photoEvidence)' : '';
+      final photoText =
+          photoEvidence != null ? ' (Bukti Foto: $photoEvidence)' : '';
 
       recordStaffActivity(
         allItemsDone
@@ -1232,9 +1304,10 @@ class WarehouseState extends ChangeNotifier {
           shipmentId: shipment.id,
           items: updatedItems,
           status: newStatus,
-          notes: damageNotes != null && damageNotes.isNotEmpty
-              ? 'Putaway Dok $rack oleh ${staff.name}. Catatan: $damageNotes${photoEvidence != null ? ' [Foto: $photoEvidence]' : ''}'
-              : 'Putaway selesai ke rak $rack oleh ${staff.name}',
+          notes:
+              damageNotes != null && damageNotes.isNotEmpty
+                  ? 'Putaway Dok $rack oleh ${staff.name}. Catatan: $damageNotes${photoEvidence != null ? ' [Foto: $photoEvidence]' : ''}'
+                  : 'Putaway selesai ke rak $rack oleh ${staff.name}',
           evidenceUrl: photoEvidence,
         );
       }
@@ -1278,10 +1351,15 @@ class WarehouseState extends ChangeNotifier {
             return it;
           }).toList();
 
-      final allItemsDone = updatedItems.isNotEmpty && updatedItems.every(
-        (it) => (it.fulfilledQty + it.damagedQty) >= it.orderedQty || it.fulfilledQty > 0 || it.barcodes.isNotEmpty,
-      );
-      final newStatus = allItemsDone ? 'Inspected' : 'Inspecting';
+      final allItemsDone =
+          updatedItems.isNotEmpty &&
+          updatedItems.every(
+            (it) =>
+                (it.fulfilledQty + it.damagedQty) >= it.orderedQty ||
+                it.fulfilledQty > 0 ||
+                it.barcodes.isNotEmpty,
+          );
+      final newStatus = allItemsDone ? 'Review' : 'Inspect';
 
       outboundShipments[index] = OutboundShipmentModel(
         id: shipment.id,
@@ -1305,8 +1383,10 @@ class WarehouseState extends ChangeNotifier {
       scanRack = null;
       scanQuantity = null;
 
-      final damageText = damagedQty > 0 ? ', $damagedQty kendala dilaporkan' : '';
-      final photoText = photoEvidence != null ? ' (Bukti Foto: $photoEvidence)' : '';
+      final damageText =
+          damagedQty > 0 ? ', $damagedQty kendala dilaporkan' : '';
+      final photoText =
+          photoEvidence != null ? ' (Bukti Foto: $photoEvidence)' : '';
 
       recordStaffActivity(
         allItemsDone
@@ -1326,9 +1406,10 @@ class WarehouseState extends ChangeNotifier {
         await submitOutboundInspection(
           shipmentId: shipment.id,
           items: updatedItems,
-          notes: damageNotes != null && damageNotes.isNotEmpty
-              ? 'Picking Dok ${shipment.dock} oleh ${staff.name}. Catatan: $damageNotes${photoEvidence != null ? ' [Foto: $photoEvidence]' : ''}'
-              : 'Picking selesai dari rak $rack oleh ${staff.name}',
+          notes:
+              damageNotes != null && damageNotes.isNotEmpty
+                  ? 'Picking Dok ${shipment.dock} oleh ${staff.name}. Catatan: $damageNotes${photoEvidence != null ? ' [Foto: $photoEvidence]' : ''}'
+                  : 'Picking selesai dari rak $rack oleh ${staff.name}',
         );
       }
     }
@@ -1465,10 +1546,16 @@ class WarehouseState extends ChangeNotifier {
 
   String _formatAuditAction(String action) {
     switch (action.toUpperCase()) {
+      case 'INBOUND_ORDER':
+        return 'Inbound Dibuat (Order)';
+      case 'INBOUND_INSPECT':
       case 'INBOUND_INSPECTED':
         return 'Inspeksi Dok Inbound';
+      case 'INBOUND_REVIEW':
+        return 'Inspeksi Selesai (Siap Review)';
       case 'INBOUND_ARRIVED':
         return 'Armada Inbound Tiba';
+      case 'INBOUND_COMPLETE':
       case 'INBOUND_RECEIVED':
         return 'Penerimaan Inbound (Selesai)';
       case 'STOCK_IN':
@@ -1538,10 +1625,7 @@ class WarehouseState extends ChangeNotifier {
       isCheckedIn = true;
       lastAttendanceTime = now;
       attendances = [
-        {
-          'type': 'check_in',
-          'scan_time': now.toIso8601String(),
-        }
+        {'type': 'check_in', 'scan_time': now.toIso8601String()},
       ];
       _activities.insert(
         0,
@@ -1556,10 +1640,7 @@ class WarehouseState extends ChangeNotifier {
         isCheckedIn = true;
         lastAttendanceTime = now;
         attendances = [
-          {
-            'type': 'check_in',
-            'scan_time': now.toIso8601String(),
-          }
+          {'type': 'check_in', 'scan_time': now.toIso8601String()},
         ];
         _activities.insert(
           0,
@@ -1596,10 +1677,7 @@ class WarehouseState extends ChangeNotifier {
         attendances = [];
         _activities.insert(
           0,
-          Activity(
-            'Check-out Pulang',
-            'Absensi staf • ${clock(now)}',
-          ),
+          Activity('Check-out Pulang', 'Absensi staf • ${clock(now)}'),
         );
         notifyListeners();
         return null;

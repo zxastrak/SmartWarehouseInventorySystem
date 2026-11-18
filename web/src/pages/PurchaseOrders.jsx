@@ -98,7 +98,7 @@ function PurchaseOrders({
     const map = new Map();
     // 1. Dari katalog resmi supplier (jika ada)
     (suppliers || []).forEach((s) => {
-      (s.catalog || []).forEach((cp) => {
+      (s.catalog || s.catalog_products || []).forEach((cp) => {
         const code = cp.sku || cp.code;
         if (code) {
           map.set(code.toLowerCase(), {
@@ -108,7 +108,7 @@ function PurchaseOrders({
             price: Number(cp.price) || 0,
             supplier: s.name || "",
             supplier_id: s.id,
-            min_order: Number(cp.min_order ?? 0),
+            min_order: Number(cp.min_order ?? cp.reorder_level ?? cp.reorder ?? 0),
             unit: cp.unit || "pcs",
           });
         }
@@ -118,6 +118,7 @@ function PurchaseOrders({
     (inventory || []).forEach((p) => {
       if (p.sku) {
         const existing = map.get(p.sku.toLowerCase());
+        const minVal = Number(p.min_order ?? p.reorder_level ?? p.reorder ?? existing?.min_order ?? 0);
         map.set(p.sku.toLowerCase(), {
           sku: p.sku,
           name: p.name || p.sku,
@@ -125,7 +126,7 @@ function PurchaseOrders({
           price: Number(p.price) || 0,
           supplier: p.supplier || existing?.supplier || "",
           supplier_id: p.supplier_id || existing?.supplier_id,
-          min_order: Number(p.min_order ?? existing?.min_order ?? 0),
+          min_order: minVal,
           unit: p.unit || existing?.unit || "pcs",
         });
       }
@@ -141,7 +142,7 @@ function PurchaseOrders({
             category: p.category || "Electronics",
             price: Number(p.unitPrice) || 0,
             supplier: o.supplier || "",
-            min_order: Number(p.min_order ?? 0),
+            min_order: Number(p.min_order ?? p.reorder_level ?? p.reorder ?? 0),
             unit: p.unit || "pcs",
           });
         }
@@ -302,6 +303,7 @@ function PurchaseOrders({
       ...current,
       products: current.products.map((row, i) => (i === index ? { ...row, [key]: value } : row)),
     }));
+    if (error) setError("");
   }
 
   function handleSelectProductSku(index, selectedSku) {
@@ -314,16 +316,18 @@ function PurchaseOrders({
             : row
         ),
       }));
+      setError("");
       return;
     }
 
-    const found = allKnownProducts.find((p) => p.sku.toLowerCase() === selectedSku.toLowerCase());
+    const found = allKnownProducts.find((p) => p.sku.toLowerCase() === selectedSku.toLowerCase()) ||
+                  inventory.find((p) => p.sku?.toLowerCase() === selectedSku.toLowerCase());
+    const itemMin = Number(found?.min_order ?? found?.reorder_level ?? found?.reorder ?? 0);
 
     setDraft((curr) => ({
       ...curr,
       products: curr.products.map((row, i) => {
         if (i !== index) return row;
-        const itemMin = Number(found?.min_order ?? 0);
         return {
           ...row,
           code: found?.sku || selectedSku,
@@ -385,11 +389,13 @@ function PurchaseOrders({
     // Validasi pembatasan minimum order katalog supplier
     for (let i = 0; i < draft.products.length; i++) {
       const row = draft.products[i];
-      const minVal = Number(row.min_order || 0);
+      const found = allKnownProducts.find((p) => p.sku?.toLowerCase() === row.code?.toLowerCase());
+      const minVal = Number(row.min_order || found?.min_order || 0);
       const qtyVal = Number(row.quantity || 0);
+      const unitLabel = row.unit || found?.unit || 'unit';
       if (minVal > 0 && qtyVal < minVal) {
         setError(
-          `Tidak dapat diproses: Jumlah pesanan untuk "${row.name || row.code}" (${qtyVal} ${row.unit || 'unit'}) berada di bawah batas minimum order katalog supplier (${minVal} ${row.unit || 'unit'}). Silakan naikkan jumlah pesanan minimal ${minVal} ${row.unit || 'unit'}.`
+          `Tidak dapat diproses: Jumlah pesanan untuk "${row.name || row.code}" (${qtyVal} ${unitLabel}) berada di bawah batas minimum pembelian katalog supplier (${minVal} ${unitLabel}). Silakan naikkan jumlah pesanan minimal ${minVal} ${unitLabel}.`
         );
         return;
       }
@@ -558,25 +564,15 @@ function PurchaseOrders({
                       </tr>
                     </thead>
                     <tbody>
-                      {visible.map((row) => {
-                        const sObj = (suppliers || []).find(
-                          (s) => s.name?.toLowerCase().trim() === row.supplier?.toLowerCase().trim()
-                        );
-                        return (
-                          <tr key={row.id}>
-                            <td>
-                              <strong>{row.id}</strong>
-                            </td>
-                            <td>
-                              <strong>{row.supplier}</strong>
-                              {(sObj?.bank_name || sObj?.bank_account) && (
-                                <div className="po-table-bank-info">
-                                  <span className="po-table-bank-badge">🏦 {sObj.bank_name || "Bank"}</span>
-                                  <span className="po-table-bank-num">{sObj.bank_account || "—"}</span>
-                                </div>
-                              )}
-                            </td>
-                            <td>{poDate(row.expected)}</td>
+                      {visible.map((row) => (
+                        <tr key={row.id}>
+                          <td>
+                            <strong>{row.id}</strong>
+                          </td>
+                          <td>
+                            <strong>{row.supplier}</strong>
+                          </td>
+                          <td>{poDate(row.expected)}</td>
                             <td>{(row.products || []).length}</td>
                             <td>{poMoney(poTotal(row), row.currency)}</td>
                             <td>
@@ -607,8 +603,7 @@ function PurchaseOrders({
                               </button>
                             </td>
                           </tr>
-                        );
-                      })}
+                        ))}
                       {!visible.length && (
                         <tr>
                           <td colSpan="7">No purchase orders match these filters.</td>
@@ -1105,7 +1100,7 @@ function PurchaseOrders({
                           type="number"
                           min="1"
                           step="1"
-                          placeholder="0"
+                          placeholder={row.min_order > 0 ? `Min ${row.min_order}` : "0"}
                           value={row.quantity}
                           onChange={(e) => changeItem(i, "quantity", e.target.value)}
                           required
@@ -1114,7 +1109,7 @@ function PurchaseOrders({
                       </div>
                       {row.min_order > 0 && row.quantity !== "" && Number(row.quantity) < row.min_order && (
                         <div className="po-min-order-tooltip" role="alert">
-                          <span>⚠️</span> Min. order: {row.min_order} {row.unit || "unit"}
+                          <span>⚠️</span> Min. pembelian: {row.min_order} {row.unit || "unit"}
                         </div>
                       )}
                     </div>

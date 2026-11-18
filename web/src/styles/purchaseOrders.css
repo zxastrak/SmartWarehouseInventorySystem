@@ -195,33 +195,6 @@
 }
 
 /* Supplier Bank Information across Purchase Orders */
-.po-table-bank-info {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 4px;
-  background: #f2f6ee;
-  border: 1px solid #dcebd9;
-  border-radius: 6px;
-  padding: 2px 7px;
-  max-width: 100%;
-}
-
-.po-table-bank-badge {
-  font-size: 11px;
-  font-weight: 700;
-  color: #3e5510;
-  white-space: nowrap;
-}
-
-.po-table-bank-num {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #191d17;
-  letter-spacing: 0.2px;
-}
-
 .po-bank-detail-inline {
   display: inline-flex;
   align-items: center;

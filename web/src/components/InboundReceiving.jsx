@@ -7,7 +7,7 @@ import "../styles/receiving.css";
 
 const headings = { 
   inspect: "Inspect Inbound Shipment", 
-  review: "Review & Complete Receiving" 
+  review: "Review & Complete Receiving" gas
 };
 
 const descriptions = { 
@@ -63,16 +63,16 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
   }
 
   const [draft, setDraft] = useState(() => {
-    if (initialDraft && shipment.status !== "Inspected") return initialDraft;
+    if (initialDraft && !["Review", "Inspected"].includes(shipment.status)) return initialDraft;
     const initial = newReceivingDraft(shipment, inventory, racks);
-    if (shipment.status === "Inspected") {
+    if (["Review", "Inspected"].includes(shipment.status)) {
       return { ...initial, stage: "review" };
     }
     return initial;
   });
 
   useEffect(() => {
-    if (shipment.status === "Inspected" && draft.stage !== "review") {
+    if (["Review", "Inspected"].includes(shipment.status) && draft.stage !== "review") {
       const refreshed = newReceivingDraft(shipment, inventory, racks);
       setDraft({ ...refreshed, stage: "review" });
     }
@@ -100,7 +100,7 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
 
   function complete() {
     if (submitLock.current || done) return;
-    if (shipment.status !== "Inspected") {
+    if (!["Review", "Inspected"].includes(shipment.status)) {
       setError("Inbound shipment belum diinspeksi oleh staf dok. Staf dok wajib menginput kuantitas fisik dan memindai barcode unit di Mobile terlebih dahulu sebelum Manager memberikan ACC.");
       return;
     }
@@ -389,6 +389,12 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                     const invItem = inventory.find((item) => item.sku === row.sku);
                     const rowImg = row.image_url || invItem?.image_url;
                     const rowStaff = normalizeStaff(row.assigned_staff || currentStaff);
+                    const hasInspected = Boolean(
+                      row.is_inspected ||
+                      (Array.isArray(row.barcodes) && row.barcodes.length > 0) ||
+                      row.inspected_at ||
+                      (['Review', 'Inspected', 'Complete', 'Received'].includes(shipment.status))
+                    );
                     return (
                       <tr key={row.sku}>
                         <td>
@@ -424,6 +430,9 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                         <td>{Number(row.damaged) > 0 ? <span className="critical-text">{row.damaged}</span> : "0"}</td>
                         <td>{Number(row.rejected) > 0 ? <span className="critical-text">{row.rejected}</span> : "0"}</td>
                         <td className="positive-text"><strong>{Number.isFinite(count) ? count : "—"}</strong></td>
+                        <td>{hasInspected && Number(row.damaged) > 0 ? <span className="critical-text">{row.damaged}</span> : (hasInspected ? "0" : "—")}</td>
+                        <td>{hasInspected && Number(row.rejected) > 0 ? <span className="critical-text">{row.rejected}</span> : (hasInspected ? "0" : "—")}</td>
+                        <td className={hasInspected ? "positive-text" : ""}><strong>{hasInspected ? (Number.isFinite(count) ? count : "0") : "—"}</strong></td>
                         <td>
                           <select
                             value={rowStaff}
@@ -462,6 +471,15 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                           <span className={`inbound-status${issues ? " inbound-status-issue" : " inbound-status-arrived"}`}>
                             {issues ? "Partial issue" : "Accepted"}
                           </span>
+                          {hasInspected ? (
+                            <span className={`inbound-status${issues ? " inbound-status-issue" : " inbound-status-arrived"}`}>
+                              {issues ? "Partial issue" : "Accepted"}
+                            </span>
+                          ) : (
+                            <span className="inbound-status inbound-status-nodata">
+                              No Data
+                            </span>
+                          )}
                         </td>
                         <td>
                           <button

@@ -40,6 +40,7 @@ import StockMovementReports from './pages/StockMovementReports.jsx';
 import StaffManagement from './pages/StaffManagement.jsx';
 import Settings from './pages/Settings.jsx';
 import SessionVerification from './components/SessionVerification.jsx';
+import AIChatbotWidget from './components/AIChatbotWidget.jsx';
 
 import { staffSeed, staffRoles } from './data/staff.js';
 import { defaultPreferences, validateStaff, validateProfile, strongPassword } from './utils/staffSettings.js';
@@ -863,7 +864,37 @@ export default function App() {
             notes: inb.notes || '',
             evidence_url: inb.evidence_url || '',
             scanned_barcodes: allShipmentBarcodes,
-            receivingCompleted: inb.status === 'Received',
+            receivingCompleted: inb.status === 'Complete' || inb.status === 'Received',
+            receipt: (inb.status === 'Complete' || inb.status === 'Received') ? {
+              completedAt: inb.completed_at || inb.scheduled_date || new Date().toISOString(),
+              user: inb.inspector || inb.assigned_staff || 'Manager Gudang',
+              notes: inb.notes || '',
+              evidence: inb.evidence_url ? [{ name: inb.evidence_url }] : [],
+              stockChanges: shipmentItemsList.map((it) => ({
+                sku: it.sku || it.code,
+                name: it.name,
+                category: it.category || '',
+                received: it.received != null ? Number(it.received) : Number(it.ordered || 0),
+                accepted: it.received != null ? Number(it.received) : Number(it.ordered || 0),
+                damaged: Number(it.damaged || 0),
+                rejected: Number(it.rejected || 0),
+                short: Math.max(0, Number(it.ordered || 0) - Number(it.received || it.ordered || 0)),
+                before: null,
+                after: null,
+                allocations: [],
+              })),
+              summary: {
+                ordered: shipmentItemsList.reduce((s, r) => s + Number(r.ordered || r.quantity || 0), 0),
+                received: shipmentItemsList.reduce((s, r) => s + Number(r.received != null ? r.received : r.ordered || 0), 0),
+                accepted: inb.accepted_units != null && Number(inb.accepted_units) > 0
+                  ? Number(inb.accepted_units)
+                  : shipmentItemsList.reduce((s, r) => s + Number(r.received != null ? r.received : r.ordered || 0), 0),
+                damaged: shipmentItemsList.reduce((s, r) => s + Number(r.damaged || 0), 0),
+                rejected: shipmentItemsList.reduce((s, r) => s + Number(r.rejected || 0), 0),
+                short: shipmentItemsList.reduce((s, r) => s + Math.max(0, Number(r.ordered || 0) - Number(r.received || r.ordered || 0)), 0),
+              },
+              dispositions: [],
+            } : null,
             products: shipmentItemsList,
           };
         });
@@ -1811,7 +1842,6 @@ export default function App() {
       reference: result.shipment.id,
       details: `${result.shipment.units} units scheduled`,
       changes: [{ field: 'Status', before: 'Not created', after: 'Scheduled' }],
-
     });
 
     try {
@@ -2112,11 +2142,11 @@ export default function App() {
       action: 'Inspection dispatched to staff',
       reference: id,
       details: `Ditugaskan ke ${assignedStaff} · ${shipment.supplier} · ${shipment.po}`,
-      changes: [{ field: 'Status', before: shipment.status, after: 'Inspecting' }],
+      changes: [{ field: 'Status', before: shipment.status, after: 'Inspect' }],
     });
 
     inboundApi.inspect(shipment.backendId || id, {
-      status: 'Inspecting',
+      status: 'Inspect',
       inspector: assignedStaff,
       notes,
     }).catch((err) => console.error('Failed to sync inspecting status to backend:', err));
@@ -2138,7 +2168,7 @@ export default function App() {
   async function completeReceiving(id, draft) {
     const shipment = shipments.find((row) => row.id === id);
     if (!shipment) return 'Shipment not found.';
-    if (shipment.status !== 'Inspected') {
+    if (shipment.status !== 'Review' && shipment.status !== 'Inspected') {
       return 'Inbound shipment belum diinspeksi oleh staf dok. Staf dok wajib menginput kuantitas fisik dan memindai barcode unit di Mobile terlebih dahulu sebelum Manager memberikan persetujuan (ACC).';
     }
     const linkedPO = poOrders.find((row) => row.id === shipment.po);
@@ -2172,7 +2202,7 @@ export default function App() {
       reference: id,
       details: `Accepted ${result.shipment.receipt.summary.accepted} units · ${shipment.po}`,
       changes: [
-        { field: 'Status', before: shipment.status, after: 'Received' },
+        { field: 'Status', before: shipment.status, after: 'Complete' },
         ...result.shipment.receipt.stockChanges.map((row) => ({ field: row.sku, before: row.before, after: row.after })),
       ],
     });
@@ -2234,9 +2264,9 @@ export default function App() {
 
   async function markInboundArrived(id) {
     const shipment = shipments.find((row) => row.id === id);
-    if (!shipment || shipment.status !== 'Scheduled') return { error: 'Only a Scheduled shipment can be marked as arrived.' };
+    if (!shipment || (shipment.status !== 'Order' && shipment.status !== 'Scheduled')) return { error: 'Only an Order / Scheduled shipment can be marked as arrived.' };
     const updated = { ...shipment, status: 'Arrived', arrivedAt: new Date().toISOString(), arrivedBy: effectiveManager.fullName };
-    setShipments((current) => current.map((row) => (row.id === id && row.status === 'Scheduled' ? updated : row)));
+    setShipments((current) => current.map((row) => (row.id === id && (row.status === 'Order' || row.status === 'Scheduled') ? updated : row)));
     logEvent({
       module: 'Inbound',
       action: 'Shipment arrived',
@@ -2260,7 +2290,7 @@ export default function App() {
 
   async function editInboundSchedule(id, draft) {
     const shipment = shipments.find((row) => row.id === id);
-    if (!shipment || shipment.status !== 'Scheduled') return { error: 'Only Scheduled shipments can be rescheduled.' };
+    if (!shipment || (shipment.status !== 'Order' && shipment.status !== 'Scheduled')) return { error: 'Only Order / Scheduled shipments can be rescheduled.' };
     const validDate =
       /^\d{4}-\d{2}-\d{2}$/.test(draft.date) &&
       !Number.isNaN(Date.parse(draft.date)) &&
@@ -2420,7 +2450,7 @@ export default function App() {
       action: 'Inbound created',
       reference: shipment.id,
       details: `${shipment.po} · ${shipment.units} units`,
-      changes: [{ field: 'Status', before: 'Not created', after: 'Scheduled' }],
+      changes: [{ field: 'Status', before: 'Not created', after: 'Order' }],
     });
 
     try {
@@ -2686,9 +2716,10 @@ export default function App() {
   }
 
   // 2. View Routing
-  if (step === 'manager-verification') {
-    return <SessionVerification onVerify={finishSignIn} onCancel={() => setStep('signin')} />;
-  }
+  const renderCurrentView = () => {
+    if (step === 'manager-verification') {
+      return <SessionVerification onVerify={finishSignIn} onCancel={() => setStep('signin')} />;
+    }
 
   if (step === 'staff-management') {
     return (
@@ -3062,5 +3093,26 @@ export default function App() {
     );
   }
 
-  return <SignUp initialData={manager} onContinue={continueFromManager} onSignIn={() => setStep('signin')} />;
+    return <SignUp initialData={manager} onContinue={continueFromManager} onSignIn={() => setStep('signin')} />;
+  };
+
+  const AUTH_STEPS = [
+    'signin',
+    'manager',
+    'warehouse',
+    'security',
+    'forgot',
+    'reset-link-sent',
+    'reset-password',
+    'password-updated',
+    'manager-verification',
+  ];
+  const isAuthStep = AUTH_STEPS.includes(step);
+
+  return (
+    <>
+      {renderCurrentView()}
+      {!isAuthStep && <AIChatbotWidget />}
+    </>
+  );
 }

@@ -134,6 +134,9 @@ Server utama di-bootstrap melalui `backend/server.js`. Semua rute diakses melalu
 | **App OTA Update** (`/api/app`) | `GET /latest` | `appUpdateRoute` | `appVersion.json` | `Public` | `backend/routes/appUpdateRoute.js:14` |
 | | `GET /download` | `appUpdateRoute` | File APK (`backend/uploads/susuno-mobile.apk`) | `Public` | `backend/routes/appUpdateRoute.js:29` |
 | | `POST /publish` | `appUpdateRoute` | Multer APK Upload | `manager` | `backend/routes/appUpdateRoute.js:51` |
+| **AI Assistant** (`/api/ai`) | `POST /chat` | `aiChatController.chat` | `ai/knowledge-base/` + Gemini SDK | `authenticated` | `backend/routes/aiRoute.js:6` |
+| | `POST /reload-kb` | `aiChatController.reloadKnowledgeBase` | `knowledgeBaseService.js` | `authenticated` | `backend/routes/aiRoute.js:9` |
+| | `GET /status` | `aiChatController.getStatus` | `knowledgeBaseService.js` | `authenticated` | `backend/routes/aiRoute.js:12` |
 
 ---
 
@@ -236,6 +239,10 @@ Modul kecerdasan buatan dirancang untuk mengoptimalkan efisiensi rantai pasok da
 | File Path | Status | Integrasi Sistem Terkait | Deskripsi & Rencana Arsitektur |
 |---|---|---|---|
 | `ai/README.md` | Aktif (Marker tim AI) | Repositori tim AI Damar | Penanda modul model AI peramalan kebutuhan inventaris. |
+| `ai/knowledge-base/` | Aktif (Dokumen SOP) | AI Chatbot Gateway | Direktori file Markdown (`.md`) dan teks (`.txt`) pengetahuan resmi SUSUNO untuk acuan jawaban AI. |
+| `backend/services/knowledgeBaseService.js` | Aktif di Backend | In-Memory Cache | Pemuat dokumen KB ke memori RAM, reload otomatis/manual, dan metadata file. |
+| `backend/controllers/aiChatController.js` | Aktif di Backend | `/api/ai/chat` | Controller perantara Google Gemini SDK, sistem prompt Knowledge Base, dan multi-turn conversation memory. |
+| `web/src/components/AIChatbotWidget.jsx` | Aktif di Web | Web Management Console | Widget mengambang (floating chat) ergonomis di pojok kanan bawah dengan tema Olive Primary `#5c732b`. |
 | `backend/database/smart_warehouse_db.sql` (Tabel `ai_predictions`) | Aktif di Database | Backend MySQL | Skema penyimpanan hasil inferensi AI: `id`, `product_id`, `predicted_demand`, `confidence_score`, `prediction_date`, `created_at`. |
 | `web/src/pages/AIInsight.jsx` | Aktif di Web | Web Management Console | Antarmuka visualisasi prediksi stok bagi manajer: deteksi dini kehabisan stok, kalkulasi safety stock dinamis, rekomendasi kuantitas pemesanan ulang. |
 | `web/src/utils/aiInsights.js` | Aktif di Web | Utilitas Heuristik Web | Logika perhitungan perkiraan run-out date, klasifikasi perputaran barang (Fast, Medium, Slow Moving), dan scoring urgensi restock. |

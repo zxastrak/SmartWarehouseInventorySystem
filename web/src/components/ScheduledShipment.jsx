@@ -65,7 +65,7 @@ function ScheduledShipment({ shipment, inventory, warehouseName, staffAccounts =
   const timeline = [
     ["Inbound scheduled", shipment.scheduledAt ? `${eventTime(shipment.scheduledAt)}${shipment.scheduledBy ? " by " + shipment.scheduledBy : ""}` : "Delivery plan saved", true],
     [arrived ? "Shipment arrived" : "Expected arrival", arrived ? eventTime(shipment.arrivedAt) : arrivalWindow, arrived],
-    ["Inspection", arrived ? (['Inspected', 'Received'].includes(shipment.status) ? "Completed by dock staff" : shipment.status === 'Inspecting' ? "In progress by dock staff" : "Waiting for dock staff inspection") : "Starts after arrival confirmation", ['Inspected', 'Received'].includes(shipment.status)]
+    ["Inspection", arrived ? (['Review', 'Complete', 'Inspected', 'Received'].includes(shipment.status) ? "Completed by dock staff" : ['Inspect', 'Inspecting'].includes(shipment.status) ? "In progress by dock staff" : "Waiting for dock staff inspection") : "Starts after arrival confirmation", ['Review', 'Complete', 'Inspected', 'Received'].includes(shipment.status)]
   ];
   return <div className="scheduled-content">
     {!arrived && <button className="scheduled-edit dashboard-link" onClick={openEdit}>Edit Schedule</button>}
@@ -228,7 +228,7 @@ function ScheduledShipment({ shipment, inventory, warehouseName, staffAccounts =
         <span className="scheduled-arrival-icon" aria-hidden="true" style={{ background: confirmed ? '#dcfce7' : undefined, color: confirmed ? '#16a34a' : undefined }}>{confirmed ? "✓" : "↓"}</span>
         <h2 id="scheduled-dialog-title">{confirmed ? "Confirmed!" : "Mark Shipment as Arrived?"}</h2>
         <p className="scheduled-dialog-description">{confirmed ? `Arrival recorded for ${shipment.id}. Item inspection is now available for dock verification.` : `Confirm that ${shipment.id} has physically arrived at receiving dock ${shipment.dock}.`}</p>
-        <section className="scheduled-dialog-summary"><dl>{[["Shipment", shipment.id], ["Supplier", shipment.supplier], ["Expected units", total]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><p>{confirmed ? "Arrival recorded. Stock will be added only after inspection and Complete Receiving." : "Status will change from Scheduled to Arrived and item inspection will become available."}</p></section>
+        <section className="scheduled-dialog-summary"><dl>{[["Shipment", shipment.id], ["Supplier", shipment.supplier], ["Expected units", total]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><p>{confirmed ? "Arrival recorded. Stock will be added only after inspection and Complete Receiving." : "Status will change from Order to Arrived and item inspection will become available."}</p></section>
         {error && <p className="field-error" role="alert">{error}</p>}
         {confirmed ? <><div className="scheduled-confirmed" role="status">Confirmed!</div><button className="dashboard-link scheduled-modal-footer" onClick={() => onInspect(shipment)}>Continue to Inspect Items ›</button></> : <><div className="scheduled-dialog-actions"><button className="inbound-secondary" onClick={closeModal}>Cancel</button><button className="inbound-primary" onClick={confirmArrival}>Confirm Arrival</button></div><p className="scheduled-modal-footer">After confirmation, continue to Inspect Items.</p></>}
       </>}

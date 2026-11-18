@@ -1,0 +1,473 @@
+/* ==========================================================================
+   SUSUNO AI Chatbot Widget Styles
+   Palette: Modern Industrial Forest (Olive #5c732b, Deep #3e5510, Ink #191d17)
+   ========================================================================== */
+
+/* Popover Native Top-Layer Overrides — guarantees floating above any <dialog> modal */
+.susuno-ai-launcher[popover],
+.susuno-ai-launcher:popover-open {
+  position: fixed !important;
+  inset: auto 0 120px auto !important;
+  top: auto !important;
+  left: auto !important;
+  bottom: 120px !important;
+  right: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  display: flex !important;
+  align-items: center !important;
+  z-index: 2147483647 !important;
+}
+
+.susuno-ai-window[popover],
+.susuno-ai-window:popover-open {
+  position: fixed !important;
+  inset: auto 24px 88px auto !important;
+  top: auto !important;
+  left: auto !important;
+  bottom: 88px !important;
+  right: 24px !important;
+  margin: 0 !important;
+  border: 1px solid #dfe4d9 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  z-index: 2147483647 !important;
+}
+
+/* Floating Edge-Docked Launcher Trigger (Tucked Auto-Peek Tab) */
+.susuno-ai-launcher {
+  position: fixed;
+  bottom: 120px;
+  right: 0;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #5c732b 0%, #3e5510 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 20px 0 0 20px;
+  padding: 8px 14px 8px 10px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  /* Auto-peek: dalam kondisi idle, tersembunyi sebagian di tepi kanan (hanya ikon ~36px terlihat) */
+  transform: translateX(calc(100% - 36px));
+  opacity: 0.88;
+  box-shadow: -3px 4px 14px rgba(62, 85, 16, 0.28), -1px 2px 5px rgba(25, 29, 23, 0.1);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, box-shadow 0.25s ease, background 0.2s ease;
+}
+
+.susuno-ai-launcher:hover {
+  /* Meluncur keluar secara mulus saat kursor diarahkan */
+  transform: translateX(0);
+  opacity: 1;
+  box-shadow: -6px 8px 24px rgba(62, 85, 16, 0.45), -2px 3px 8px rgba(25, 29, 23, 0.15);
+  background: linear-gradient(135deg, #688231 0%, #466013 100%);
+}
+
+.susuno-ai-launcher:active {
+  transform: translateX(-2px);
+}
+
+.susuno-ai-launcher-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.susuno-ai-launcher-badge {
+  background: #dcebd9;
+  color: #3e5510;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 8px;
+  letter-spacing: 0.4px;
+}
+
+/* Chat Window Container */
+.susuno-ai-window {
+  position: fixed;
+  bottom: 88px;
+  right: 24px;
+  z-index: 2147483647;
+  width: 390px;
+  max-width: calc(100vw - 32px);
+  height: 560px;
+  max-height: calc(100vh - 110px);
+  background: #ffffff;
+  border: 1px solid #dfe4d9;
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(25, 29, 23, 0.16), 0 4px 12px rgba(25, 29, 23, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  animation: susunoChatSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes susunoChatSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Chat Header */
+.susuno-ai-header {
+  background: linear-gradient(135deg, #5c732b 0%, #3e5510 100%);
+  color: #ffffff;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.susuno-ai-header-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.susuno-ai-header-avatar {
+  width: 34px;
+  height: 34px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.susuno-ai-header-titles h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.2px;
+}
+
+.susuno-ai-header-status {
+  margin: 0;
+  font-size: 11px;
+  color: #dcebd9;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.susuno-ai-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #86efac;
+  display: inline-block;
+  box-shadow: 0 0 6px #86efac;
+}
+
+.susuno-ai-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.susuno-ai-header-btn {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  opacity: 0.8;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.susuno-ai-header-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Chat Messages Area */
+.susuno-ai-messages {
+  flex: 1;
+  background: #f8f9f5;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scroll-behavior: smooth;
+}
+
+.susuno-ai-messages::-webkit-scrollbar {
+  width: 5px;
+}
+
+.susuno-ai-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.susuno-ai-messages::-webkit-scrollbar-thumb {
+  background: #dfe4d9;
+  border-radius: 4px;
+}
+
+/* Chat Bubble Container */
+.susuno-ai-bubble-row {
+  display: flex;
+  gap: 8px;
+  max-width: 88%;
+}
+
+.susuno-ai-bubble-row.user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.susuno-ai-bubble-row.ai {
+  align-self: flex-start;
+}
+
+.susuno-ai-avatar-tiny {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #dcebd9;
+  color: #3e5510;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.susuno-ai-bubble {
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+/* Bubble User */
+.susuno-ai-bubble-row.user .susuno-ai-bubble {
+  background: #5c732b;
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 2px 8px rgba(92, 115, 43, 0.2);
+}
+
+/* Bubble AI */
+.susuno-ai-bubble-row.ai .susuno-ai-bubble {
+  background: #ffffff;
+  color: #191d17;
+  border: 1px solid #dfe4d9;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 2px 6px rgba(25, 29, 23, 0.04);
+}
+
+/* Markdown formatting inside AI bubble */
+.susuno-ai-bubble p {
+  margin: 0 0 6px 0;
+}
+
+.susuno-ai-bubble p:last-child {
+  margin-bottom: 0;
+}
+
+.susuno-ai-bubble ul, .susuno-ai-bubble ol {
+  margin: 4px 0 6px 18px;
+  padding: 0;
+}
+
+.susuno-ai-bubble li {
+  margin-bottom: 3px;
+}
+
+.susuno-ai-bubble code {
+  background: #f1f3ed;
+  color: #3e5510;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.susuno-ai-bubble strong {
+  font-weight: 600;
+  color: #191d17;
+}
+
+.susuno-ai-bubble-row.user .susuno-ai-bubble strong {
+  color: #ffffff;
+}
+
+.susuno-ai-bubble-time {
+  font-size: 10px;
+  color: #737b6c;
+  margin-top: 4px;
+  text-align: right;
+}
+
+.susuno-ai-bubble-row.user .susuno-ai-bubble-time {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Typing Indicator */
+.susuno-ai-typing {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px;
+  background: #ffffff;
+  border: 1px solid #dfe4d9;
+  border-radius: 14px;
+  border-bottom-left-radius: 4px;
+  width: fit-content;
+}
+
+.susuno-ai-typing-dot {
+  width: 6px;
+  height: 6px;
+  background: #737b6c;
+  border-radius: 50%;
+  animation: susunoDotPulse 1.4s infinite ease-in-out both;
+}
+
+.susuno-ai-typing-dot:nth-child(1) { animation-delay: -0.32s; }
+.susuno-ai-typing-dot:nth-child(2) { animation-delay: -0.16s; }
+.susuno-ai-typing-dot:nth-child(3) { animation-delay: 0; }
+
+@keyframes susunoDotPulse {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+    background: #5c732b;
+  }
+}
+
+/* Quick Suggestion Chips */
+.susuno-ai-chips-wrap {
+  padding: 8px 16px 4px 16px;
+  background: #f8f9f5;
+  border-top: 1px solid #dfe4d9;
+}
+
+.susuno-ai-chips-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #737b6c;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+
+.susuno-ai-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.susuno-ai-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.susuno-ai-chip {
+  background: #ffffff;
+  border: 1px solid #dfe4d9;
+  color: #3e5510;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 5px 10px;
+  border-radius: 20px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.susuno-ai-chip:hover {
+  background: #dcebd9;
+  border-color: #5c732b;
+  color: #191d17;
+}
+
+/* Chat Input Bar */
+.susuno-ai-input-bar {
+  padding: 12px 14px;
+  background: #ffffff;
+  border-top: 1px solid #dfe4d9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.susuno-ai-input {
+  flex: 1;
+  background: #f8f9f5;
+  border: 1px solid #dfe4d9;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  color: #191d17;
+  outline: none;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.susuno-ai-input:focus {
+  border-color: #5c732b;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(92, 115, 43, 0.12);
+}
+
+.susuno-ai-input::placeholder {
+  color: #737b6c;
+}
+
+.susuno-ai-send-btn {
+  background: #5c732b;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.susuno-ai-send-btn:hover:not(:disabled) {
+  background: #3e5510;
+  transform: scale(1.04);
+}
+
+.susuno-ai-send-btn:disabled {
+  background: #dfe4d9;
+  color: #737b6c;
+  cursor: not-allowed;
+  transform: none;
+}

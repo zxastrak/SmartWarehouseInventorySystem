@@ -52,7 +52,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
     // Bawa SKU, Rak, Kuantitas, Task ID, dan Inbound/Outbound Shipment ID dari tugas jika tersedia
     sku = (s.scanSku != null && s.scanSku!.isNotEmpty) ? s.scanSku : null;
     rack = (s.scanRack != null && s.scanRack!.isNotEmpty) ? s.scanRack : null;
-    targetQuantity = (s.scanQuantity != null && s.scanQuantity! > 0) ? s.scanQuantity! : 0;
+    targetQuantity =
+        (s.scanQuantity != null && s.scanQuantity! > 0) ? s.scanQuantity! : 0;
     // Kuantitas hitungan fisik aktual SELALU mulai dari 0 untuk Putaway dan Dispatching
     quantity = 0;
     taskId = s.scanTaskId;
@@ -82,7 +83,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
         sku = s.scanSku;
         mode = s.scanMode;
         if (s.scanRack != null && s.scanRack!.isNotEmpty) rack = s.scanRack;
-        targetQuantity = (s.scanQuantity != null && s.scanQuantity! > 0) ? s.scanQuantity! : 0;
+        targetQuantity =
+            (s.scanQuantity != null && s.scanQuantity! > 0)
+                ? s.scanQuantity!
+                : 0;
         // Hitungan fisik aktual mulai dari 0
         quantity = 0;
         taskId = s.scanTaskId;
@@ -141,7 +145,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
   void itemScanned(String code) {
     final item = context.read<WarehouseState>().resolve(code);
     if (item == null) {
-      message(context, 'Barcode barang tidak ditemukan. Gunakan SKU yang terdaftar.');
+      message(
+        context,
+        'Barcode barang tidak ditemukan. Gunakan SKU yang terdaftar.',
+      );
       return;
     }
     final r = rack;
@@ -162,7 +169,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
       } else {
         sku = item.sku;
         final s = context.read<WarehouseState>();
-        final taskQty = (s.scanQuantity != null && s.scanQuantity! > 0) ? s.scanQuantity! : 0;
+        final taskQty =
+            (s.scanQuantity != null && s.scanQuantity! > 0)
+                ? s.scanQuantity!
+                : 0;
         targetQuantity = taskQty;
         // Kuantitas hitungan fisik terverifikasi SELALU mulai dari 0 (Putaway & Dispatching)
         quantity = 0;
@@ -231,11 +241,17 @@ class _ScannerScreenState extends State<ScannerScreen> {
     }
     final hasDamageReport = hasDamage && damagedQuantity > 0;
     if (quantity <= 0 && !hasDamageReport) {
-      message(context, 'Masukkan jumlah unit fisik (diterima/diambil atau rusak) terlebih dahulu.');
+      message(
+        context,
+        'Masukkan jumlah unit fisik (diterima/diambil atau rusak) terlebih dahulu.',
+      );
       return;
     }
     if (!checked) {
-      message(context, 'Centang konfirmasi pemeriksaan fisik unit sebelum menyimpan.');
+      message(
+        context,
+        'Centang konfirmasi pemeriksaan fisik unit sebelum menyimpan.',
+      );
       return;
     }
     final s = context.read<WarehouseState>();
@@ -243,7 +259,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
     final rackStock = _getRackStock(item, rackCode);
 
     if (mode == ScanMode.dispatch && quantity > rackStock) {
-      message(context, 'Jumlah pengeluaran ($quantity) melebihi stok rak ($rackStock).');
+      message(
+        context,
+        'Jumlah pengeluaran ($quantity) melebihi stok rak ($rackStock).',
+      );
       return;
     }
 
@@ -255,26 +274,30 @@ class _ScannerScreenState extends State<ScannerScreen> {
     final savedUnit = item.unit;
     final isPutaway = mode == ScanMode.putaway;
     final savedDamagedQty = hasDamage ? damagedQuantity : 0;
-    final savedDamageNotes = hasDamage ? _damageNotesController.text.trim() : null;
+    final savedDamageNotes =
+        hasDamage ? _damageNotesController.text.trim() : null;
     final savedDamagePhoto = hasDamage ? damagePhoto : null;
 
     // Auto-match inbound shipment fallback jika inboundShipmentId null (pada Putaway):
     dynamic currentInboundId = inboundShipmentId;
     if (isPutaway && currentInboundId == null) {
       final matchingShipment = s.arrivedShipments.firstWhere(
-        (sh) => sh.items.any((it) => it.sku.toUpperCase() == savedSku.toUpperCase()),
-        orElse: () => InboundShipmentModel(
-          id: null,
-          inboundNumber: '',
-          supplierName: '',
-          scheduledDate: '',
-          scheduledTime: '',
-          dock: '',
-          status: '',
-          assignedStaff: '',
-          units: 0,
-          items: [],
+        (sh) => sh.items.any(
+          (it) => it.sku.toUpperCase() == savedSku.toUpperCase(),
         ),
+        orElse:
+            () => InboundShipmentModel(
+              id: null,
+              inboundNumber: '',
+              supplierName: '',
+              scheduledDate: '',
+              scheduledTime: '',
+              dock: '',
+              status: '',
+              assignedStaff: '',
+              units: 0,
+              items: [],
+            ),
       );
       if (matchingShipment.id != null) {
         currentInboundId = matchingShipment.id;
@@ -285,19 +308,22 @@ class _ScannerScreenState extends State<ScannerScreen> {
     dynamic currentOutboundId = outboundShipmentId;
     if (!isPutaway && currentOutboundId == null) {
       final matchingOutbound = s.arrivedOutbounds.firstWhere(
-        (sh) => sh.items.any((it) => it.sku.toUpperCase() == savedSku.toUpperCase()),
-        orElse: () => OutboundShipmentModel(
-          id: null,
-          outboundNumber: '',
-          destination: '',
-          scheduledDate: '',
-          scheduledTime: '',
-          dock: '',
-          status: '',
-          assignedStaff: '',
-          units: 0,
-          items: [],
+        (sh) => sh.items.any(
+          (it) => it.sku.toUpperCase() == savedSku.toUpperCase(),
         ),
+        orElse:
+            () => OutboundShipmentModel(
+              id: null,
+              outboundNumber: '',
+              destination: '',
+              scheduledDate: '',
+              scheduledTime: '',
+              dock: '',
+              status: '',
+              assignedStaff: '',
+              units: 0,
+              items: [],
+            ),
       );
       if (matchingOutbound.id != null) {
         currentOutboundId = matchingOutbound.id;
@@ -335,7 +361,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
     int? currentTaskId = taskId;
     if (currentTaskId == null) {
       final matching = s.pendingTasks.firstWhere(
-        (t) => (t['sku'] ?? '').toString().toUpperCase() == savedSku.toUpperCase(),
+        (t) =>
+            (t['sku'] ?? '').toString().toUpperCase() == savedSku.toUpperCase(),
         orElse: () => {},
       );
       if (matching.isNotEmpty && matching['id'] != null) {
@@ -355,9 +382,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
         sku: savedSku,
         quantity: savedQty,
         rack: savedRack,
-        barcodes: isMultiScan && multiBarcodes.isNotEmpty
-            ? List<String>.from(multiBarcodes)
-            : [savedSku],
+        barcodes:
+            isMultiScan && multiBarcodes.isNotEmpty
+                ? List<String>.from(multiBarcodes)
+                : [savedSku],
         damagedQty: savedDamagedQty,
         damageNotes: savedDamageNotes,
         photoEvidence: savedDamagePhoto,
@@ -371,9 +399,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
         sku: savedSku,
         quantity: savedQty,
         rack: savedRack,
-        barcodes: isMultiScan && multiBarcodes.isNotEmpty
-            ? List<String>.from(multiBarcodes)
-            : [savedSku],
+        barcodes:
+            isMultiScan && multiBarcodes.isNotEmpty
+                ? List<String>.from(multiBarcodes)
+                : [savedSku],
         damagedQty: savedDamagedQty,
         damageNotes: savedDamageNotes,
         photoEvidence: savedDamagePhoto,
@@ -452,16 +481,29 @@ class _ScannerScreenState extends State<ScannerScreen> {
     final inRack =
         r == null
             ? <StockItem>[]
-            : s.items.where((i) => _getRackStock(i, r) > 0 || i.rack.trim().toUpperCase() == r.trim().toUpperCase()).toList();
-    final demoSku = inRack.isNotEmpty
-        ? inRack.first.sku
-        : (s.items.isNotEmpty ? s.items.first.sku : '');
+            : s.items
+                .where(
+                  (i) =>
+                      _getRackStock(i, r) > 0 ||
+                      i.rack.trim().toUpperCase() == r.trim().toUpperCase(),
+                )
+                .toList();
+    final demoSku =
+        inRack.isNotEmpty
+            ? inRack.first.sku
+            : (s.items.isNotEmpty ? s.items.first.sku : '');
     final rackNow = (item != null && r != null) ? _getRackStock(item, r) : 0;
     final after = putaway ? rackNow + quantity : rackNow - quantity;
     // Single Scan: isi rak yang sedang dilihat (barang dengan stok > 0 di rak itu).
     final rackItems =
         (!multi && r != null)
-            ? s.items.where((i) => _getRackStock(i, r) > 0 || i.rack.trim().toUpperCase() == r.trim().toUpperCase()).toList()
+            ? s.items
+                .where(
+                  (i) =>
+                      _getRackStock(i, r) > 0 ||
+                      i.rack.trim().toUpperCase() == r.trim().toUpperCase(),
+                )
+                .toList()
             : <StockItem>[];
     final rackUnits = rackItems.fold<int>(
       0,
@@ -605,17 +647,24 @@ class _ScannerScreenState extends State<ScannerScreen> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: putaway ? const Color(0xfff0fdf4) : const Color(0xfffffbeb),
+                color:
+                    putaway ? const Color(0xfff0fdf4) : const Color(0xfffffbeb),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: putaway ? const Color(0xff86efac) : const Color(0xfffde68a),
+                  color:
+                      putaway
+                          ? const Color(0xff86efac)
+                          : const Color(0xfffde68a),
                 ),
               ),
               child: Row(
                 children: [
                   Icon(
                     putaway ? Icons.download_rounded : Icons.upload_rounded,
-                    color: putaway ? const Color(0xff166534) : const Color(0xffb45309),
+                    color:
+                        putaway
+                            ? const Color(0xff166534)
+                            : const Color(0xffb45309),
                     size: 20,
                   ),
                   const SizedBox(width: 8),
@@ -624,12 +673,17 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          putaway ? 'ALUR TUGAS: PUTAWAY (PENATAAN MASUK)' : 'ALUR TUGAS: DISPATCHING (PENGELUARAN)',
+                          putaway
+                              ? 'ALUR TUGAS: PUTAWAY (PENATAAN MASUK)'
+                              : 'ALUR TUGAS: DISPATCHING (PENGELUARAN)',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.5,
-                            color: putaway ? const Color(0xff166534) : const Color(0xffb45309),
+                            color:
+                                putaway
+                                    ? const Color(0xff166534)
+                                    : const Color(0xffb45309),
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -681,7 +735,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 onTap: () => goToPreviousStep(step),
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xfff8fafc),
                     borderRadius: BorderRadius.circular(8),
@@ -690,7 +747,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.arrow_back_rounded, size: 16, color: brandSlate),
+                      const Icon(
+                        Icons.arrow_back_rounded,
+                        size: 16,
+                        color: brandSlate,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         step == 3
@@ -721,9 +782,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
           if (step == 3 && item != null)
             _DoneChip(
               label: 'Barang',
-              value: isMultiScan && multiBarcodes.length > 1
-                  ? '${item.sku} • ${item.name} (${multiBarcodes.length} unit)'
-                  : '${item.sku} • ${item.name}',
+              value:
+                  isMultiScan && multiBarcodes.length > 1
+                      ? '${item.sku} • ${item.name} (${multiBarcodes.length} unit)'
+                      : '${item.sku} • ${item.name}',
               onChange:
                   () => setState(() {
                     itemConfirmed = false;
@@ -755,7 +817,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.inventory_2_outlined, size: 18, color: brand),
+                        const Icon(
+                          Icons.inventory_2_outlined,
+                          size: 18,
+                          color: brand,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -768,7 +834,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(6),
@@ -789,7 +858,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
                     if (targetQuantity > 0) ...[
                       const SizedBox(height: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(6),
@@ -826,8 +898,13 @@ class _ScannerScreenState extends State<ScannerScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 8),
                           ),
                           onPressed: () => setState(() => itemConfirmed = true),
-                          icon: const Icon(Icons.check_circle_outline, size: 16),
-                          label: const Text('Verifikasi SKU Sesuai & Lanjut ke Konfirmasi ›'),
+                          icon: const Icon(
+                            Icons.check_circle_outline,
+                            size: 16,
+                          ),
+                          label: const Text(
+                            'Verifikasi SKU Sesuai & Lanjut ke Konfirmasi ›',
+                          ),
                         ),
                       ),
                     ],
@@ -836,9 +913,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
               ),
             BarcodeInput(
               key: ValueKey('item-step-$isMultiScan-${multiBarcodes.length}'),
-              title: isMultiScan
-                  ? 'Pindai barcode fisik unit (${multiBarcodes.length} unit tersimpan)'
-                  : 'Pindai barcode barang fisik',
+              title:
+                  isMultiScan
+                      ? 'Pindai barcode fisik unit (${multiBarcodes.length} unit tersimpan)'
+                      : 'Pindai barcode barang fisik',
               demoCode: demoSku,
               onResult: itemScanned,
             ),
@@ -870,11 +948,15 @@ class _ScannerScreenState extends State<ScannerScreen> {
                             minimumSize: const Size(0, 24),
                             padding: const EdgeInsets.symmetric(horizontal: 8),
                           ),
-                          onPressed: () => setState(() {
-                            multiBarcodes.clear();
-                            quantity = 1;
-                          }),
-                          child: const Text('Reset Scan', style: TextStyle(fontSize: 11, color: danger)),
+                          onPressed:
+                              () => setState(() {
+                                multiBarcodes.clear();
+                                quantity = 1;
+                              }),
+                          child: const Text(
+                            'Reset Scan',
+                            style: TextStyle(fontSize: 11, color: danger),
+                          ),
                         ),
                       ],
                     ),
@@ -895,11 +977,19 @@ class _ScannerScreenState extends State<ScannerScreen> {
                             backgroundColor: brandSoft,
                             side: const BorderSide(color: brandSoftBorder),
                             padding: EdgeInsets.zero,
-                            deleteIcon: const Icon(Icons.close, size: 14, color: brandSlate),
-                            onDeleted: () => setState(() {
-                              multiBarcodes.removeAt(i);
-                              quantity = multiBarcodes.isNotEmpty ? multiBarcodes.length : 1;
-                            }),
+                            deleteIcon: const Icon(
+                              Icons.close,
+                              size: 14,
+                              color: brandSlate,
+                            ),
+                            onDeleted:
+                                () => setState(() {
+                                  multiBarcodes.removeAt(i);
+                                  quantity =
+                                      multiBarcodes.isNotEmpty
+                                          ? multiBarcodes.length
+                                          : 1;
+                                }),
                           ),
                       ],
                     ),
@@ -909,7 +999,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       child: FilledButton.icon(
                         onPressed: () => setState(() => itemConfirmed = true),
                         icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                        label: Text('Lanjut ke Konfirmasi (${multiBarcodes.length} Unit) ›'),
+                        label: Text(
+                          'Lanjut ke Konfirmasi (${multiBarcodes.length} Unit) ›',
+                        ),
                       ),
                     ),
                   ],
@@ -932,7 +1024,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.fact_check_outlined, size: 18, color: Color(0xff166534)),
+                        const Icon(
+                          Icons.fact_check_outlined,
+                          size: 18,
+                          color: Color(0xff166534),
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -963,7 +1059,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
             if (targetQuantity > 0)
               Container(
                 margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xfff8fafc),
                   borderRadius: BorderRadius.circular(12),
@@ -971,16 +1070,29 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.assignment_outlined, size: 18, color: brandSlate),
+                    const Icon(
+                      Icons.assignment_outlined,
+                      size: 18,
+                      color: brandSlate,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        putaway ? 'Target Pesanan Inbound:' : 'Target Pesanan Outbound:',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: brandSlate),
+                        putaway
+                            ? 'Target Pesanan Inbound:'
+                            : 'Target Pesanan Outbound:',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: brandSlate,
+                        ),
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(6),
@@ -988,7 +1100,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       ),
                       child: Text(
                         '$targetQuantity ${item.unit}',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: brandInk),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: brandInk,
+                        ),
                       ),
                     ),
                   ],
@@ -1051,11 +1167,18 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 color: hasDamage ? const Color(0xfffdf2f2) : Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: hasDamage ? const Color(0xfffca5a5) : const Color(0xffe2e8f0),
+                  color:
+                      hasDamage
+                          ? const Color(0xfffca5a5)
+                          : const Color(0xffe2e8f0),
                   width: hasDamage ? 1.5 : 1,
                 ),
                 boxShadow: const [
-                  BoxShadow(color: Color(0x06000000), blurRadius: 4, offset: Offset(0, 1)),
+                  BoxShadow(
+                    color: Color(0x06000000),
+                    blurRadius: 4,
+                    offset: Offset(0, 1),
+                  ),
                 ],
               ),
               child: Column(
@@ -1066,7 +1189,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       Container(
                         padding: const EdgeInsets.all(7),
                         decoration: BoxDecoration(
-                          color: hasDamage ? const Color(0xfffee2e2) : const Color(0xfff1f5f9),
+                          color:
+                              hasDamage
+                                  ? const Color(0xfffee2e2)
+                                  : const Color(0xfff1f5f9),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
@@ -1085,7 +1211,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
-                                color: hasDamage ? const Color(0xff991b1b) : brandInk,
+                                color:
+                                    hasDamage
+                                        ? const Color(0xff991b1b)
+                                        : brandInk,
                               ),
                             ),
                             Text(
@@ -1094,7 +1223,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
                                   : 'Centang jika ada unit cacat, rusak, atau segel terbuka',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: hasDamage ? const Color(0xffb91c1c) : muted,
+                                color:
+                                    hasDamage ? const Color(0xffb91c1c) : muted,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -1139,28 +1269,40 @@ class _ScannerScreenState extends State<ScannerScreen> {
                             ),
                             Text(
                               'Unit (${item.unit})',
-                              style: const TextStyle(fontSize: 11, color: muted),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: muted,
+                              ),
                             ),
                           ],
                         ),
                         Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.remove_circle_outline, color: danger),
-                              onPressed: damagedQuantity > 0
-                                  ? () => setState(() {
+                              icon: const Icon(
+                                Icons.remove_circle_outline,
+                                color: danger,
+                              ),
+                              onPressed:
+                                  damagedQuantity > 0
+                                      ? () => setState(() {
                                         damagedQuantity--;
                                         checked = false;
                                       })
-                                  : null,
+                                      : null,
                             ),
                             Container(
                               constraints: const BoxConstraints(minWidth: 44),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: const Color(0xfffca5a5)),
+                                border: Border.all(
+                                  color: const Color(0xfffca5a5),
+                                ),
                               ),
                               child: Text(
                                 '$damagedQuantity',
@@ -1173,11 +1315,15 @@ class _ScannerScreenState extends State<ScannerScreen> {
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.add_circle_outline, color: danger),
-                              onPressed: () => setState(() {
-                                damagedQuantity++;
-                                checked = false;
-                              }),
+                              icon: const Icon(
+                                Icons.add_circle_outline,
+                                color: danger,
+                              ),
+                              onPressed:
+                                  () => setState(() {
+                                    damagedQuantity++;
+                                    checked = false;
+                                  }),
                             ),
                           ],
                         ),
@@ -1210,17 +1356,24 @@ class _ScannerScreenState extends State<ScannerScreen> {
                               setState(() {
                                 if (_damageNotesController.text.isEmpty) {
                                   _damageNotesController.text = reason;
-                                } else if (!_damageNotesController.text.contains(reason)) {
-                                  _damageNotesController.text = '${_damageNotesController.text}, $reason';
+                                } else if (!_damageNotesController.text
+                                    .contains(reason)) {
+                                  _damageNotesController.text =
+                                      '${_damageNotesController.text}, $reason';
                                 }
                               });
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: const Color(0xfffecaca)),
+                                border: Border.all(
+                                  color: const Color(0xfffecaca),
+                                ),
                               ),
                               child: Text(
                                 '+ $reason',
@@ -1246,15 +1399,22 @@ class _ScannerScreenState extends State<ScannerScreen> {
                         contentPadding: const EdgeInsets.all(10),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xfffca5a5)),
+                          borderSide: const BorderSide(
+                            color: Color(0xfffca5a5),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xfffca5a5)),
+                          borderSide: const BorderSide(
+                            color: Color(0xfffca5a5),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: danger, width: 1.5),
+                          borderSide: const BorderSide(
+                            color: danger,
+                            width: 1.5,
+                          ),
                         ),
                       ),
                       style: const TextStyle(fontSize: 12, color: brandInk),
@@ -1272,11 +1432,17 @@ class _ScannerScreenState extends State<ScannerScreen> {
                     const SizedBox(height: 6),
                     if (damagePhoto != null)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xff86efac), width: 1.2),
+                          border: Border.all(
+                            color: const Color(0xff86efac),
+                            width: 1.2,
+                          ),
                         ),
                         child: Row(
                           children: [
@@ -1286,7 +1452,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
                                 color: const Color(0xfff0fdf4),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Icon(Icons.photo_camera_rounded, color: Color(0xff16a34a), size: 18),
+                              child: const Icon(
+                                Icons.photo_camera_rounded,
+                                color: Color(0xff16a34a),
+                                size: 18,
+                              ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
@@ -1295,25 +1465,39 @@ class _ScannerScreenState extends State<ScannerScreen> {
                                 children: [
                                   const Text(
                                     'Foto Bukti Berhasil Diambil',
-                                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xff166534)),
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xff166534),
+                                    ),
                                   ),
                                   Text(
                                     damagePhoto!,
-                                    style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: brandSlate),
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontFamily: 'monospace',
+                                      color: brandSlate,
+                                    ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ],
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.refresh_rounded, size: 18, color: brandSlate),
+                              icon: const Icon(
+                                Icons.refresh_rounded,
+                                size: 18,
+                                color: brandSlate,
+                              ),
                               tooltip: 'Foto Ulang',
                               onPressed: () async {
                                 final res = await QrScannerScreen.scan(
                                   context,
                                   title: 'Foto Bukti Kerusakan',
-                                  hintText: 'Arahkan kamera ke bagian fisik barang yang rusak / cacat lalu tekan tombol Ambil Foto',
-                                  demoCode: 'FOTO-RUSAK-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+                                  hintText:
+                                      'Arahkan kamera ke bagian fisik barang yang rusak / cacat lalu tekan tombol Ambil Foto',
+                                  demoCode:
+                                      'FOTO-RUSAK-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
                                 );
                                 if (res != null && res.isNotEmpty) {
                                   setState(() => damagePhoto = res);
@@ -1321,9 +1505,14 @@ class _ScannerScreenState extends State<ScannerScreen> {
                               },
                             ),
                             IconButton(
-                              icon: const Icon(Icons.delete_outline_rounded, size: 18, color: danger),
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                size: 18,
+                                color: danger,
+                              ),
                               tooltip: 'Hapus Foto',
-                              onPressed: () => setState(() => damagePhoto = null),
+                              onPressed:
+                                  () => setState(() => damagePhoto = null),
                             ),
                           ],
                         ),
@@ -1333,23 +1522,34 @@ class _ScannerScreenState extends State<ScannerScreen> {
                         width: double.infinity,
                         child: OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xffe11d48), width: 1.2),
+                            side: const BorderSide(
+                              color: Color(0xffe11d48),
+                              width: 1.2,
+                            ),
                             backgroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
                           onPressed: () async {
                             final res = await QrScannerScreen.scan(
                               context,
                               title: 'Foto Bukti Kerusakan',
-                              hintText: 'Arahkan kamera ke bagian fisik barang yang rusak / cacat lalu tekan tombol Ambil Foto',
-                              demoCode: 'FOTO-RUSAK-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+                              hintText:
+                                  'Arahkan kamera ke bagian fisik barang yang rusak / cacat lalu tekan tombol Ambil Foto',
+                              demoCode:
+                                  'FOTO-RUSAK-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
                             );
                             if (res != null && res.isNotEmpty) {
                               setState(() => damagePhoto = res);
                             }
                           },
-                          icon: const Icon(Icons.camera_alt_outlined, color: Color(0xffe11d48), size: 18),
+                          icon: const Icon(
+                            Icons.camera_alt_outlined,
+                            color: Color(0xffe11d48),
+                            size: 18,
+                          ),
                           label: const Text(
                             '📷 Ambil Foto Bukti Kerusakan',
                             style: TextStyle(
@@ -1370,7 +1570,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    putaway ? 'Ringkasan Putaway (Masuk)' : 'Ringkasan Dispatch (Keluar)',
+                    putaway
+                        ? 'Ringkasan Putaway (Masuk)'
+                        : 'Ringkasan Dispatch (Keluar)',
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w900,
@@ -1383,7 +1585,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   _SummaryRow('Barang', item.name),
                   _SummaryRow('SKU', item.sku),
                   if (targetQuantity > 0)
-                    _SummaryRow('Target Pesanan', '$targetQuantity ${item.unit}'),
+                    _SummaryRow(
+                      'Target Pesanan',
+                      '$targetQuantity ${item.unit}',
+                    ),
                   _SummaryRow(
                     putaway ? 'Unit Diterima (Bagus)' : 'Unit Diambil (Bagus)',
                     '${putaway ? '+' : '-'}${formatNumber(quantity)} ${item.unit}',
@@ -1448,10 +1653,7 @@ class _ScanTypeToggle extends StatelessWidget {
   final bool isMulti;
   final ValueChanged<bool> onChanged;
 
-  const _ScanTypeToggle({
-    required this.isMulti,
-    required this.onChanged,
-  });
+  const _ScanTypeToggle({required this.isMulti, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -1474,15 +1676,16 @@ class _ScanTypeToggle extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: !isMulti ? Colors.white : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
-                  boxShadow: !isMulti
-                      ? const [
-                          BoxShadow(
-                            color: Color(0x0f000000),
-                            blurRadius: 4,
-                            offset: Offset(0, 1),
-                          )
-                        ]
-                      : null,
+                  boxShadow:
+                      !isMulti
+                          ? const [
+                            BoxShadow(
+                              color: Color(0x0f000000),
+                              blurRadius: 4,
+                              offset: Offset(0, 1),
+                            ),
+                          ]
+                          : null,
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1497,7 +1700,8 @@ class _ScanTypeToggle extends StatelessWidget {
                       'Single Scan',
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: !isMulti ? FontWeight.w800 : FontWeight.w600,
+                        fontWeight:
+                            !isMulti ? FontWeight.w800 : FontWeight.w600,
                         color: !isMulti ? brandInk : brandSlate,
                       ),
                     ),
@@ -1516,15 +1720,16 @@ class _ScanTypeToggle extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: isMulti ? Colors.white : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
-                  boxShadow: isMulti
-                      ? const [
-                          BoxShadow(
-                            color: Color(0x0f000000),
-                            blurRadius: 4,
-                            offset: Offset(0, 1),
-                          )
-                        ]
-                      : null,
+                  boxShadow:
+                      isMulti
+                          ? const [
+                            BoxShadow(
+                              color: Color(0x0f000000),
+                              blurRadius: 4,
+                              offset: Offset(0, 1),
+                            ),
+                          ]
+                          : null,
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1616,7 +1821,10 @@ class _StepDot extends StatelessWidget {
           decoration: BoxDecoration(
             color: done || active ? brand : Colors.white,
             shape: BoxShape.circle,
-            border: Border.all(color: done || active ? brand : line, width: 1.5),
+            border: Border.all(
+              color: done || active ? brand : line,
+              width: 1.5,
+            ),
           ),
           child:
               done
@@ -1871,7 +2079,8 @@ void _showSuccessConfirmationDialog({
   int targetQuantity = 0,
 }) {
   final s = context.read<WarehouseState>();
-  final isShipmentInspection = inboundShipmentId != null || outboundShipmentId != null;
+  final isShipmentInspection =
+      inboundShipmentId != null || outboundShipmentId != null;
 
   showDialog<void>(
     context: context,
@@ -1922,7 +2131,11 @@ void _showSuccessConfirmationDialog({
                     : (isPutaway
                         ? 'Barang telah berhasil diletakkan pada rak tujuan dan tercatat di riwayat Aktivitas.'
                         : 'Barang telah berhasil dikeluarkan dari rak asal dan tercatat di riwayat Aktivitas.'),
-                style: const TextStyle(fontSize: 12, color: brandSlate, height: 1.4),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: brandSlate,
+                  height: 1.4,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 18),
@@ -1936,10 +2149,7 @@ void _showSuccessConfirmationDialog({
                 ),
                 child: Column(
                   children: [
-                    _DialogSummaryRow(
-                      label: 'Barang',
-                      value: itemName,
-                    ),
+                    _DialogSummaryRow(label: 'Barang', value: itemName),
                     const SizedBox(height: 8),
                     _DialogSummaryRow(
                       label: 'SKU',
@@ -1948,7 +2158,10 @@ void _showSuccessConfirmationDialog({
                     ),
                     const SizedBox(height: 8),
                     _DialogSummaryRow(
-                      label: isShipmentInspection ? 'Lokasi Dok' : (isPutaway ? 'Rak Tujuan' : 'Rak Asal'),
+                      label:
+                          isShipmentInspection
+                              ? 'Lokasi Dok'
+                              : (isPutaway ? 'Rak Tujuan' : 'Rak Asal'),
                       value: rack,
                     ),
                     if (targetQuantity > 0) ...[
@@ -1960,8 +2173,12 @@ void _showSuccessConfirmationDialog({
                     ],
                     const SizedBox(height: 8),
                     _DialogSummaryRow(
-                      label: isPutaway ? 'Unit Diterima (Bagus)' : 'Unit Diambil (Bagus)',
-                      value: '${isShipmentInspection ? '' : (isPutaway ? '+' : '-')}${formatNumber(quantity)} $unit',
+                      label:
+                          isPutaway
+                              ? 'Unit Diterima (Bagus)'
+                              : 'Unit Diambil (Bagus)',
+                      value:
+                          '${isShipmentInspection ? '' : (isPutaway ? '+' : '-')}${formatNumber(quantity)} $unit',
                       valueColor: const Color(0xff16a34a),
                       isBold: true,
                     ),
@@ -1996,7 +2213,10 @@ void _showSuccessConfirmationDialog({
                 const SizedBox(height: 12),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xfff0fdf4),
                     borderRadius: BorderRadius.circular(12),
@@ -2005,7 +2225,11 @@ void _showSuccessConfirmationDialog({
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.task_alt, size: 16, color: Color(0xff16a34a)),
+                      const Icon(
+                        Icons.task_alt,
+                        size: 16,
+                        color: Color(0xff16a34a),
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         'Tugas #$taskId otomatis ditandai Selesai',
@@ -2022,7 +2246,10 @@ void _showSuccessConfirmationDialog({
                 const SizedBox(height: 12),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xfff0fdf4),
                     borderRadius: BorderRadius.circular(12),
@@ -2031,7 +2258,11 @@ void _showSuccessConfirmationDialog({
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.task_alt, size: 16, color: Color(0xff16a34a)),
+                      const Icon(
+                        Icons.task_alt,
+                        size: 16,
+                        color: Color(0xff16a34a),
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         inboundShipmentId != null
@@ -2054,7 +2285,9 @@ void _showSuccessConfirmationDialog({
                   style: FilledButton.styleFrom(
                     backgroundColor: brand,
                     padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                   onPressed: () {
                     Navigator.pop(ctx);
@@ -2074,7 +2307,11 @@ void _showSuccessConfirmationDialog({
                   onPressed: () {
                     Navigator.pop(ctx);
                   },
-                  icon: const Icon(Icons.qr_code_scanner, size: 18, color: brand),
+                  icon: const Icon(
+                    Icons.qr_code_scanner,
+                    size: 18,
+                    color: brand,
+                  ),
                   label: const Text(
                     'Lanjut Scan di Sini',
                     style: TextStyle(
@@ -2114,7 +2351,11 @@ class _DialogSummaryRow extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 12, color: brandSlate, fontWeight: FontWeight.w600),
+          style: const TextStyle(
+            fontSize: 12,
+            color: brandSlate,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(width: 8),
         Flexible(
@@ -2134,4 +2375,3 @@ class _DialogSummaryRow extends StatelessWidget {
     );
   }
 }
-

@@ -1,10 +1,13 @@
 import { typeOf } from "../utils/productTypes.js";
 import React, { useState } from "react";
-import { completedRecord, completedTime, downloadReceivingReport } from "../utils/completedReceiving.js";
+import { completedRecord, completedTime, formatProcessDuration, downloadReceivingReport } from "../utils/completedReceiving.js";
 import "../styles/completedReceiving.css";
 function CompletedReceiving({ shipment, inventory = [], movements, warehouseName, onBack, onViewMovements }) {
-  const record = completedRecord(shipment, movements);
+  const record = completedRecord(shipment, movements, inventory);
   const [notice, setNotice] = useState("");
+  const startTime = shipment.arrived_at || shipment.arrivedAt || shipment.date;
+  const endTime = record?.completedAt || shipment.completed_at || shipment.completedAt;
+  const processDuration = formatProcessDuration(startTime, endTime);
   const issues = record ? record.summary.damaged + record.summary.rejected + record.summary.short : 0;
   function download() {
     try {
@@ -17,17 +20,23 @@ function CompletedReceiving({ shipment, inventory = [], movements, warehouseName
   return <div className="completed-content">
     <button className="inbound-primary completed-download" disabled={!record?.items.length} onClick={download}>Download Receiving Report</button>
     <section className="dashboard-card completed-information">
-      <div className="completed-heading"><h2>{shipment.id}</h2><span className="inbound-status inbound-status-received">RECEIVED</span></div>
-      <dl><div><dt>{shipment.po}</dt><dd>{shipment.supplier}</dd></div><div><dt>Completed</dt><dd>{completedTime(record?.completedAt)}</dd></div><div><dt>Received by</dt><dd>{record?.user || "Not recorded"}</dd></div></dl>
+      <div className="completed-heading"><h2>{shipment.id}</h2><span className="inbound-status inbound-status-complete">COMPLETE</span></div>
+      <dl>
+        <div><dt>Purchase Order & Supplier</dt><dd>{shipment.po} · {shipment.supplier}</dd></div>
+        <div><dt>Mulai (Tiba di Dok)</dt><dd>{completedTime(startTime)}</dd></div>
+        <div><dt>Selesai (ACC)</dt><dd>{completedTime(endTime)}</dd></div>
+        <div><dt>Durasi Penerimaan</dt><dd className="positive-text">{processDuration}</dd></div>
+        <div><dt>Received by</dt><dd>{record?.user || "Not recorded"}</dd></div>
+      </dl>
     </section>
     {record && record.items.length > 0 ? <>
       <div className="completed-grid">
         <section className="dashboard-card completed-items"><h2>Received Items</h2>
-          <div className="completed-table-wrap"><table><thead><tr>{["Product", "Received", "Accepted", "Stock change"].map((label) => <th key={label}>{label}</th>)}</tr></thead><tbody>{record.items.map((item) => <tr key={item.sku}>
-            <td><strong>{item.name}</strong><small>Type: {typeOf(item, inventory)}</small>{item === record.items[0] && <small>{item.sku}</small>}</td><td>{item.received}</td><td className="positive-text">{item.accepted}</td><td className="positive-text">{item.before == null || item.after == null ? "Not recorded" : `${item.before} \u2192 ${item.after}`}</td>
-          </tr>)}</tbody><tfoot><tr><th colSpan="2">Total received</th><td className="positive-text"><strong>{record.summary.received} units</strong></td><td /></tr></tfoot></table></div>
+          <div className="completed-table-wrap"><table><thead><tr>{["Product", "Received", "Accepted", "Penempatan Rak", "Stock change"].map((label) => <th key={label}>{label}</th>)}</tr></thead><tbody>{record.items.map((item) => <tr key={item.sku}>
+            <td><strong>{item.name}</strong><small>Type: {typeOf(item, inventory)}</small><small style={{ color: '#5c732b', fontWeight: 600 }}>{item.sku}</small></td><td>{item.received}</td><td className="positive-text">{item.accepted}</td><td><span className="completed-rack-badge">📍 {item.rack || (inventory.find((it) => it.sku === item.sku)?.rack) || "Staging Dok"}</span></td><td className="positive-text">{item.before == null || item.after == null ? "Not recorded" : `${item.before} \u2192 ${item.after}`}</td>
+          </tr>)}</tbody><tfoot><tr><th colSpan="2">Total received</th><td className="positive-text"><strong>{record.summary.received} units</strong></td><td /><td /></tr></tfoot></table></div>
         </section>
-        <section className="dashboard-card completed-summary"><h2>Receiving Summary</h2><div className="completed-increase"><span>Inventory increase</span><strong>+{record.summary.accepted} units</strong></div><div className={`completed-issues${issues ? " has-issues" : ""}`}><span>Issues recorded</span><strong>{issues} units</strong>{issues > 0 && <p>{record.summary.damaged} damaged · {record.summary.rejected} rejected · {record.summary.short} missing</p>}</div>{record.dispositions.length > 0 && <section><h3>Excluded stock</h3>{record.dispositions.map((value, index) => <p key={index}>{value.name}: {value.quantity} · {value.kind} · {value.location}{value.replacementRequested ? " \xB7 Replacement requested" : ""}</p>)}</section>}{record.resolution && <section><h3>Issue resolution</h3><p>{record.resolution.title} · {record.resolution.reference}</p><p>{record.resolution.notificationStatus}</p></section>}<section><h3>Inspection notes</h3>{record.notes ? record.notes.split("\n").map((line, index) => <p key={index}>{line}</p>) : <p>No inspection notes recorded.</p>}{record.evidence.length > 0 && <p>{record.evidence.length} supporting files recorded</p>}{record.poStatus === "Partially Received" && <p>PO remains partially received.</p>}</section></section>
+        <section className="dashboard-card completed-summary"><h2>Receiving Summary</h2><div className="completed-increase"><span>Inventory increase</span><strong>+{record.summary.accepted} units</strong></div><div className={`completed-issues${issues ? " has-issues" : ""}`}><span>Issues recorded</span><strong>{issues} units</strong>{issues > 0 && <p>{record.summary.damaged} damaged · {record.summary.rejected} rejected · {record.summary.short} missing</p>}</div><section><h3>Alokasi Penempatan Rak</h3>{record.items.map((value, index) => <p key={index}><strong>{value.name}</strong>: <span style={{ color: '#3e5510', fontWeight: 600 }}>{value.rack || "Staging Dok"}</span> · {value.accepted} unit diterima</p>)}</section>{record.dispositions.length > 0 && <section><h3>Excluded stock</h3>{record.dispositions.map((value, index) => <p key={index}>{value.name}: {value.quantity} · {value.kind} · {value.location}{value.replacementRequested ? " \xB7 Replacement requested" : ""}</p>)}</section>}{record.resolution && <section><h3>Issue resolution</h3><p>{record.resolution.title} · {record.resolution.reference}</p><p>{record.resolution.notificationStatus}</p></section>}<section><h3>Inspection notes</h3>{record.notes ? record.notes.split("\n").map((line, index) => <p key={index}>{line}</p>) : <p>No inspection notes recorded.</p>}{record.evidence.length > 0 && <p>{record.evidence.length} supporting files recorded</p>}{record.poStatus === "Partially Received" && <p>PO remains partially received.</p>}</section></section>
       </div>
       <section className="completed-success"><span aria-hidden="true">✓</span><div><strong>Receiving completed</strong><p>Inventory and stock movement records were updated successfully. This record is read-only.</p><button className="dashboard-link" onClick={() => onViewMovements(shipment.id)}>View stock movement ›</button></div></section>
     </> : <section className="dashboard-card completed-unavailable"><h2>Detailed record unavailable</h2><p>This sample shipment is marked Received, but its item-level history has not been provided. Complete a receiving flow to create a detailed record.</p></section>}

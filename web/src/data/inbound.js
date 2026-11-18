@@ -24,7 +24,7 @@ export const inboundSeed = [
     date: new Date().toISOString().slice(0, 10),
     time: "14:00",
     dock: "D-02",
-    status: "Scheduled",
+    status: "Order",
     carrier: "SiCepat Cargo",
     reference: "DN-44120",
     staff: "Staf Gudang",
@@ -38,7 +38,7 @@ export const inboundSeed = [
 
 export const purchaseOrders = [];
 
-export const inboundStatuses = ["Arrived", "Scheduled", "Received", "Inspecting", "Inspected", "Issue"];
+export const inboundStatuses = ["Order", "Arrived", "Inspect", "Review", "Complete", "Issue"];
 
 export const orderUnits = (order) => (order.products || []).reduce((sum, item) => sum + item.quantity, 0);
 

@@ -100,6 +100,7 @@ const taskModel = {
   getNotificationsByUserId: async (userId) => {
     const sql = `
       SELECT t.*, 
+             u_assignee.name AS assignee_name,
              creator.name AS creator_name, 
              creator.role AS creator_role, 
              l.location_code, 
@@ -107,20 +108,29 @@ const taskModel = {
              p.sku, 
              p.name AS product_name
       FROM tasks t
+      LEFT JOIN users u_assignee ON u_assignee.id = t.current_assignee_id
       LEFT JOIN users creator ON creator.id = t.created_by
       LEFT JOIN locations l ON l.id = t.location_id
       LEFT JOIN products p ON p.id = t.related_product_id
-      WHERE t.current_assignee_id = ?
+      WHERE (
+        t.current_assignee_id = ? 
+        OR t.current_assignee_id IS NULL 
+        OR (t.title LIKE '[TUGAS DOK]%' AND t.status IN ('pending', 'in_progress'))
+        OR (t.title LIKE '[PENUGASAN DOK]%' AND t.status IN ('pending', 'in_progress'))
+      )
       ORDER BY 
         CASE 
-          WHEN t.status = 'pending' THEN 1 
-          WHEN t.status = 'in_progress' THEN 2 
-          ELSE 3 
+          WHEN t.current_assignee_id = ? AND t.status = 'pending' THEN 1
+          WHEN t.current_assignee_id IS NULL AND t.status = 'pending' THEN 2
+          WHEN t.current_assignee_id = ? AND t.status = 'in_progress' THEN 3
+          WHEN t.status = 'pending' THEN 4
+          WHEN t.status = 'in_progress' THEN 5
+          ELSE 6 
         END ASC, 
         t.created_at DESC 
-      LIMIT 30
+      LIMIT 40
     `;
-    const [rows] = await db.query(sql, [userId]);
+    const [rows] = await db.query(sql, [userId, userId, userId]);
     return rows;
   },
 };

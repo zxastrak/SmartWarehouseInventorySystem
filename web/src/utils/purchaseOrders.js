@@ -28,8 +28,9 @@ function createPurchaseOrder({ values, orders, inventory, user, date }) {
     if (!name || name.length < 2 || name.length > 100) return { error: "Nama produk tidak boleh kosong (2–100 karakter)." };
     const quantity = Number(row.quantity), unitPrice = Number(row.unitPrice);
     if (!Number.isSafeInteger(quantity) || quantity <= 0 || row.quantity === "" || !Number.isSafeInteger(unitPrice) || unitPrice <= 0 || row.unitPrice === "") return { error: "Jumlah (Qty) dan Harga Satuan harus berupa angka bulat positif." };
-    const minOrder = Number(row.min_order || canonical?.min_order || 0);
-    if (minOrder > 0 && quantity < minOrder) return { error: `Tidak dapat diproses: Jumlah pesanan untuk "${name || code}" (${quantity}) berada di bawah batas minimum order katalog supplier (${minOrder}).` };
+    const minOrder = Number(row.min_order || canonical?.min_order || canonical?.reorder_level || canonical?.reorder || 0);
+    const itemUnit = row.unit || canonical?.unit || 'unit';
+    if (minOrder > 0 && quantity < minOrder) return { error: `Tidak dapat diproses: Jumlah pesanan untuk "${name || code}" (${quantity} ${itemUnit}) berada di bawah batas minimum order katalog supplier (${minOrder} ${itemUnit}). Silakan naikkan jumlah pesanan minimal ${minOrder} ${itemUnit}.` };
     if (!Number.isSafeInteger(quantity * unitPrice)) return { error: "Total nilai pesanan item terlalu besar." };
     products.push({ name, code: canonical?.code || code.toUpperCase(), category, quantity, unitPrice, received: 0 });
   }

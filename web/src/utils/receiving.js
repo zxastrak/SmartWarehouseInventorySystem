@@ -106,7 +106,7 @@ function receiveShipment({ shipment, draft, inventory, movements, racks, user, d
     if (Number(row.rejected) > 0) values.push({ sku: row.sku, name: row.name, quantity: Number(row.rejected), kind: "Return stock", location: "Supplier return" });
     return values;
   });
-  return { inventory: updated, movements: newMovements, racks: racks.map((rack) => ({ ...rack, used: rack.used + (byRack[rack.id] || 0) })), shipment: { ...shipment, status: "Received", receivingCompleted: true, receipt: { ...draft, stockChanges, dispositions, summary, completedAt: date, user }, poStatus: summary.short ? "Partially Received" : "Closed" } };
+  return { inventory: updated, movements: newMovements, racks: racks.map((rack) => ({ ...rack, used: rack.used + (byRack[rack.id] || 0) })), shipment: { ...shipment, status: "Complete", receivingCompleted: true, receipt: { ...draft, stockChanges, dispositions, summary, completedAt: date, user }, poStatus: summary.short ? "Partially Received" : "Closed" } };
 }
 export {
   acceptedUnits,

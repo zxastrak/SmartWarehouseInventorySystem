@@ -610,25 +610,57 @@ class _AppShellState extends State<AppShell> {
                                 final location = (n['location_code'] ?? '').toString();
                                 final priority = (n['priority'] ?? '').toString().toUpperCase();
 
+                                final templateType = (n['template_type'] ?? 'general').toString();
+                                final isReassigned = templateType == 'reassigned_to_other';
+                                final isAssignedToMe = templateType == 'assigned_to_me';
+                                final isDefault = templateType == 'default';
+                                final assigneeName = (n['assignee_name'] ?? 'Staf Dok').toString();
+
                                 final statusText = isCompleted
                                     ? 'Selesai'
                                     : isInProgress
                                         ? 'Sedang Dikerjakan'
                                         : 'Belum Dikerjakan';
-                                final statusColor = isCompleted
+
+                                Color statusColor = isCompleted
                                     ? mintLogo
                                     : isInProgress
                                         ? brand
                                         : const Color(0xffd97706);
 
+                                Color cardBg = Colors.white;
+                                Color cardBorderColor = isUnread ? const Color(0xfffde68a) : const Color(0xffe2e8f0);
+
+                                if (isReassigned) {
+                                  cardBg = const Color(0xfff8fafc);
+                                  statusColor = const Color(0xffd97706);
+                                  cardBorderColor = isUnread ? const Color(0xfffed7aa) : const Color(0xffe2e8f0);
+                                } else if (isAssignedToMe) {
+                                  statusColor = mintLogo;
+                                  cardBorderColor = isUnread ? const Color(0xff86efac) : const Color(0xffbbf7d0);
+                                } else if (isDefault) {
+                                  statusColor = const Color(0xff0284c7);
+                                }
+
+                                final badgeTitle = isReassigned
+                                    ? 'DIALIHKAN KE ${assigneeName.toUpperCase()} • INFO DOK'
+                                    : isAssignedToMe
+                                        ? 'TUGAS KHUSUS ANDA • ${statusText.toUpperCase()}'
+                                        : isDefault
+                                            ? 'KEDATANGAN DOK • SEMUA STAF'
+                                            : 'TUGAS ANDA • ${statusText.toUpperCase()}';
+
+                                final titleText = (n['display_title'] ?? n['title'] ?? 'Tugas Gudang').toString();
+                                final descText = (n['display_desc'] ?? n['description'] ?? '').toString();
+
                                 return Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: cardBg,
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                      color: isUnread ? const Color(0xfffde68a) : const Color(0xffe2e8f0),
-                                      width: isUnread ? 1.5 : 1,
+                                      color: cardBorderColor,
+                                      width: isUnread || isAssignedToMe ? 1.5 : 1,
                                     ),
                                     boxShadow: const [
                                       BoxShadow(
@@ -641,29 +673,33 @@ class _AppShellState extends State<AppShell> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      // Baris Status & Badge Tugas Anda
+                                      // Baris Status & Badge Template
                                       Row(
                                         children: [
                                           Container(
-                                            width: 7,
-                                            height: 7,
+                                            width: 8,
+                                            height: 8,
                                             decoration: BoxDecoration(
                                               color: statusColor,
                                               shape: BoxShape.circle,
                                             ),
                                           ),
                                           const SizedBox(width: 6),
-                                          Text(
-                                            'TUGAS ANDA • $statusText',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w800,
-                                              letterSpacing: 0.2,
-                                              color: statusColor,
+                                          Expanded(
+                                            child: Text(
+                                              badgeTitle,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 10.5,
+                                                fontWeight: FontWeight.w800,
+                                                letterSpacing: 0.2,
+                                                color: statusColor,
+                                              ),
                                             ),
                                           ),
                                           if (priority.isNotEmpty && priority != 'NORMAL') ...[
-                                            const SizedBox(width: 8),
+                                            const SizedBox(width: 6),
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                               decoration: BoxDecoration(
@@ -684,8 +720,8 @@ class _AppShellState extends State<AppShell> {
                                               ),
                                             ),
                                           ],
-                                          const Spacer(),
-                                          if (isUnread)
+                                          if (isUnread) ...[
+                                            const SizedBox(width: 6),
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                               decoration: BoxDecoration(
@@ -701,6 +737,7 @@ class _AppShellState extends State<AppShell> {
                                                 ),
                                               ),
                                             ),
+                                          ],
                                         ],
                                       ),
 
@@ -708,7 +745,7 @@ class _AppShellState extends State<AppShell> {
 
                                       // Judul Tugas
                                       Text(
-                                        (n['title'] ?? 'Tugas Gudang').toString(),
+                                        titleText,
                                         style: const TextStyle(
                                           fontSize: 14.5,
                                           fontWeight: FontWeight.w800,
@@ -721,7 +758,7 @@ class _AppShellState extends State<AppShell> {
 
                                       // Deskripsi Instruksi
                                       Text(
-                                        (n['description'] ?? '').toString(),
+                                        descText,
                                         style: const TextStyle(
                                           fontSize: 12.5,
                                           fontWeight: FontWeight.w500,
@@ -739,7 +776,7 @@ class _AppShellState extends State<AppShell> {
                                         children: [
                                           if (sku.isNotEmpty)
                                             Text(
-                                              'Item Terkait: $sku',
+                                              'Item: $sku',
                                               style: const TextStyle(
                                                 fontSize: 11.5,
                                                 fontWeight: FontWeight.w700,
@@ -758,69 +795,82 @@ class _AppShellState extends State<AppShell> {
                                         ],
                                       ),
 
-                                      const SizedBox(height: 14),
-
-                                      // Tombol Aksi Mulai Kerjakan / Selesaikan
-                                      if (!isCompleted)
-                                        FilledButton.icon(
-                                          style: FilledButton.styleFrom(
-                                            backgroundColor: isInProgress ? const Color(0xff0f766e) : brand,
-                                            foregroundColor: Colors.white,
-                                            minimumSize: const Size.fromHeight(42),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(21),
+                                      if (!isReassigned && !isCompleted) ...[
+                                        const SizedBox(height: 14),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          height: 42,
+                                          child: FilledButton.icon(
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor: isInProgress
+                                                  ? const Color(0xff0f766e)
+                                                  : isAssignedToMe
+                                                      ? brand
+                                                      : const Color(0xff0284c7),
+                                              foregroundColor: Colors.white,
+                                              minimumSize: const Size.fromHeight(42),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(21),
+                                              ),
+                                              elevation: 0,
                                             ),
-                                            elevation: 0,
-                                          ),
-                                          icon: Icon(
-                                            isInProgress
-                                                ? Icons.check_circle_outline_rounded
-                                                : Icons.play_arrow_rounded,
-                                            size: 20,
-                                          ),
-                                          label: Text(
-                                            isInProgress ? 'Selesaikan Tugas' : 'Kerjakan',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w800,
+                                            icon: Icon(
+                                              isInProgress
+                                                  ? Icons.check_circle_outline_rounded
+                                                  : isAssignedToMe
+                                                      ? Icons.assignment_ind_rounded
+                                                      : Icons.play_arrow_rounded,
+                                              size: 20,
                                             ),
+                                            label: Text(
+                                              isInProgress
+                                                  ? 'Selesaikan Tugas'
+                                                  : isAssignedToMe
+                                                      ? 'Mulai Tugas Anda'
+                                                      : 'Kerjakan',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            onPressed: () async {
+                                              s.markNotificationRead(id);
+                                              Navigator.pop(ctx);
+
+                                              if (!isInProgress) {
+                                                await s.updateTaskStatus(id, 'in_progress');
+                                                final taskTitle = (n['title'] ?? 'Tugas Lapangan').toString();
+                                                s.openScanner(
+                                                  sku,
+                                                  mode: ScanMode.single,
+                                                  taskTitle: taskTitle,
+                                                  taskId: id,
+                                                  rack: location.isNotEmpty ? location : null,
+                                                );
+                                              } else {
+                                                await s.updateTaskStatus(id, 'done');
+                                              }
+
+                                              if (context.mounted) {
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      isInProgress
+                                                          ? 'Tugas #${n['id']} telah diselesaikan!'
+                                                          : 'Mulai mengerjakan tugas #${n['id']}${sku.isNotEmpty ? ' ($sku)' : ''}',
+                                                    ),
+                                                    backgroundColor: brand,
+                                                    behavior: SnackBarBehavior.floating,
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius: BorderRadius.circular(12),
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            },
                                           ),
-                                          onPressed: () async {
-                                            s.markNotificationRead(id);
-                                            Navigator.pop(ctx);
-
-                                            if (!isInProgress) {
-                                              await s.updateTaskStatus(id, 'in_progress');
-                                              final taskTitle = (n['title'] ?? 'Tugas Lapangan').toString();
-                                              s.openScanner(
-                                                sku,
-                                                mode: ScanMode.single,
-                                                taskTitle: taskTitle,
-                                                taskId: id,
-                                                rack: location.isNotEmpty ? location : null,
-                                              );
-                                            } else {
-                                              await s.updateTaskStatus(id, 'done');
-                                            }
-
-                                            if (context.mounted) {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    isInProgress
-                                                        ? 'Tugas #${n['id']} telah diselesaikan!'
-                                                        : 'Mulai mengerjakan tugas #${n['id']}${sku.isNotEmpty ? ' ($sku)' : ''}',
-                                                  ),
-                                                  backgroundColor: brand,
-                                                  behavior: SnackBarBehavior.floating,
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(12),
-                                                  ),
-                                                ),
-                                              );
-                                            }
-                                          },
                                         ),
+                                      ],
                                     ],
                                   ),
                                 );
@@ -836,6 +886,8 @@ class _AppShellState extends State<AppShell> {
       },
     );
   }
+
+
 }
 
 // -----------------------------------------------------------------------------
@@ -896,33 +948,36 @@ class _TopNavbar extends StatelessWidget {
           ),
           const SizedBox(width: 10),
 
-          // 2. Teks Branding SUSUNO
-          const Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'SUSUNO',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.5,
-                  color: brandInk,
+          // 2. Teks Branding SUSUNO (Dibungkus Expanded agar aman dari overflow di layar sempit)
+          const Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SUSUNO',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                    color: brandInk,
+                  ),
                 ),
-              ),
-              SizedBox(height: 1),
-              Text(
-                'Warehouse & Inventory System',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: muted,
+                SizedBox(height: 1),
+                Text(
+                  'Warehouse & Inventory System',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: muted,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-
-          const Spacer(),
+          const SizedBox(width: 8),
 
           // 3. Indikator Online/Offline di sebelah lonceng
           _ConnectionStatusBadge(

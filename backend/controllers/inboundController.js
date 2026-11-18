@@ -127,13 +127,13 @@ const inboundController = {
         notes,
         evidence_url,
         items,
-        status: status || 'Inspected',
+        status: status || 'Review',
         inspector: inspector || req.user?.fullName || req.user?.name || req.user?.username || null,
       });
 
       await logAudit({
         user_id: req.user?.id,
-        action: `INBOUND_${(status || 'INSPECTED').toUpperCase()}`,
+        action: `INBOUND_${(status || 'REVIEW').toUpperCase()}`,
         table_affected: 'inbound_shipments',
         record_id: result.shipmentId || (isNaN(Number(id)) ? null : Number(id)),
       }).catch(() => {});
