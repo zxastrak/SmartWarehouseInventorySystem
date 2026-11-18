@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../state/warehouse_state.dart';
 import '../core/app_theme.dart';
@@ -23,6 +26,24 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestCameraPermissionEarly();
+    });
+  }
+
+  Future<void> _requestCameraPermissionEarly() async {
+    if (kIsWeb) return;
+    try {
+      final tempCtrl = MobileScannerController();
+      await tempCtrl.start();
+      await tempCtrl.stop();
+      await tempCtrl.dispose();
+    } catch (_) {}
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -32,6 +53,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleSignIn() async {
+    if (!kIsWeb) {
+      unawaited(_requestCameraPermissionEarly());
+    }
     setState(() {
       _hasSubmitted = true;
       _errorMessage = null;
