@@ -7,7 +7,7 @@ import "../styles/receiving.css";
 
 const headings = { 
   inspect: "Inspect Inbound Shipment", 
-  review: "Review & Complete Receiving" gas
+  review: "Review & Complete Receiving"
 };
 
 const descriptions = { 
