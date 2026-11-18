@@ -167,3 +167,4 @@ String formatNumber(num number) {
 String formatRupiah(num number) {
   return 'Rp ${formatNumber(number)}';
 }
+

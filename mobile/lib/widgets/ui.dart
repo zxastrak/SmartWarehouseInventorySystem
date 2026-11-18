@@ -29,21 +29,20 @@ class Panel extends StatelessWidget {
     child: Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(20),
-      child:
-          onTap != null
-              ? InkWell(
-                borderRadius: BorderRadius.circular(20),
-                focusColor: Colors.transparent,
-                hoverColor: Colors.transparent,
-                highlightColor: Colors.transparent,
-                splashColor: brand.withAlpha(20),
-                onTap: () {
-                  FocusScope.of(context).unfocus();
-                  onTap!();
-                },
-                child: Padding(padding: padding, child: child),
-              )
-              : Padding(padding: padding, child: child),
+      child: onTap != null
+          ? InkWell(
+              borderRadius: BorderRadius.circular(20),
+              focusColor: Colors.transparent,
+              hoverColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              splashColor: brand.withAlpha(20),
+              onTap: () {
+                FocusScope.of(context).unfocus();
+                onTap!();
+              },
+              child: Padding(padding: padding, child: child),
+            )
+          : Padding(padding: padding, child: child),
     ),
   );
 }
@@ -416,7 +415,9 @@ class StockCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Satuan: ${item.unit}',
+                            item.price > 0
+                                ? '${formatRupiah(item.price)} / ${item.unit}'
+                                : 'Satuan: ${item.unit}',
                             textAlign: TextAlign.right,
                             style: const TextStyle(
                               fontSize: 11,
@@ -757,7 +758,9 @@ class StockCountBox extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Satuan: ${item.unit}',
+                    item.price > 0
+                        ? '${formatRupiah(item.price)} / ${item.unit}'
+                        : 'Satuan: ${item.unit}',
                     textAlign: TextAlign.right,
                     style: const TextStyle(
                       fontSize: 11,

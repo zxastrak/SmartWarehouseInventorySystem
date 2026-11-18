@@ -292,6 +292,14 @@ class StockDetailsFlow extends StatelessWidget {
               _DetailRow('Lokasi Rak', item.rack),
               _DetailRow('Zona Gudang', item.zone),
               _DetailRow('Satuan Unit', item.unit),
+              if (item.price > 0)
+                _DetailRow('Harga Satuan', formatRupiah(item.price)),
+              if (item.price > 0)
+                _DetailRow(
+                  'Estimasi Nilai Stok',
+                  formatRupiah(item.price * item.quantity),
+                  highlight: true,
+                ),
             ],
           ),
         ),

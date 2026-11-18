@@ -172,7 +172,8 @@ const taskController = {
 
   getAll: async (req, res) => {
     try {
-      let tasks = await taskModel.getAll();
+      const showAll = req.query.all === 'true' || req.query.history === 'true';
+      let tasks = await taskModel.getAll({ all: showAll });
       if (req.user && req.user.role === 'staf') {
         tasks = tasks.filter((t) => {
           const title = (t.title || '').toUpperCase();
@@ -182,6 +183,22 @@ const taskController = {
       }
       res.status(200).json(tasks);
     } catch (err) {
+      res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
+    }
+  },
+
+  // Notifikasi khusus untuk staf yang sedang login
+  getNotifications: async (req, res) => {
+    try {
+      const notifications = await taskModel.getNotificationsByUserId(req.user.id);
+      const pendingCount = notifications.filter(n => n.status === 'pending').length;
+      res.status(200).json({
+        notifications,
+        total: notifications.length,
+        pending: pendingCount,
+      });
+    } catch (err) {
+      console.error('[ERROR getNotifications]', err);
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
     }
   },
@@ -246,6 +263,50 @@ const taskController = {
       if (err.code === 'ER_NO_REFERENCED_ROW_2') {
         return res.status(400).json({ message: 'location_id atau related_product_id tidak valid' });
       }
+      res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
+    }
+  },
+
+  // Laporan selisih stok dari staf lapangan ke manajer
+  reportDiscrepancy: async (req, res) => {
+    try {
+      const { sku, physical_quantity, reason } = req.body || {};
+
+      if (!sku || physical_quantity === undefined || !reason) {
+        return res.status(400).json({ message: 'SKU, jumlah fisik, dan alasan selisih wajib diisi' });
+      }
+
+      const products = await productModel.findBySku(sku);
+      if (products.length === 0) {
+        return res.status(404).json({ message: 'Produk tidak ditemukan' });
+      }
+
+      const product = products[0];
+      const title = `[SELISIH STOK] ${product.sku} - ${product.name}`;
+      const description = `Laporan dari staf: "${reason.trim()}". Stok sistem: ${product.stock_quantity}, Hasil hitung fisik: ${physical_quantity}. Lokasi: ${product.zone_location || '-'}`;
+
+      const result = await taskModel.create({
+        title,
+        description,
+        location_id: product.location_id || null,
+        related_product_id: product.id,
+        current_assignee_id: req.user.id,
+        created_by: req.user.id,
+      });
+
+      await logAudit({
+        user_id: req.user.id,
+        action: 'STOCK_DISCREPANCY_REPORTED',
+        table_affected: 'tasks',
+        record_id: result.taskId,
+      });
+
+      res.status(201).json({
+        message: 'Laporan selisih stok berhasil dikirim ke manajer sebagai tugas investigasi',
+        taskId: result.taskId,
+      });
+    } catch (err) {
+      console.error('[ERROR reportDiscrepancy]', err);
       res.status(500).json({ message: 'Terjadi kesalahan server', error: err.message });
     }
   },

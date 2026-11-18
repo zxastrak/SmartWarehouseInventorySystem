@@ -10,6 +10,7 @@ router.get('/notifications', authMiddleware.verifyToken, taskController.getNotif
 
 // Laporan selisih stok dari staf lapangan ke manajer
 router.post('/discrepancy', authMiddleware.verifyToken, taskController.reportDiscrepancy);
+
 router.get('/:id', authMiddleware.verifyToken, taskController.getById);
 router.get('/:id/history', authMiddleware.verifyToken, taskController.getHistory);
 

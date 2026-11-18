@@ -44,6 +44,7 @@ const userController = {
     }
   },
 
+  // Staf atau manajer mengupdate nama profilnya sendiri
   updateProfile: async (req, res) => {
     try {
       const { name } = req.body || {};
