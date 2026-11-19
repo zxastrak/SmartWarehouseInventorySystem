@@ -146,24 +146,27 @@ class ProfileScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _ShiftCard(
-                      'Jadwal Shift',
-                      s.currentShift,
-                      Icons.schedule,
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: _ShiftCard(
+                        'Jadwal Shift',
+                        s.currentShift,
+                        Icons.schedule,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _ShiftCard(
-                      'ID Staf',
-                      staffId,
-                      Icons.badge_outlined,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _ShiftCard(
+                        'ID Staf',
+                        staffId,
+                        Icons.badge_outlined,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -442,20 +445,22 @@ class _ShiftCard extends StatelessWidget {
   final String title, value;
   final IconData icon;
   const _ShiftCard(this.title, this.value, this.icon);
+
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(12),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(
           children: [
-            Icon(icon, size: 16, color: mint),
-            const SizedBox(width: 5),
+            Icon(icon, size: 15, color: mint),
+            const SizedBox(width: 6),
             Expanded(
               child: Text(
                 title,
@@ -464,17 +469,22 @@ class _ShiftCard extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   color: brandSlate,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         Text(
           value,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-            fontSize: 12,
+            fontSize: 12.5,
             fontWeight: FontWeight.w800,
             color: brandInk,
+            height: 1.25,
           ),
         ),
       ],

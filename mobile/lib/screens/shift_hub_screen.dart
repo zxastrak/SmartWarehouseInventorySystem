@@ -192,13 +192,7 @@ class ShiftHubScreen extends StatelessWidget {
                 child: _QuickActionCard(
                   title: 'Rack Audit',
                   imageAsset: 'assets/images/action_cycle_count.png',
-                  onTap: () {
-                    final target =
-                        s.items.isNotEmpty ? s.items.first.sku : '';
-                    if (target.isNotEmpty) {
-                      openRack(context, target);
-                    }
-                  },
+                  onTap: () => openRackAuditFlow(context),
                 ),
               ),
             ],
@@ -274,7 +268,6 @@ class ShiftHubScreen extends StatelessWidget {
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.assignment_turned_in_outlined, color: muted, size: 18),
                   SizedBox(width: 8),
                   Text(
                     'Tidak ada tugas khusus untuk Anda saat ini',
@@ -358,7 +351,6 @@ class ShiftHubScreen extends StatelessWidget {
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.inbox_outlined, color: muted, size: 18),
                   SizedBox(width: 8),
                   Text(
                     'Tidak ada tugas yang menanti saat ini',
@@ -498,7 +490,7 @@ class _ShiftHeroCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Baris atas: avatar, nama, status online
+          // Baris atas: avatar, nama staf
           Row(
             children: [
               Expanded(
@@ -531,8 +523,6 @@ class _ShiftHeroCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              _OnlinePill(online: s.isBackendConnected),
             ],
           ),
 
@@ -661,30 +651,6 @@ class _ShiftHeroCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _OnlinePill extends StatelessWidget {
-  final bool online;
-  const _OnlinePill({required this.online});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        online ? 'Online' : 'Offline',
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: brandInk,
-        ),
       ),
     );
   }

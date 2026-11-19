@@ -37,6 +37,7 @@ class _StockScreenState extends State<StockScreen> {
     final s = context.watch<WarehouseState>();
     final items = s.filteredItems;
     final hasFilter = s.filter.active;
+    final isFilteringOrSearching = s.search.trim().isNotEmpty || hasFilter;
     final topPadding = MediaQuery.paddingOf(context).top + 72;
     return RefreshIndicator(
       onRefresh: () => s.loadFromApi(),
@@ -162,8 +163,8 @@ class _StockScreenState extends State<StockScreen> {
                           backgroundColor: Colors.white,
                           foregroundColor: brand,
                           side: const BorderSide(
-                            color: brandSoftBorder,
-                            width: 1.5,
+                            color: line,
+                            width: 1,
                           ),
                           shape: const CircleBorder(),
                         ),
@@ -219,14 +220,26 @@ class _StockScreenState extends State<StockScreen> {
           ),
         ),
         if (items.isEmpty)
-          const SliverPadding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 100),
-            sliver: SliverToBoxAdapter(
-              child: Panel(
-                child: Text('No products match your search and filters.'),
+          if (isFilteringOrSearching)
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 100),
+              sliver: SliverToBoxAdapter(
+                child: Panel(
+                  child: Text(
+                    'Maaf, tidak ada yang sesuai dengan filter atau pencarianmu',
+                    style: TextStyle(
+                      color: muted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
               ),
-            ),
-          )
+            )
+          else
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 100),
+            )
         else
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
@@ -350,7 +363,7 @@ class _FilterFlowState extends State<FilterFlow> {
                 minimumSize: const Size(0, 42),
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 backgroundColor:
-                    selected ? statusColor(status).withAlpha(18) : Colors.white,
+                    selected ? statusColor(status) : Colors.white,
                 side: BorderSide(
                   color: selected ? statusColor(status) : line,
                   width: 1.4,
@@ -364,13 +377,13 @@ class _FilterFlowState extends State<FilterFlow> {
                 }
               }),
               child: Text(
-                '${selected ? '✓ ' : ''}$label',
+                label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w700,
-                  color: selected ? statusColor(status) : muted,
+                  color: selected ? Colors.white : ink,
                 ),
               ),
             ),
@@ -415,40 +428,40 @@ class _FilterFlowState extends State<FilterFlow> {
       ),
       const SizedBox(height: 20),
       const _FilterLabel('URUTKAN BERDASARKAN', Icons.sort),
-      ...[
-        ('Urgency', 'Paling Kritis / Mendesak'),
-        ('SKU', 'Nama / SKU Barang (A - Z)'),
-      ].map(
-        (v) => Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: sort == v.$1 ? brand : line,
-              width: sort == v.$1 ? 1.4 : 1,
-            ),
-            color: sort == v.$1 ? brandSoft : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: ListTile(
-            dense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-            leading: Icon(
-              sort == v.$1
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_off,
-              color: sort == v.$1 ? brand : line,
-              size: 18,
-            ),
-            title: Text(
-              v.$2,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          ('Urgency', 'Paling Kritis'),
+          ('SKU', 'Nama (A - Z)'),
+        ]
+            .map(
+              (v) => SizedBox(
+                width: 157,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 42),
+                    backgroundColor: sort == v.$1 ? brand : Colors.white,
+                    side: BorderSide(
+                      color: sort == v.$1 ? brand : line,
+                      width: 1.4,
+                    ),
+                  ),
+                  onPressed: () => setState(() => sort = v.$1),
+                  child: Text(
+                    v.$2,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: sort == v.$1 ? Colors.white : ink,
+                    ),
+                  ),
+                ),
               ),
-            ),
-            onTap: () => setState(() => sort = v.$1),
-          ),
-        ),
+            )
+            .toList(),
       ),
       const SizedBox(height: 14),
       Row(
@@ -457,11 +470,10 @@ class _FilterFlowState extends State<FilterFlow> {
             flex: 1,
             child: SizedBox(
               height: 48,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: const Color(0xfffff1f2),
-                  foregroundColor: danger,
-                  side: const BorderSide(color: danger, width: 1.4),
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: danger,
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(24),
                   ),
@@ -471,8 +483,7 @@ class _FilterFlowState extends State<FilterFlow> {
                   zone = 'All Zones';
                   sort = 'Urgency';
                 }),
-                icon: const Icon(Icons.restart_alt_rounded, size: 16),
-                label: const Text(
+                child: const Text(
                   'Reset',
                   style: TextStyle(
                     fontSize: 13,

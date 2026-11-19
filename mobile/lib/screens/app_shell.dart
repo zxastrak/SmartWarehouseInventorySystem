@@ -27,6 +27,8 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   bool _isScrolled = false;
   int _lastPage = 0;
+  int _lastRenderedPage = -1;
+  bool _isStalledOffline = false;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +38,16 @@ class _AppShellState extends State<AppShell> {
     if (_lastPage != s.page) {
       _lastPage = s.page;
       _isScrolled = false;
+    }
+
+    final isOnline = s.connectionStatus == ConnectionStatus.online;
+    if (isOnline) {
+      _isStalledOffline = false;
+      _lastRenderedPage = s.page;
+    } else if (s.page != _lastRenderedPage) {
+      // Staf mencoba navigasi ke halaman/navbar lain saat koneksi bermasalah (kuning, biru, merah)
+      _isStalledOffline = true;
+      _lastRenderedPage = -1;
     }
 
     // Route selector untuk 5 tab utama operasional
@@ -50,6 +62,18 @@ class _AppShellState extends State<AppShell> {
 
     final activeBottomTab = (s.page >= 0 && s.page <= 4) ? s.page : 0;
     final topPadding = MediaQuery.paddingOf(context).top + 72;
+
+    final Widget activeContent = _isStalledOffline
+        ? Padding(
+            padding: EdgeInsets.only(top: topPadding, bottom: 100),
+            child: const _ConnectionLoadingView(),
+          )
+        : (s.page == 0 || s.page == 1
+            ? body
+            : SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(16, topPadding, 16, 100),
+                child: body,
+              ));
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark.copyWith(
@@ -84,13 +108,8 @@ class _AppShellState extends State<AppShell> {
                       switchInCurve: Curves.easeOut,
                       switchOutCurve: Curves.easeIn,
                       child: KeyedSubtree(
-                        key: ValueKey<int>(s.page),
-                        child: s.page == 0 || s.page == 1
-                            ? body
-                            : SingleChildScrollView(
-                                padding: EdgeInsets.fromLTRB(16, topPadding, 16, 100),
-                                child: body,
-                              ),
+                        key: ValueKey<String>('${s.page}_$_isStalledOffline'),
+                        child: activeContent,
                       ),
                     ),
                   ),
@@ -111,11 +130,11 @@ class _AppShellState extends State<AppShell> {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 500),
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
                       child: _TopNavbar(
                         isScrolled: _isScrolled,
                         unreadCount: s.unreadNotificationCount,
-                        isOnline: s.isOnline,
+                        connectionStatus: s.connectionStatus,
                         onConnectionTap: () => _showConnectionDetailSheet(context, s),
                         onNotificationTap: () {
                           if (s.unreadNotificationCount > 0) {
@@ -172,54 +191,16 @@ class _AppShellState extends State<AppShell> {
                               ),
                             ],
                           ),
-                          child: Stack(
-                            alignment: Alignment.center,
+                          child: Row(
                             children: [
-                              // Kapsul highlight yang meluncur halus secara horizontal
-                              AnimatedAlign(
-                                duration: const Duration(milliseconds: 280),
-                                curve: Curves.fastOutSlowIn,
-                                alignment: Alignment(
-                                  -1.0 + (activeBottomTab * 0.5),
-                                  0.0,
-                                ),
-                                child: AnimatedOpacity(
-                                  duration: const Duration(milliseconds: 200),
-                                  curve: Curves.easeInOut,
-                                  opacity: activeBottomTab == 2 ? 0.0 : 1.0,
-                                  child: FractionallySizedBox(
-                                    widthFactor: 0.19,
-                                    heightFactor: 0.82,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xffedf4e4),
-                                        borderRadius: BorderRadius.circular(22),
-                                        border: Border.all(
-                                          color: const Color(0xffdcebd9),
-                                          width: 1.0,
-                                        ),
-                                        boxShadow: const [
-                                          BoxShadow(
-                                            color: Color(0x0d5c732b),
-                                            blurRadius: 6,
-                                            offset: Offset(0, 2),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                              _InteractiveNavTabItem(
+                                label: 'Tugas',
+                                icon: Icons.assignment_outlined,
+                                activeIcon: Icons.assignment,
+                                isSelected: activeBottomTab == 0,
+                                badgeCount: s.pendingCount,
+                                onTap: () => s.navigate(0),
                               ),
-                              Row(
-                                children: [
-                                  _InteractiveNavTabItem(
-                                    label: 'Tugas',
-                                    icon: Icons.assignment_outlined,
-                                    activeIcon: Icons.assignment,
-                                    isSelected: activeBottomTab == 0,
-                                    badgeCount: s.pendingCount,
-                                    onTap: () => s.navigate(0),
-                                  ),
                                   _InteractiveNavTabItem(
                                     label: 'Stok & Rak',
                                     icon: Icons.inventory_2_outlined,
@@ -244,10 +225,8 @@ class _AppShellState extends State<AppShell> {
                                   ),
                                 ],
                               ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ),
                       // Bulatan Hijau Besar di Tengah (Scanner Cepat Otomatis Alur Tugas)
                       Positioned(
                         top: 0,
@@ -282,160 +261,208 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  // Modal Detail Status Koneksi Server
+  // Modal Detail Status Koneksi Server (Smart Hybrid 4-State) - Responsif & Anti-Overflow
   void _showConnectionDetailSheet(BuildContext context, WarehouseState s) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        bool isChecking = false;
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
-            final online = s.isOnline;
+            final st = s.connectionStatus;
+            final isOnline = st == ConnectionStatus.online;
+            final isServerOffline = st == ConnectionStatus.serverOffline;
+            final isLocalOnly = st == ConnectionStatus.localOnly;
 
-            return Container(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            // Warna & Aset Icon Semantik 4-State
+            final Color iconColor = isOnline
+                ? const Color(0xff16a34a)
+                : (isServerOffline
+                    ? const Color(0xffd97706)
+                    : (isLocalOnly ? const Color(0xff0284c7) : const Color(0xffdc2626)));
+
+            final IconData statusIcon = isOnline
+                ? Icons.cloud_done_rounded
+                : (isServerOffline
+                    ? Icons.cloud_queue_rounded
+                    : (isLocalOnly ? Icons.lan_rounded : Icons.wifi_off_rounded));
+
+            final String title = isOnline
+                ? 'Terhubung Dalam Jaringan'
+                : (isServerOffline
+                    ? 'Server SUSUNO Down / Off Sementara'
+                    : (isLocalOnly
+                        ? 'Menunggu Jaringan...'
+                        : 'Terputus Dalam Jaringan'));
+
+            final String description = isOnline
+                ? 'Aplikasi terhubung lancar ke internet dan server SUSUNO. Seluruh transaksi pemindaian, absensi, dan sinkronisasi berjalan normal.'
+                : (isServerOffline
+                    ? 'Perangkat Anda terhubung ke internet, namun server SUSUNO (${ApiConfig.baseUrl}) sedang down atau tidak aktif sementara. Hubungi tim IT.'
+                    : (isLocalOnly
+                        ? 'Perangkat terhubung ke server lokal (${ApiConfig.baseUrl}), namun sedang menunggu koneksi internet luar stabil.'
+                        : 'Perangkat tidak mendeteksi koneksi jaringan internet maupun server. Seluruh transaksi inventaris dikunci sementara.'));
+
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.88,
               ),
-              child: SafeArea(
-                top: false,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Handle Bar
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      width: 42,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: const Color(0xffcbd5e1),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-
-                    // Status Icon
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: online ? const Color(0xfff0fdf4) : const Color(0xfffef2f2),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: online ? const Color(0xff86efac) : const Color(0xfffca5a5),
-                          width: 2,
-                        ),
-                      ),
-                      child: Icon(
-                        online ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
-                        color: online ? const Color(0xff16a34a) : const Color(0xffdc2626),
-                        size: 32,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    Text(
-                      online ? 'Server Backend Terhubung' : 'Server Backend Terputus',
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                        color: brandInk,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 6),
-
-                    Text(
-                      online
-                          ? 'Aplikasi terhubung dengan server SUSUNO. Seluruh transaksi pemindaian, absensi, dan laporan inspeksi tersinkronisasi otomatis.'
-                          : 'Aplikasi saat ini beroperasi dalam mode offline. Anda tetap dapat memindai barang & membaca data lokal, namun pengiriman laporan ke web manager memerlukan koneksi internet/server.',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: brandSlate,
-                        height: 1.4,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xfff8fafc),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xffe2e8f0)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.dns_rounded, size: 16, color: brandSlate),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Host: ${ApiConfig.baseUrl}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontFamily: 'monospace',
-                                color: brandInk,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Handle Bar
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: const Color(0xffcbd5e1),
+                            borderRadius: BorderRadius.circular(2),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: online ? const Color(0xffdcfce7) : const Color(0xfffee2e2),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              online ? 'ONLINE' : 'OFFLINE',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                                color: online ? const Color(0xff166534) : const Color(0xff991b1b),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: brand,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
-                        onPressed: isChecking
-                            ? null
-                            : () async {
-                                setModalState(() => isChecking = true);
-                                final ok = await s.checkConnectivity();
-                                setModalState(() => isChecking = false);
-                                if (!ctx.mounted) return;
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                  SnackBar(
-                                    content: Text(ok
-                                        ? 'Berhasil terhubung ke server SUSUNO!'
-                                        : 'Gagal terhubung ke server SUSUNO (${ApiConfig.baseUrl})'),
-                                    backgroundColor: ok ? const Color(0xff16a34a) : const Color(0xffdc2626),
-                                    duration: const Duration(seconds: 2),
+
+                        // Status Icon (Hanya ikon tanpa lingkaran latar belakang)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2, bottom: 6),
+                          child: Icon(
+                            statusIcon,
+                            color: iconColor,
+                            size: 40,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: brandInk,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 5),
+
+                        Text(
+                          description,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: brandSlate,
+                            height: 1.35,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Kotak Status Rinci: Jaringan Internet
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: const Color(0xfff8fafc),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xffe2e8f0)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                s.hasInternetConnection ? Icons.wifi_rounded : Icons.wifi_off_rounded,
+                                size: 16,
+                                color: s.hasInternetConnection ? const Color(0xff16a34a) : const Color(0xffdc2626),
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Jaringan Internet',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: brandInk,
+                                    fontWeight: FontWeight.w700,
                                   ),
-                                );
-                              },
-                        icon: const Icon(Icons.refresh_rounded, size: 18),
-                        label: Text(
-                          isChecking ? 'Memeriksa Koneksi...' : 'Uji Ulang Koneksi',
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                                ),
+                              ),
+                              Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  color: s.hasInternetConnection ? const Color(0xff16a34a) : const Color(0xffdc2626),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  s.hasInternetConnection ? Icons.check_rounded : Icons.close_rounded,
+                                  size: 15,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+
+                        // Kotak Status Rinci: Server SUSUNO
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: const Color(0xfff8fafc),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xffe2e8f0)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.dns_rounded, size: 16, color: brandSlate),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Server: ${ApiConfig.baseUrl}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontFamily: 'monospace',
+                                    color: brandInk,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  color: s.isBackendConnected
+                                      ? const Color(0xff16a34a)
+                                      : (s.hasInternetConnection
+                                          ? const Color(0xffeab308)
+                                          : const Color(0xffdc2626)),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  s.isBackendConnected
+                                      ? Icons.check_rounded
+                                      : (s.hasInternetConnection
+                                          ? Icons.build_rounded
+                                          : Icons.close_rounded),
+                                  size: 13,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             );
@@ -488,19 +515,6 @@ class _AppShellState extends State<AppShell> {
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                       child: Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xfffef3c7),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.notifications_active_rounded,
-                              color: Color(0xfff59e0b),
-                              size: 22,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
                           const Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -847,14 +861,14 @@ class _AppShellState extends State<AppShell> {
 class _TopNavbar extends StatelessWidget {
   final bool isScrolled;
   final int unreadCount;
-  final bool isOnline;
+  final ConnectionStatus connectionStatus;
   final VoidCallback onConnectionTap;
   final VoidCallback onNotificationTap;
 
   const _TopNavbar({
     required this.isScrolled,
     required this.unreadCount,
-    required this.isOnline,
+    required this.connectionStatus,
     required this.onConnectionTap,
     required this.onNotificationTap,
   });
@@ -865,7 +879,7 @@ class _TopNavbar extends StatelessWidget {
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
       height: 56,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: isScrolled ? Colors.white : Colors.transparent,
         borderRadius: BorderRadius.circular(32),
@@ -890,43 +904,49 @@ class _TopNavbar extends StatelessWidget {
           // 1. Logo SUSUNO
           Image.asset(
             'assets/images/susuno_logo.png',
-            width: 36,
-            height: 36,
+            width: 34,
+            height: 34,
             fit: BoxFit.contain,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 9),
 
-          // 2. Teks Branding SUSUNO
-          const Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'SUSUNO',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.5,
-                  color: brandInk,
+          // 2. Teks Branding SUSUNO (Fleksibel & Anti-Overflow)
+          const Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SUSUNO',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                    color: brandInk,
+                  ),
                 ),
-              ),
-              SizedBox(height: 1),
-              Text(
-                'Warehouse & Inventory System',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: muted,
+                SizedBox(height: 1),
+                Text(
+                  'Warehouse & Inventory System',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: muted,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
 
-          const Spacer(),
+          const SizedBox(width: 8),
 
-          // 3. Indikator Online/Offline di sebelah lonceng
+          // 3. Kotak Status Koneksi Menyala (3-State Hybrid)
           _ConnectionStatusBadge(
-            isOnline: isOnline,
+            connectionStatus: connectionStatus,
             onTap: onConnectionTap,
           ),
           const SizedBox(width: 8),
@@ -943,75 +963,80 @@ class _TopNavbar extends StatelessWidget {
 }
 
 // -----------------------------------------------------------------------------
-// Badge Indikator Online / Offline di Sebelah Lonceng
+// Kotak Indikator Koneksi 4-State Smart Hybrid:
+// 🟢 Hijau = Online Penuh (Internet & Server Backend Terhubung)
+// 🟡 Kuning = Server Standby (Internet Ada, Server Backend SUSUNO Offline)
+// 🔵 Biru = Mode Intranet (Server SUSUNO Lokal Terhubung, Internet Luar Terputus)
+// 🔴 Merah = Offline (Tidak Ada Internet maupun Server)
 // -----------------------------------------------------------------------------
 
 class _ConnectionStatusBadge extends StatelessWidget {
-  final bool isOnline;
+  final ConnectionStatus connectionStatus;
   final VoidCallback onTap;
 
   const _ConnectionStatusBadge({
-    required this.isOnline,
+    required this.connectionStatus,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bool isOnline = connectionStatus == ConnectionStatus.online;
+    final bool isServerOffline = connectionStatus == ConnectionStatus.serverOffline;
+    final bool isLocalOnly = connectionStatus == ConnectionStatus.localOnly;
+
+    final Color badgeColor = isOnline
+        ? const Color(0xff16a34a)
+        : (isServerOffline
+            ? const Color(0xffd97706)
+            : (isLocalOnly ? const Color(0xff0284c7) : const Color(0xffdc2626)));
+
+    final Color glowColor = isOnline
+        ? const Color(0xff22c55e)
+        : (isServerOffline
+            ? const Color(0xfff59e0b)
+            : (isLocalOnly ? const Color(0xff38bdf8) : const Color(0xffef4444)));
+
+    final bool isOffline = connectionStatus == ConnectionStatus.offline;
+    final IconData badgeIcon = isOffline ? Icons.wifi_off_rounded : Icons.wifi_rounded;
+
+    final String tooltipMessage = isOnline
+        ? 'Semua Aman (Terhubung Penuh)'
+        : (isServerOffline
+            ? 'Server SUSUNO Down / Off Sementara'
+            : (isLocalOnly
+                ? 'Menunggu Jaringan...'
+                : 'Tidak Ada Jaringan'));
+
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-          decoration: BoxDecoration(
-            color: isOnline
-                ? const Color(0xfff0fdf4)
-                : const Color(0xfffef2f2),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isOnline
-                  ? const Color(0xff86efac)
-                  : const Color(0xfffca5a5),
-              width: 1,
+      child: Tooltip(
+        message: tooltipMessage,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: badgeColor,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: glowColor.withValues(alpha: 0.55),
+                  blurRadius: 8,
+                  spreadRadius: 1,
+                ),
+              ],
             ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: isOnline
-                      ? const Color(0xff16a34a)
-                      : const Color(0xffdc2626),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: (isOnline
-                              ? const Color(0xff16a34a)
-                              : const Color(0xffdc2626))
-                          .withValues(alpha: 0.4),
-                      blurRadius: 4,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
+            child: Center(
+              child: Icon(
+                badgeIcon,
+                color: Colors.white,
+                size: 17,
               ),
-              const SizedBox(width: 5),
-              Text(
-                isOnline ? 'Online' : 'Offline',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.2,
-                  color: isOnline
-                      ? const Color(0xff166534)
-                      : const Color(0xff991b1b),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -1020,7 +1045,7 @@ class _ConnectionStatusBadge extends StatelessWidget {
 }
 
 // -----------------------------------------------------------------------------
-// Tombol Lonceng / Bell Warna Kuning dengan Indikator Notifikasi
+// Tombol Lonceng / Bell Kotak Kuning Menyala dengan Indikator Notifikasi
 // -----------------------------------------------------------------------------
 
 class _NotificationBellButton extends StatelessWidget {
@@ -1036,61 +1061,61 @@ class _NotificationBellButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: Container(
-          width: 44,
-          height: 44,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: const Color(0xfffef3c7).withValues(alpha: 0.85),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: const Color(0xfffde68a),
-              width: 1,
-            ),
-          ),
-          child: Stack(
-            clipBehavior: Clip.none,
+      child: Tooltip(
+        message: unreadCount > 0 ? '$unreadCount notifikasi baru' : 'Notifikasi',
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            width: 32,
+            height: 32,
             alignment: Alignment.center,
-            children: [
-              // Ikon Lonceng Kuning
-              const Icon(
-                Icons.notifications_rounded,
-                color: Color(0xfff59e0b),
-                size: 24,
-              ),
+            decoration: BoxDecoration(
+              color: const Color(0xffeab308),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                // Ikon Lonceng Putih (Flat tanpa shadow)
+                const Icon(
+                  Icons.notifications_rounded,
+                  color: Colors.white,
+                  size: 17,
+                ),
 
-              // Badge Indikator Belum Dibaca
-              if (unreadCount > 0)
-                Positioned(
-                  top: -2,
-                  right: -2,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                    decoration: BoxDecoration(
-                      color: danger,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white, width: 1.5),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    child: Text(
-                      unreadCount > 99 ? '99+' : '$unreadCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        height: 1,
+                // Badge Indikator Belum Dibaca (Titik / Angka Merah)
+                if (unreadCount > 0)
+                  Positioned(
+                    top: -4,
+                    right: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: danger,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white, width: 1.5),
                       ),
-                      textAlign: TextAlign.center,
+                      constraints: const BoxConstraints(
+                        minWidth: 15,
+                        minHeight: 15,
+                      ),
+                      child: Text(
+                        unreadCount > 99 ? '99+' : '$unreadCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1202,3 +1227,39 @@ class _InteractiveNavTabItem extends StatelessWidget {
     );
   }
 }
+
+/// Tampilan loading bersih bertema SUSUNO saat staf berpindah halaman/tab
+/// ketika status koneksi sedang offline, menunggu jaringan, atau server down.
+class _ConnectionLoadingView extends StatelessWidget {
+  const _ConnectionLoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: const [
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: CircularProgressIndicator(
+              strokeWidth: 3.2,
+              valueColor: AlwaysStoppedAnimation<Color>(brand),
+            ),
+          ),
+          SizedBox(height: 16),
+          Text(
+            'Memuat data...',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: muted,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
