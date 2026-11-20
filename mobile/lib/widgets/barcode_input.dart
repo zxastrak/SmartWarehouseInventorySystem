@@ -4,13 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../core/app_theme.dart';
-import 'qr_scanner.dart';
 import 'web_camera_helper.dart';
 
+/// Komponen pemindai barcode / QR Code langsung aktif di tempat (realtime in-place).
+/// Dilengkapi kontrol Flash/Light di pojok atas dan mekanisme anti-looping dengan tombol Pindai Ulang.
 class BarcodeInput extends StatefulWidget {
-  final String title, demoCode;
+  final String title;
+  final String demoCode;
   final ValueChanged<String> onResult;
   final bool labelPreview;
+
   const BarcodeInput({
     super.key,
     required this.title,
@@ -18,213 +21,182 @@ class BarcodeInput extends StatefulWidget {
     required this.onResult,
     this.labelPreview = false,
   });
+
   @override
   State<BarcodeInput> createState() => _BarcodeInputState();
 }
 
 class _BarcodeInputState extends State<BarcodeInput> {
-  bool camera = false;
-  String? last;
-  int zoom = 1;
-  bool cameraError = false;
   final cameraKey = GlobalKey<_CameraState>();
+  bool isLocked = false;
+  bool torchEnabled = false;
+  bool cameraError = false;
+  String? last;
+
   @override
   void deactivate() {
-    if (camera) {
-      camera = false;
-    }
     stopWebMediaTracks();
     super.deactivate();
   }
 
   void accept(String code) {
-    if (code.trim().isEmpty) {
+    if (code.trim().isEmpty || isLocked) {
       return;
     }
     HapticFeedback.mediumImpact();
     setState(() {
-      camera = false;
-      cameraError = false;
-      last = code.trim();
+      isLocked = true;
+      last = code.trim().toUpperCase();
     });
-    widget.onResult(code.trim());
+    // Hentikan sementara sensor pemindaian agar tidak looping
+    cameraKey.currentState?.pauseScan();
+    widget.onResult(code.trim().toUpperCase());
   }
 
-  Future<void> activateCamera() async {
-    final scanned = await QrScannerScreen.scan(
-      context,
-      title: widget.title,
-      hintText: 'Arahkan kamera ke barcode fisik atau QR Code',
-      demoCode: widget.demoCode,
-    );
-    if (scanned != null && scanned.trim().isNotEmpty) {
-      accept(scanned.trim().toUpperCase());
-    }
-  }
-
-  Future<void> manual() async {
-    final field = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder:
-          (c) => AlertDialog(
-            title: const Text('Input Barcode Manual'),
-            content: TextField(
-              controller: field,
-              decoration: const InputDecoration(
-                hintText: 'Masukkan SKU barang atau kode rak',
-              ),
-              onSubmitted: (v) => Navigator.pop(c, v),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(c, widget.demoCode),
-                child: const Text('Isi Contoh'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(c),
-                child: const Text('Batal'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(c, field.text),
-                child: const Text('Gunakan Barcode'),
-              ),
-            ],
-          ),
-    );
-    // Dialog route finishes its closing animation before the controller is disposed.
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    field.dispose();
-    if (result != null && mounted) {
-      accept(result);
-    }
+  /// Tombol Pindai Ulang untuk mengaktifkan kembali sensor kamera setelah scan sukses
+  void retryScan() {
+    setState(() {
+      isLocked = false;
+      last = null;
+    });
+    cameraKey.currentState?.resumeScan();
   }
 
   @override
   Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      // Kotak Scanner Kamera Realtime
       Container(
-        height: 310,
+        height: 300,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: const Color(0xff040817),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xff1e293b), width: 1.5),
+          border: Border.all(
+            color: isLocked ? const Color(0xff22c55e) : const Color(0xff1e293b),
+            width: 1.8,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Stack(
           alignment: Alignment.center,
           children: [
-            if (camera)
-              Positioned.fill(
-                child: _Camera(
-                  key: cameraKey,
-                  onResult: accept,
-                  onError: (v) {
-                    if (mounted) {
-                      setState(() => cameraError = v);
-                    }
-                  },
-                ),
+            // Feed Kamera Langsung Aktif
+            Positioned.fill(
+              child: _Camera(
+                key: cameraKey,
+                onResult: accept,
+                onError: (v) {
+                  if (mounted) setState(() => cameraError = v);
+                },
               ),
-            if (!camera)
-              Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: activateCamera,
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 58,
-                          height: 58,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.16),
-                              width: 1.5,
+            ),
+
+            // Header Bar di dalam Kamera: Judul di Kiri & Tombol Flash di Kanan
+            Positioned(
+              top: 10,
+              left: 12,
+              right: 12,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Label Status Mode Scan
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xff111827).withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xff273246)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: isLocked ? const Color(0xff22c55e) : const Color(0xffef4444),
+                              shape: BoxShape.circle,
                             ),
                           ),
-                          child: const Icon(
-                            Icons.qr_code_scanner,
-                            size: 30,
-                            color: Color(0xffd7e7b0),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              widget.title,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xffd7e7b0),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 14),
-                        const Text(
-                          'Ketuk untuk Buka Scanner Kamera QR',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Mendukung QR Code, Code 128, Code 39, EAN',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white60,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            if (camera && !cameraError) ...[
-              Positioned(
-                top: 10,
-                left: 10,
-                right: 10,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xff111827),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xff273246)),
-                        ),
-                        child: Text(
-                          widget.title,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xffd7e7b0),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 7),
-                    const Text(
-                      'FPS: 60 • 1080p',
-                      style: TextStyle(fontSize: 11, color: Colors.white70),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Tombol Senter / Flashlight
+                  GestureDetector(
+                    onTap: () {
+                      setState(() => torchEnabled = !torchEnabled);
+                      cameraKey.currentState?.toggleTorch();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: torchEnabled ? brand : const Color(0xff111827).withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: torchEnabled ? brand : const Color(0xff273246)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            torchEnabled ? Icons.flash_on : Icons.flash_off,
+                            size: 14,
+                            color: torchEnabled ? Colors.white : const Color(0xffd7e7b0),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            torchEnabled ? 'Flash ON' : 'Flash',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: torchEnabled ? Colors.white : const Color(0xffd7e7b0),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+            ),
+
+            // Bingkai Laser Pemindaian (Hanya saat aktif memindai)
+            if (!isLocked && !cameraError) ...[
               IgnorePointer(
                 child: SizedBox(
-                  width: 184,
-                  height: 127,
+                  width: 190,
+                  height: 130,
                   child: CustomPaint(painter: _Reticle()),
                 ),
               ),
               IgnorePointer(
                 child: Container(
                   height: 2,
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
                   decoration: const BoxDecoration(
                     color: Color(0xff9cbb55),
                     boxShadow: [
@@ -234,159 +206,86 @@ class _BarcodeInputState extends State<BarcodeInput> {
                 ),
               ),
               const Positioned(
-                bottom: 61,
+                bottom: 14,
                 child: Text(
                   'Arahkan barcode ke dalam bingkai',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    letterSpacing: 1.6,
+                    letterSpacing: 1.2,
                     color: Colors.white70,
                   ),
                 ),
               ),
-              Positioned(
-                bottom: 10,
-                left: 10,
-                right: 10,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _CameraButton('Flash', () {
-                      if (camera) {
-                        cameraKey.currentState?.toggleTorch();
-                      } else {
-                        activateCamera();
-                      }
-                    }, icon: Icons.flash_on),
-                    Row(
+            ],
+
+            // Overlay Kunci Sukses (Mencegah Looping Scan)
+            if (isLocked)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.75),
+                  padding: const EdgeInsets.all(20),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        for (int i = 1; i <= 3; i++)
-                          _CameraButton('${i}x', () {
-                            setState(() => zoom = i);
-                            cameraKey.currentState?.setZoom(i);
-                          }, selected: zoom == i),
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          color: Color(0xff22c55e),
+                          size: 48,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Barcode Berhasil Dipindai!',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          last ?? '',
+                          style: const TextStyle(
+                            color: Color(0xffd7e7b0),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1,
+                          ),
+                        ),
                       ],
                     ),
-                    _CameraButton(
-                      'Manual',
-                      manual,
-                      icon: Icons.keyboard_outlined,
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ],
           ],
         ),
       ),
-      Padding(
-        padding: const EdgeInsets.only(top: 10),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: brand,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      elevation: 0,
-                    ),
-                    onPressed: activateCamera,
-                    icon: const Icon(Icons.qr_code_scanner, size: 18),
-                    label: const Text('Buka Kamera QR', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  flex: 2,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: brandInk,
-                      side: const BorderSide(color: line),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    onPressed: manual,
-                    icon: const Icon(Icons.keyboard_outlined, size: 18, color: brandSlate),
-                    label: const Text('Manual', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      if (last != null)
-        Container(
+
+      // Tombol Pindai Ulang / Scan Lagi saat Barcode Terbaca
+      if (isLocked) ...[
+        const SizedBox(height: 12),
+        SizedBox(
           width: double.infinity,
-          margin: const EdgeInsets.only(top: 10),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: brandSoft,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: brandSoftBorder),
-          ),
-          child: Text(
-            'Barcode Terverifikasi: $last',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: forest,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: brand,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              elevation: 0,
+            ),
+            onPressed: retryScan,
+            icon: const Icon(Icons.refresh, size: 18),
+            label: const Text(
+              'Pindai Ulang (Scan Lagi)',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
             ),
           ),
         ),
+      ],
       const SizedBox(height: 10),
     ],
-  );
-}
-
-class _CameraButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  final bool selected;
-  final IconData? icon;
-  const _CameraButton(
-    this.label,
-    this.onTap, {
-    this.selected = false,
-    this.icon,
-  });
-  @override
-  Widget build(BuildContext context) => InkWell(
-    borderRadius: BorderRadius.circular(20),
-    onTap: onTap,
-    child: Container(
-      margin: const EdgeInsets.only(right: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-      decoration: BoxDecoration(
-        color: selected ? brand : const Color(0xff0f172a),
-        border: Border.all(color: selected ? brand : const Color(0xff263040)),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 14, color: const Color(0xffd7e7b0)),
-            const SizedBox(width: 4),
-          ],
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-              letterSpacing: .5,
-            ),
-          ),
-        ],
-      ),
-    ),
   );
 }
 
@@ -396,7 +295,7 @@ class _Reticle extends CustomPainter {
     final p =
         Paint()
           ..color = const Color(0xffbdd775)
-          ..strokeWidth = 1.8
+          ..strokeWidth = 2.0
           ..style = PaintingStyle.stroke;
     for (final pt in [
       Offset.zero,
@@ -432,17 +331,20 @@ class _CameraState extends State<_Camera> with WidgetsBindingObserver {
   bool delivered = false;
   bool reportedError = false;
 
-  void setZoom(int value) {
-    unawaited(controller.setZoomScale((value - 1) / 2));
-  }
-
   void toggleTorch() {
     unawaited(controller.toggleTorch());
   }
 
-  // Memberi tahu BarcodeInput saat kamera masuk/keluar dari keadaan error,
-  // supaya reticle dan laser bisa disembunyikan. Dijadwalkan setelah frame
-  // agar tidak memanggil setState saat widget sedang di-build.
+  void pauseScan() {
+    delivered = true;
+    unawaited(controller.stop());
+  }
+
+  void resumeScan() {
+    delivered = false;
+    unawaited(controller.start());
+  }
+
   void onControllerChanged() {
     final hasError = controller.value.error != null;
     if (hasError == reportedError) {
@@ -468,7 +370,7 @@ class _CameraState extends State<_Camera> with WidgetsBindingObserver {
     if (!controller.value.hasCameraPermission) {
       return;
     }
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed && !delivered) {
       unawaited(controller.start());
     }
     if (state == AppLifecycleState.inactive ||
@@ -502,7 +404,7 @@ class _CameraState extends State<_Camera> with WidgetsBindingObserver {
           error.errorCode == MobileScannerErrorCode.permissionDenied;
       return Container(
         color: const Color(0xff040817),
-        padding: const EdgeInsets.fromLTRB(20, 52, 20, 56),
+        padding: const EdgeInsets.fromLTRB(20, 40, 20, 40),
         child: Center(
           child: SingleChildScrollView(
             child: Column(
@@ -530,7 +432,7 @@ class _CameraState extends State<_Camera> with WidgetsBindingObserver {
                       ? (kIsWeb
                           ? 'Klik ikon gembok di sebelah alamat, ubah Kamera menjadi Izinkan, lalu tekan Coba Lagi.'
                           : 'Buka Pengaturan aplikasi, pilih Izin, aktifkan Kamera, lalu tekan Coba Lagi.')
-                      : 'Kamera tidak bisa dibuka di perangkat ini. Gunakan tombol Manual untuk memasukkan barcode.',
+                      : 'Kamera tidak bisa dibuka di perangkat ini.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 12,
@@ -571,5 +473,3 @@ class _CameraState extends State<_Camera> with WidgetsBindingObserver {
     },
   );
 }
-
-

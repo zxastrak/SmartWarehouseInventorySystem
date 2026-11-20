@@ -28,7 +28,6 @@ class ActivityScreen extends StatefulWidget {
 
 class _ActivityScreenState extends State<ActivityScreen> {
   ActivityFilter _filter = ActivityFilter.all;
-  bool _isRefreshing = false;
 
   @override
   void initState() {
@@ -39,12 +38,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
   }
 
   Future<void> _refreshData() async {
-    setState(() => _isRefreshing = true);
-    final s = context.read<WarehouseState>();
-    await s.loadFromApi();
-    if (mounted) {
-      setState(() => _isRefreshing = false);
-    }
+    await context.read<WarehouseState>().loadFromApi();
   }
 
   bool _matchesFilter(Activity a, ActivityFilter filter) {
@@ -154,68 +148,24 @@ class _ActivityScreenState extends State<ActivityScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header Bagian
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: brandSoft,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: brandSoftBorder),
-                    ),
-                    child: const Icon(Icons.history, size: 20, color: brand),
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Aktivitas Staf Lapangan',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.2,
-                            color: brandInk,
-                          ),
-                        ),
-                        Text(
-                          'Semua riwayat inspeksi dok, mutasi, opname & absensi staf',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: muted,
-                          ),
-                        ),
-                      ],
+                  Text(
+                    'Aktivitas Staf Lapangan',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.2,
+                      color: brandInk,
                     ),
                   ),
-                  InkWell(
-                    onTap: _isRefreshing ? null : _refreshData,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xfff1f5f9),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: line),
-                      ),
-                      child:
-                          _isRefreshing
-                              ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: brand,
-                                ),
-                              )
-                              : const Icon(
-                                Icons.refresh,
-                                size: 16,
-                                color: brandInk,
-                              ),
+                  Text(
+                    'Semua riwayat inspeksi dok, mutasi, opname & absensi staf',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: muted,
                     ),
                   ),
                 ],

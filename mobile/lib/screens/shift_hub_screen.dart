@@ -288,12 +288,7 @@ class ShiftHubScreen extends StatelessWidget {
                 child: _QuickActionCard(
                   title: 'Rack Audit',
                   imageAsset: 'assets/images/action_cycle_count.png',
-                  onTap: () {
-                    final target = s.items.isNotEmpty ? s.items.first.sku : '';
-                    if (target.isNotEmpty) {
-                      openRack(context, target);
-                    }
-                  },
+                  onTap: () => openRackAuditFlow(context),
                 ),
               ),
             ],
@@ -467,7 +462,6 @@ class ShiftHubScreen extends StatelessWidget {
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.inbox_outlined, color: muted, size: 18),
                   SizedBox(width: 8),
                   Text(
                     'Tidak ada tugas yang menanti saat ini',
@@ -607,7 +601,7 @@ class _ShiftHeroCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Baris atas: avatar & nama staf
+          // Baris atas: avatar, nama staf
           Row(
             children: [
               Expanded(

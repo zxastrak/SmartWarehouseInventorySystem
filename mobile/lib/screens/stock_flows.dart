@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/warehouse_state.dart';
@@ -117,8 +118,217 @@ Future<void> openStockScan(
 }) => flowSheet(context, StockScanFlow(demoCode: demoCode));
 Future<void> openRack(BuildContext context, String sku) =>
     flowSheet(context, RackCountFlow(sku: sku));
+Future<void> openRackAuditFlow(BuildContext context) async {
+  final s = context.read<WarehouseState>();
+  if (s.items.isEmpty && s.loggedIn && s.token != null) {
+    unawaited(s.loadFromApi());
+  }
+  return flowSheet(context, const RackAuditSelectFlow());
+}
 Future<void> openDiscrepancy(BuildContext context, String sku) =>
     flowSheet(context, DiscrepancyFlow(sku: sku));
+
+class RackAuditSelectFlow extends StatefulWidget {
+  const RackAuditSelectFlow({super.key});
+
+  @override
+  State<RackAuditSelectFlow> createState() => _RackAuditSelectFlowState();
+}
+
+class _RackAuditSelectFlowState extends State<RackAuditSelectFlow> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.watch<WarehouseState>();
+    final items = s.items;
+
+    final filtered = items.where((it) {
+      if (_searchQuery.isEmpty) return true;
+      final q = _searchQuery.toLowerCase();
+      return it.name.toLowerCase().contains(q) ||
+          it.sku.toLowerCase().contains(q) ||
+          it.rack.toLowerCase().contains(q);
+    }).toList();
+
+    return FlowBody(
+      title: 'Rack Audit',
+      subtitle: 'Pindai barcode atau pilih barang/rak untuk hitung fisik',
+      children: [
+        // Pemindai Barcode / QR Cepat
+        BarcodeInput(
+          title: 'Pindai Barcode Barang / Rak Fisik',
+          demoCode: items.isNotEmpty ? items.first.rack : 'RACK-A1-01-A',
+          onResult: (code) {
+            final trimmed = code.trim();
+            if (trimmed.isEmpty) return;
+            // 1. Cari apakah cocok dengan SKU / barcode produk
+            final matchItem = s.resolve(trimmed);
+            if (matchItem != null) {
+              Navigator.pop(context);
+              openRack(context, matchItem.sku);
+              return;
+            }
+
+            // 2. Cari apakah cocok dengan kode rak
+            final rackMatches = items
+                .where((i) => i.rack.toUpperCase() == trimmed.toUpperCase())
+                .toList();
+            if (rackMatches.isNotEmpty) {
+              Navigator.pop(context);
+              openRack(context, rackMatches.first.sku);
+              return;
+            }
+
+            message(context, 'Barcode "$trimmed" tidak ditemukan pada master barang atau rak.');
+          },
+        ),
+
+        const SizedBox(height: 14),
+
+        // Pencarian Manual
+        TextField(
+          controller: _searchCtrl,
+          onChanged: (v) => setState(() => _searchQuery = v.trim()),
+          decoration: InputDecoration(
+            hintText: 'Cari nama barang, SKU, atau rak...',
+            hintStyle: const TextStyle(fontSize: 12, color: Color(0xff94a3b8)),
+            prefixIcon: const Icon(Icons.search, size: 18, color: Color(0xff64748b)),
+            suffixIcon: _searchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, size: 16),
+                    onPressed: () {
+                      _searchCtrl.clear();
+                      setState(() => _searchQuery = '');
+                    },
+                  )
+                : null,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            filled: true,
+            fillColor: const Color(0xfff8fafc),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xffe2e8f0)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xffe2e8f0)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: brand, width: 1.5),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        if (items.isEmpty)
+          Panel(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                const Icon(Icons.inventory_2_outlined, size: 36, color: muted),
+                const SizedBox(height: 8),
+                const Text(
+                  'Data inventaris belum termuat.',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: brandInk),
+                ),
+                const SizedBox(height: 10),
+                FilledButton.icon(
+                  onPressed: () => s.loadFromApi(),
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Muat Ulang dari Server'),
+                ),
+              ],
+            ),
+          )
+        else if (filtered.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: Text(
+                'Tidak ada barang/rak yang cocok dengan pencarian.',
+                style: TextStyle(fontSize: 12, color: muted),
+              ),
+            ),
+          )
+        else
+          ...filtered.take(15).map((it) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xffe2e8f0)),
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                title: Text(
+                  it.name,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: brandInk),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xfff1f5f9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        it.sku,
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: brandSlate),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '• Lokasi: ${it.rack}',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: brand),
+                    ),
+                  ],
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${it.quantity}',
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: brandInk),
+                        ),
+                        Text(
+                          it.unit,
+                          style: const TextStyle(fontSize: 10, color: muted),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.chevron_right, size: 18, color: Color(0xff94a3b8)),
+                  ],
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  openRack(context, it.sku);
+                },
+              ),
+            );
+          }),
+      ],
+    );
+  }
+}
 
 class StockScanFlow extends StatefulWidget {
   final String demoCode;

@@ -7,6 +7,13 @@ enum ScanMode { single, putaway, dispatch }
 
 enum MovementKind { stockIn, stockOut, putaway, rackCount }
 
+enum ConnectionStatus {
+  online,         // Hijau: Semua Aman (Terhubung Penuh)
+  serverOffline,  // Kuning: Server SUSUNO Down / Off Sementara
+  localOnly,      // Biru: Menunggu Jaringan (Server Terhubung, Menunggu Internet Luar)
+  offline,        // Merah: Tidak Ada Jaringan (Terputus Total)
+}
+
 class StockItem {
   final int? id;
   final String sku, name;

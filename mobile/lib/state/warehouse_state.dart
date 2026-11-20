@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import '../models/models.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
+import '../services/connectivity_helper.dart';
 import '../core/api_config.dart';
 
 int _parseInt(dynamic val) {
@@ -24,11 +25,14 @@ class WarehouseState extends ChangeNotifier {
   final ApiService api;
   WarehouseState({ApiService? apiService}) : api = apiService ?? ApiService() {
     checkConnectivity();
+    _startConnectivityMonitoring();
   }
 
   bool loggedIn = false;
   bool isLoading = false;
   bool isBackendConnected = true;
+  bool hasInternetConnection = true;
+  ConnectionStatus connectionStatus = ConnectionStatus.online;
   bool get isOnline => isBackendConnected;
   String? token;
   String currentShift = 'Belum ada jadwal shift';
@@ -41,6 +45,8 @@ class WarehouseState extends ChangeNotifier {
   List<Map<String, dynamic>> notifications = [];
   final Set<int> readNotificationIds = {};
   Timer? _notificationTimer;
+  Timer? _connectivityTimer;
+  StreamSubscription<bool>? _connectivitySub;
 
   int get unreadNotificationCount {
     return notifications.where((n) {
@@ -64,32 +70,108 @@ class WarehouseState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> checkConnectivity() async {
-    try {
-      final uri = Uri.parse(ApiConfig.baseUrl);
-      final host = uri.host;
-      final port = uri.port > 0 ? uri.port : 80;
-      final socket = await Socket.connect(
-        host,
-        port,
-        timeout: const Duration(seconds: 3),
-      );
-      socket.destroy();
-      if (!isBackendConnected) {
-        isBackendConnected = true;
-        notifyListeners();
-        if (loggedIn && token != null) {
-          loadFromApi();
+  void _startConnectivityMonitoring() {
+    // 1. Pantau event online/offline asli dari browser (detik itu juga berubah)
+    _connectivitySub?.cancel();
+    _connectivitySub = browserConnectivityStream.listen((_) {
+      checkConnectivity();
+    });
+
+    // 2. Heartbeat berkala setiap 3 detik untuk memantau server SUSUNO & internet
+    _connectivityTimer?.cancel();
+    _connectivityTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      checkConnectivity();
+    });
+  }
+
+  Future<ConnectionStatus> checkConnectivity({bool forceNotify = false}) async {
+    bool internetOk = false;
+    bool backendOk = false;
+
+    // 1. Cek Apakah Browser Melaporkan Offline Fisik (Wi-Fi mati / DevTools Offline)
+    final bool browserReportsOnline = !kIsWeb || checkBrowserOnline();
+
+    if (browserReportsOnline) {
+      // 2. Cek Koneksi Internet Global Riil (Simple Request bebas preflight CORS)
+      final int cacheBuster = DateTime.now().millisecondsSinceEpoch;
+      try {
+        final netRes = await http
+            .get(Uri.parse('https://dns.google/resolve?name=example.com&_t=$cacheBuster'))
+            .timeout(const Duration(milliseconds: 2500));
+        if (netRes.statusCode >= 200 && netRes.statusCode < 400) {
+          internetOk = true;
+        }
+      } catch (_) {
+        try {
+          final cfRes = await http
+              .get(
+                Uri.parse('https://1.1.1.1/dns-query?name=example.com&_t=$cacheBuster'),
+                headers: {'accept': 'application/dns-json'},
+              )
+              .timeout(const Duration(milliseconds: 2000));
+          if (cfRes.statusCode >= 200 && cfRes.statusCode < 400) {
+            internetOk = true;
+          }
+        } catch (_) {
+          try {
+            final ghRes = await http
+                .get(Uri.parse('https://api.github.com/zen?_t=$cacheBuster'))
+                .timeout(const Duration(milliseconds: 2000));
+            if (ghRes.statusCode >= 200 && ghRes.statusCode < 400) {
+              internetOk = true;
+            }
+          } catch (_) {
+            internetOk = false;
+          }
         }
       }
-      return true;
-    } catch (_) {
-      if (isBackendConnected) {
-        isBackendConnected = false;
-        notifyListeners();
-      }
-      return false;
+    } else {
+      internetOk = false;
     }
+
+    // 3. Cek Koneksi Server Backend SUSUNO (Simple GET murni tanpa custom headers)
+    final int serverBuster = DateTime.now().millisecondsSinceEpoch;
+    try {
+      final backendRes = await http
+          .get(Uri.parse('${ApiConfig.baseUrl}/app/latest?_t=$serverBuster'))
+          .timeout(const Duration(seconds: 3));
+      if (backendRes.statusCode < 500) {
+        backendOk = true;
+      }
+    } catch (_) {
+      backendOk = false;
+    }
+
+    // 4. Tentukan Status Koneksi Cerdas & Presisi
+    final ConnectionStatus newStatus;
+    if (backendOk && internetOk) {
+      newStatus = ConnectionStatus.online;
+    } else if (internetOk && !backendOk) {
+      newStatus = ConnectionStatus.serverOffline;
+    } else if (!internetOk && backendOk) {
+      newStatus = ConnectionStatus.localOnly;
+    } else {
+      newStatus = ConnectionStatus.offline;
+    }
+
+    final bool stateChanged = hasInternetConnection != internetOk ||
+        isBackendConnected != backendOk ||
+        connectionStatus != newStatus;
+
+    hasInternetConnection = internetOk;
+    isBackendConnected = backendOk;
+    connectionStatus = newStatus;
+
+    // Hanya trigger rebuild jika terjadi perubahan status nyata (hemat performa & baterai)
+    if (stateChanged || forceNotify) {
+      notifyListeners();
+    }
+
+    if (backendOk && loggedIn && token != null && stateChanged) {
+      unawaited(loadFromApi());
+    }
+
+    return newStatus;
   }
 
   final Set<int> _notifiedTaskIds = <int>{};
@@ -2117,6 +2199,8 @@ class WarehouseState extends ChangeNotifier {
   @override
   void dispose() {
     _notificationTimer?.cancel();
+    _connectivityTimer?.cancel();
+    _connectivitySub?.cancel();
     super.dispose();
   }
 }
