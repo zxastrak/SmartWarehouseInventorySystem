@@ -62,6 +62,27 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
     }
   }
 
+  async function handleAssignAll() {
+    setIsSubmittingAssign(true);
+    try {
+      if (onUpdateItemStaff) {
+        for (const row of draft.rows) {
+          const finalStaff = (row.assigned_staff || 'Semua Staf Lapangan').trim();
+          await onUpdateItemStaff(shipment.id, row.sku, finalStaff);
+        }
+      }
+      if (onUpdateStaff) {
+        const primaryStaff = draft.rows.find((r) => r.assigned_staff && r.assigned_staff !== 'Semua Staf Lapangan')?.assigned_staff || 'Semua Staf Lapangan';
+        await onUpdateStaff(shipment.id, primaryStaff);
+      }
+      setIsAssigned(true);
+    } catch (err) {
+      console.error('handleAssignAll error:', err);
+    } finally {
+      setIsSubmittingAssign(false);
+    }
+  }
+
   const [draft, setDraft] = useState(() => {
     if (initialDraft && !["Review", "Inspected"].includes(shipment.status)) return initialDraft;
     const initial = newReceivingDraft(shipment, inventory, racks);
@@ -81,12 +102,24 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
   const [confirmed, setConfirmed] = useState(false);
   const [done, setDone] = useState(false);
   const [notice, setNotice] = useState("");
+  const [isSubmittingComplete, setIsSubmittingComplete] = useState(false);
   const dialogRef = useRef(null);
   const submitLock = useRef(false);
 
   const totals = inspectionSummary(draft.rows);
-  const issueUnits = totals.damaged + totals.rejected + totals.short;
-  const totalInspectedUnits = totals.accepted + totals.damaged + totals.rejected;
+  const isInspectedStage = ['Review', 'Inspected', 'Complete', 'Received'].includes(shipment.status) || draft.stage === 'review';
+  const hasAnyInspection = isInspectedStage || draft.rows.some((row) =>
+    Boolean(
+      row.is_inspected ||
+      (Array.isArray(row.barcodes) && row.barcodes.length > 0) ||
+      row.inspected_at ||
+      Number(row.received) > 0 ||
+      Number(row.damaged) > 0 ||
+      Number(row.rejected) > 0
+    )
+  );
+  const issueUnits = hasAnyInspection ? (totals.damaged + totals.rejected + totals.short) : 0;
+  const totalInspectedUnits = hasAnyInspection ? (totals.accepted + totals.damaged + totals.rejected) : 0;
   const inspectPercent = totals.ordered > 0 ? Math.min(100, Math.round((totalInspectedUnits / totals.ordered) * 100)) : 0;
 
   useEffect(() => {
@@ -98,13 +131,13 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
     if (done) dialogRef.current?.showModal();
   }, [done]);
 
-  function complete() {
-    if (submitLock.current || done) return;
+  async function complete() {
+    if (submitLock.current || done || isSubmittingComplete) return;
     if (!["Review", "Inspected"].includes(shipment.status)) {
       setError("Inbound shipment belum diinspeksi oleh staf dok. Staf dok wajib menginput kuantitas fisik dan memindai barcode unit di Mobile terlebih dahulu sebelum Manager memberikan ACC.");
       return;
     }
-    const problem = validateInspection(draft);
+    const problem = validateInspection(draft, { isReview: true });
     if (problem) {
       setError(problem);
       return;
@@ -114,13 +147,22 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
       return;
     }
     submitLock.current = true;
-    const problemOnSave = onComplete(draft);
-    if (problemOnSave) {
+    setIsSubmittingComplete(true);
+    setError("");
+    try {
+      const problemOnSave = await onComplete(draft);
+      if (problemOnSave) {
+        submitLock.current = false;
+        setIsSubmittingComplete(false);
+        setError(typeof problemOnSave === "string" ? problemOnSave : "Gagal menyelesaikan penerimaan barang.");
+        return;
+      }
+      setDone(true);
+    } catch (err) {
       submitLock.current = false;
-      setError(problemOnSave);
-      return;
+      setIsSubmittingComplete(false);
+      setError(err?.message || "Gagal menyelesaikan penerimaan barang.");
     }
-    setDone(true);
   }
 
   const receivingProgress = draft.stage === "inspect" ? 1 : 2;
@@ -204,46 +246,6 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                 ["Receiving Dock", shipment.dock],
                 ["Delivery Note", shipment.reference || "Not provided"],
                 ["Driver / Vehicle", shipment.carrier || "Not provided"],
-                [
-                  "Assigned to",
-                  <div key="assigned-action" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                    <select
-                      value={currentStaff}
-                      onChange={(e) => handleStaffChange(e.target.value)}
-                      style={{
-                        width: '100%',
-                        maxWidth: 240,
-                        padding: '6px 10px',
-                        borderRadius: 8,
-                        border: '1.5px solid #5c732b',
-                        background: '#ffffff',
-                        color: '#191d17',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        outline: 'none',
-                      }}
-                    >
-                      <option value="Semua Staf Lapangan">👥 Semua Staf Lapangan</option>
-                      {staffAccounts
-                        .filter((acc) => !['staff', 'staf'].includes(String(acc.fullName || acc.name || '').trim().toLowerCase()))
-                        .map((acc) => {
-                          const name = acc.fullName || acc.name;
-                          return (
-                            <option key={acc.id || name} value={name}>
-                              👤 {name} {acc.role ? `(${acc.role})` : ''}
-                            </option>
-                          );
-                        })}
-                      {currentStaff && currentStaff !== 'Semua Staf Lapangan' && !['staff', 'staf'].includes(currentStaff.toLowerCase()) && !staffAccounts.some((acc) => (acc.fullName || acc.name) === currentStaff) && (
-                        <option value={currentStaff}>👤 {currentStaff}</option>
-                      )}
-                    </select>
-                    {isSubmittingAssign && (
-                      <span style={{ fontSize: 11, color: '#5c732b', fontWeight: 600 }}>Menyimpan...</span>
-                    )}
-                  </div>
-                ],
               ].map(([label, value]) => (
                 <div key={typeof label === 'string' ? label : 'row'}>
                   <dt>{label}</dt>
@@ -297,17 +299,17 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                   boxSizing: 'border-box',
                 }}
               >
-                <article style={{ padding: '10px 8px', textAlign: 'center' }}>
-                  <span style={{ fontSize: 10, color: '#737b6c', display: 'block', marginBottom: 4 }}>EXPECTED</span>
-                  <strong style={{ fontSize: 22, display: 'block' }}>{totals.ordered}</strong>
+                <article style={{ background: '#f8fafc', padding: '10px 8px', borderRadius: 8, textAlign: 'center' }}>
+                  <span style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 700 }}>EXPECTED</span>
+                  <strong style={{ fontSize: 22, display: 'block', color: '#1e293b' }}>{totals.ordered}</strong>
                 </article>
-                <article style={{ padding: '10px 8px', textAlign: 'center' }}>
-                  <span style={{ fontSize: 10, color: '#737b6c', display: 'block', marginBottom: 4 }}>ACCEPTED</span>
-                  <strong style={{ fontSize: 22, display: 'block', color: '#5c732b' }}>{totals.accepted}</strong>
+                <article style={{ background: hasAnyInspection ? '#f0fdf4' : '#f8fafc', padding: '10px 8px', borderRadius: 8, textAlign: 'center' }}>
+                  <span style={{ fontSize: 10, color: hasAnyInspection ? '#166534' : '#64748b', display: 'block', marginBottom: 4, fontWeight: 700 }}>ACCEPTED</span>
+                  <strong style={{ fontSize: 22, display: 'block', color: hasAnyInspection ? '#16a34a' : '#64748b' }}>{hasAnyInspection ? totals.accepted : 0}</strong>
                 </article>
-                <article className={issueUnits > 0 ? "summary-issue" : ""} style={{ padding: '10px 8px', textAlign: 'center' }}>
-                  <span style={{ fontSize: 10, color: '#737b6c', display: 'block', marginBottom: 4 }}>ISSUES</span>
-                  <strong style={{ fontSize: 22, display: 'block' }}>{issueUnits}</strong>
+                <article className={issueUnits > 0 ? "summary-issue" : ""} style={{ background: issueUnits > 0 ? '#fdecec' : '#f8fafc', padding: '10px 8px', borderRadius: 8, textAlign: 'center' }}>
+                  <span style={{ fontSize: 10, color: issueUnits > 0 ? '#991b1b' : '#64748b', display: 'block', marginBottom: 4, fontWeight: 700 }}>ISSUES</span>
+                  <strong style={{ fontSize: 22, display: 'block', color: issueUnits > 0 ? '#b91c1c' : '#64748b' }}>{issueUnits}</strong>
                 </article>
               </div>
             </section>
@@ -377,15 +379,19 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
               <table>
                 <thead>
                   <tr>
-                    {["Product", "Ordered", "Damaged", "Rejected", "Accepted", "Staf Bertugas", "Result", "Aksi"].map((label) => (
-                      <th key={label}>{label}</th>
-                    ))}
+                    <th style={{ textAlign: 'left', minWidth: 200 }}>Product</th>
+                    <th style={{ textAlign: 'center', width: 85 }}>Ordered</th>
+                    <th style={{ textAlign: 'center', width: 85 }}>Damaged</th>
+                    <th style={{ textAlign: 'center', width: 85 }}>Rejected</th>
+                    <th style={{ textAlign: 'center', width: 85 }}>Accepted</th>
+                    <th style={{ textAlign: 'center', width: 150 }}>Staf Bertugas</th>
+                    <th style={{ textAlign: 'center', width: 110 }}>Result</th>
+                    <th style={{ textAlign: 'center', width: 85 }}>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {draft.rows.map((row) => {
                     const count = acceptedUnits(row);
-                    const issues = Number(row.damaged) + Number(row.rejected) + Math.max(0, row.ordered - Number(row.received));
                     const invItem = inventory.find((item) => item.sku === row.sku);
                     const rowImg = row.image_url || invItem?.image_url;
                     const rowStaff = normalizeStaff(row.assigned_staff || currentStaff);
@@ -394,6 +400,11 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                       (Array.isArray(row.barcodes) && row.barcodes.length > 0) ||
                       row.inspected_at ||
                       (['Review', 'Inspected', 'Complete', 'Received'].includes(shipment.status))
+                    );
+                    const hasRowIssue = hasInspected && (
+                      Number(row.damaged) > 0 ||
+                      Number(row.rejected) > 0 ||
+                      (Number(row.received) < row.ordered)
                     );
                     return (
                       <tr key={row.sku}>
@@ -426,14 +437,41 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                             </div>
                           </div>
                         </td>
-                        <td><strong>{row.ordered}</strong></td>
-                        <td>{Number(row.damaged) > 0 ? <span className="critical-text">{row.damaged}</span> : "0"}</td>
-                        <td>{Number(row.rejected) > 0 ? <span className="critical-text">{row.rejected}</span> : "0"}</td>
-                        <td className="positive-text"><strong>{Number.isFinite(count) ? count : "—"}</strong></td>
-                        <td>{hasInspected && Number(row.damaged) > 0 ? <span className="critical-text">{row.damaged}</span> : (hasInspected ? "0" : "—")}</td>
-                        <td>{hasInspected && Number(row.rejected) > 0 ? <span className="critical-text">{row.rejected}</span> : (hasInspected ? "0" : "—")}</td>
-                        <td className={hasInspected ? "positive-text" : ""}><strong>{hasInspected ? (Number.isFinite(count) ? count : "0") : "—"}</strong></td>
-                        <td>
+                        <td style={{ textAlign: 'center' }}>
+                          <strong>{row.ordered}</strong>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          {hasInspected ? (
+                            Number(row.damaged) > 0 ? (
+                              <span className="critical-text">{row.damaged}</span>
+                            ) : (
+                              "0"
+                            )
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          {hasInspected ? (
+                            Number(row.rejected) > 0 ? (
+                              <span className="critical-text">{row.rejected}</span>
+                            ) : (
+                              "0"
+                            )
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          {hasInspected ? (
+                            <strong className="positive-text">
+                              {Number.isFinite(count) ? count : "0"}
+                            </strong>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
                           <select
                             value={rowStaff}
                             onChange={(e) => handleItemStaffChange(row.sku, e.target.value)}
@@ -467,21 +505,22 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                             )}
                           </select>
                         </td>
-                        <td>
-                          <span className={`inbound-status${issues ? " inbound-status-issue" : " inbound-status-arrived"}`}>
-                            {issues ? "Partial issue" : "Accepted"}
-                          </span>
-                          {hasInspected ? (
-                            <span className={`inbound-status${issues ? " inbound-status-issue" : " inbound-status-arrived"}`}>
-                              {issues ? "Partial issue" : "Accepted"}
-                            </span>
-                          ) : (
+                        <td style={{ textAlign: 'center' }}>
+                          {!hasInspected ? (
                             <span className="inbound-status inbound-status-nodata">
                               No Data
                             </span>
+                          ) : hasRowIssue ? (
+                            <span className="inbound-status inbound-status-issue">
+                              Issues
+                            </span>
+                          ) : (
+                            <span className="inbound-status inbound-status-complete">
+                              Complete
+                            </span>
                           )}
                         </td>
-                        <td>
+                        <td style={{ textAlign: 'center' }}>
                           <button
                             type="button"
                             className="inbound-secondary"
@@ -505,7 +544,7 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                 </tbody>
               </table>
             </div>
-            {issueUnits > 0 && issueBanner}
+            {hasAnyInspection && issueUnits > 0 && issueBanner}
             <p style={{ margin: '14px 0 0', fontSize: 11, color: '#737b6c' }}>
               Inspection progress saved automatically
             </p>
@@ -755,11 +794,11 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                 lineHeight: 1.3,
               }}
             >
-              <span>⏳</span>
+              <span>{isAssigned ? "✓" : "💡"}</span>
               <span>
                 {isAssigned
-                  ? <>Ditugaskan ke: <strong>{currentStaff}</strong>. Menunggu hasil dari mobile.</>
-                  : "Silakan pilih staf dan tekan Tugaskan untuk memulai inspeksi di mobile."}
+                  ? "Penugasan staf telah disimpan. Sedang menunggu hasil pemeriksaan fisik di mobile."
+                  : "Silakan pilih staf pada tabel dan tekan Tugaskan untuk memulai inspeksi di mobile."}
               </span>
             </div>
           )}
@@ -767,6 +806,7 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
             {draft.stage === "inspect" ? (
               <>
                 <button
+                  type="button"
                   className="inbound-secondary"
                   onClick={onBack}
                 >
@@ -777,9 +817,7 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                   className="inbound-primary"
                   disabled={isSubmittingAssign}
                   style={isAssigned ? { background: '#3e5510', borderColor: '#3e5510' } : {}}
-                  onClick={async () => {
-                    await handleStaffChange(currentStaff);
-                  }}
+                  onClick={handleAssignAll}
                 >
                   {isSubmittingAssign ? "Menugaskan..." : isAssigned ? "✓ Ditugaskan" : "Tugaskan"}
                 </button>
@@ -789,8 +827,12 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                 <button className="inbound-secondary" onClick={onBack}>
                   ← Back
                 </button>
-                <button className="inbound-primary" disabled={!confirmed || done} onClick={complete}>
-                  {done ? "Telah Di-ACC" : "✅ Complete Receiving"}
+                <button
+                  className="inbound-primary"
+                  disabled={!confirmed || done || isSubmittingComplete}
+                  onClick={complete}
+                >
+                  {isSubmittingComplete ? "Menyimpan ke Inventory..." : done ? "Telah Di-ACC" : "✅ Complete Receiving"}
                 </button>
               </>
             )}
@@ -798,36 +840,146 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
         </div>
       </div>
 
-      {/* Success Dialog (Figma Receiving Completed Screen) */}
+      {/* Standardized Success / Confirmation Pop-up Modal matching SUSUNO design */}
       {done && (
-        <dialog ref={dialogRef} className="receiving-success-dialog" aria-labelledby="receiving-success-title" onCancel={onBack} style={{ maxWidth: 540, padding: '26px 30px', borderRadius: 16 }}>
-          <span className="receiving-review-check" style={{ fontSize: 32, marginBottom: 12 }}>✓</span>
-          <div>
-            <h2 id="receiving-success-title" style={{ margin: '0 0 6px', fontSize: 20 }}>Receiving Completed!</h2>
-            <p style={{ margin: '0 0 16px', fontSize: 13, color: '#555d4e' }}>
-              <strong>+{totals.accepted} units</strong> were verified by dock staff and successfully received into inventory stock.
-            </p>
+        <dialog
+          ref={dialogRef}
+          className="dashboard-dialog inbound-success-modal"
+          aria-labelledby="receiving-success-title"
+          onCancel={onBack}
+          style={{
+            maxWidth: 480,
+            padding: "28px 26px 24px",
+            borderRadius: 18,
+            textAlign: "center",
+            boxShadow: "0 20px 48px rgba(24, 35, 14, 0.22)",
+            border: "1px solid #dfe4d9",
+            position: "relative",
+          }}
+        >
+          <button
+            type="button"
+            className="inventory-close"
+            style={{ position: "absolute", top: 16, right: 18, fontSize: 24, cursor: "pointer", background: "none", border: "none", color: "#737b6c" }}
+            onClick={onBack}
+            aria-label="Tutup dialog"
+          >
+            ×
+          </button>
+
+          <div
+            style={{
+              width: 58,
+              height: 58,
+              borderRadius: "50%",
+              background: "#dcfce7",
+              color: "#166534",
+              display: "grid",
+              placeItems: "center",
+              fontSize: 28,
+              fontWeight: 800,
+              margin: "0 auto 16px",
+              boxShadow: "0 4px 12px rgba(22, 101, 52, 0.15)",
+            }}
+          >
+            ✓
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', marginTop: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#737b6c', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Next Operations:
-            </span>
+          <h2
+            id="receiving-success-title"
+            style={{
+              fontSize: 21,
+              fontWeight: 800,
+              color: "#191d17",
+              marginBottom: 8,
+              letterSpacing: "-0.3px",
+            }}
+          >
+            Penerimaan Barang Berhasil Disetujui
+          </h2>
+
+          <p style={{ fontSize: 13, color: "#64748b", lineHeight: 1.6, margin: "0 0 18px" }}>
+            Pengiriman <strong>{shipment.id}</strong> telah diverifikasi dan disetujui (ACC). Sebanyak <strong>+{totals.accepted} unit</strong> telah berhasil ditambahkan ke inventaris transit Dock Staging dan tercatat di riwayat mutasi stok gudang.
+          </p>
+
+          {/* Summary Box matching ScheduledShipment & Outbound */}
+          <div
+            style={{
+              background: "#f8f9f5",
+              border: "1px solid #dfe4d9",
+              borderRadius: 12,
+              padding: "14px 16px",
+              marginBottom: 20,
+              textAlign: "left",
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "10px 14px",
+              fontSize: 12,
+            }}
+          >
+            <div>
+              <span style={{ display: "block", color: "#737b6c", fontSize: 11, marginBottom: 2 }}>Inbound ID:</span>
+              <strong style={{ color: "#191d17" }}>{shipment.id}</strong>
+            </div>
+            <div>
+              <span style={{ display: "block", color: "#737b6c", fontSize: 11, marginBottom: 2 }}>Purchase Order:</span>
+              <strong style={{ color: "#191d17" }}>{shipment.po}</strong>
+            </div>
+            <div>
+              <span style={{ display: "block", color: "#737b6c", fontSize: 11, marginBottom: 2 }}>Supplier:</span>
+              <strong style={{ color: "#191d17" }}>{shipment.supplier}</strong>
+            </div>
+            <div>
+              <span style={{ display: "block", color: "#737b6c", fontSize: 11, marginBottom: 2 }}>Total Unit Diterima:</span>
+              <strong style={{ color: "#166534" }}>+{totals.accepted} unit</strong>
+            </div>
+            {issueUnits > 0 && (
+              <div style={{ gridColumn: "1 / -1", paddingTop: 6, borderTop: "1px dashed #e2e8f0" }}>
+                <span style={{ color: "#991b1b", fontSize: 11, fontWeight: 600 }}>
+                  ⚠️ {issueUnits} unit tercatat issue ({totals.damaged} rusak, {totals.rejected} ditolak) & tidak masuk stok.
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
             <button
+              type="button"
               className="inbound-primary"
-              style={{ padding: '12px 18px', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer' }}
+              style={{
+                width: "100%",
+                padding: "12px 18px",
+                fontSize: 13,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                borderRadius: 10,
+                cursor: "pointer",
+              }}
               onClick={() => onNavigate("inventory")}
             >
               📦 Cek Stok Baru di Master Inventory ›
             </button>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', marginTop: 4 }}>
-              <button className="dashboard-link" onClick={onBack}>
-                ← Back to Inbound
-              </button>
-              <button className="dashboard-link" onClick={onBack}>
-                Done
-              </button>
-            </div>
+            <button
+              type="button"
+              className="inbound-secondary"
+              style={{
+                width: "100%",
+                padding: "10px 18px",
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 10,
+                cursor: "pointer",
+                background: "#ffffff",
+                border: "1.5px solid #d4dec3",
+                color: "#3e5510",
+              }}
+              onClick={onBack}
+            >
+              ← Kembali ke Daftar Inbound
+            </button>
           </div>
         </dialog>
       )}

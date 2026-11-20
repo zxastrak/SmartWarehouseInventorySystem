@@ -7,17 +7,17 @@ import Icon from "../components/DashboardIcon.jsx";
 import InventoryProductPanel from "../components/InventoryProductPanel.jsx";
 import MovementExport from "../components/MovementExport.jsx";
 import RackQrDialog from "../components/RackQrDialog.jsx";
-import QrHistoryDialog from "../components/QrHistoryDialog.jsx";
+import QrListDialog from "../components/QrListDialog.jsx";
 import { categories, stockStatus } from "../data/inventory.js";
 import "../styles/dashboard.css";
 import "../styles/inventory.css";
 function Inventory({ manager, warehouse, items, movements, onSave, onNavigate, onReport, onSignOut, initialRequest = null, shipments = [] }) {
-  const [query, setQuery] = useState(initialRequest?.sku || ""), [category, setCategory] = useState("All Categories"), [status, setStatus] = useState("All Stock Status"), [location, setLocation] = useState("All Warehouses"), [sort, setSort] = useState("default"), [page, setPage] = useState(1), [selected, setSelected] = useState(initialRequest?.sku || null), [mode, setMode] = useState(initialRequest?.kind === "location" || initialRequest?.kind === "reorder" ? "edit" : "overview"), [checks, setChecks] = useState([]), [navOpen, setNavOpen] = useState(false), [exporting, setExporting] = useState(false), [notice, setNotice] = useState(initialRequest?.kind === "report" ? "Inventory report review: inspect this product\u2019s current record." : initialRequest?.kind === "location" ? "Location review: inspect the product rack and available stock. Editing the rack updates its primary location; per-rack quantity transfers are not connected yet." : initialRequest?.kind === "reorder" ? "Reorder review: inspect and update this product\u2019s reorder level." : initialRequest ? "Restock review: inspect current stock and reorder level for this product." : "");
+  const [query, setQuery] = useState(initialRequest?.sku || ""), [category, setCategory] = useState("All Categories"), [status, setStatus] = useState("All Stock Status"), [location, setLocation] = useState("All Warehouses"), [sort, setSort] = useState("default"), [page, setPage] = useState(1), [selected, setSelected] = useState(initialRequest?.sku || null), [mode, setMode] = useState(initialRequest?.kind === "location" || initialRequest?.kind === "reorder" ? "edit" : "overview"), [navOpen, setNavOpen] = useState(false), [exporting, setExporting] = useState(false), [notice, setNotice] = useState(initialRequest?.kind === "report" ? "Inventory report review: inspect this product\u2019s current record." : initialRequest?.kind === "location" ? "Location review: inspect the product rack and available stock. Editing the rack updates its primary location; per-rack quantity transfers are not connected yet." : initialRequest?.kind === "reorder" ? "Reorder review: inspect and update this product\u2019s reorder level." : initialRequest ? "Restock review: inspect current stock and reorder level for this product." : "");
   const [safetyStockItem, setSafetyStockItem] = useState(null);
   const [safetyStockInput, setSafetyStockInput] = useState('');
   const [safetyStockError, setSafetyStockError] = useState('');
   const [rackQrTarget, setRackQrTarget] = useState(null);
-  const [showQrHistory, setShowQrHistory] = useState(false);
+  const [showQrList, setShowQrList] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const closeTimerRef = useRef(null);
   const cachedProductRef = useRef(null);
@@ -122,6 +122,10 @@ function Inventory({ manager, warehouse, items, movements, onSave, onNavigate, o
     setNotice("");
   }
   function navigate(label) {
+    if (label === "Warehouse Layout") {
+      onNavigate?.("warehouse-layout");
+      return;
+    }
     if (label === "Staff Management" || label === "Settings") {
       onNavigate(label === "Settings" ? "settings" : "staff-management");
       return;
@@ -145,7 +149,7 @@ function Inventory({ manager, warehouse, items, movements, onSave, onNavigate, o
     ["Low Stock", lowStockCount, "warning", "rose"],
     ["Out of Stock", outOfStockCount, "close", "rose"]
   ];
-  return <div className="dashboard-layout"><DashboardSidebar activePage="Inventory" warehouseName={warehouse?.warehouseName || "Main Warehouse"} onNavigate={navigate} open={navOpen} onClose={() => setNavOpen(false)} /><div className="dashboard-main"><WarehouseHeader onViewProfile={() => onNavigate("settings-profile")} manager={manager} search={query} onSearch={setQuery} onMenu={() => setNavOpen(true)} onSignOut={onSignOut} onNavigate={onNavigate} shipments={shipments} /><main className="dashboard-content inventory-content"><div className="dashboard-intro"><div><p>WAREHOUSE OPERATIONS</p><h1>Inventory</h1><p className="inventory-description">Manage products, stock levels, and storage locations.</p></div><div className="dashboard-date"><p>{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(/* @__PURE__ */ new Date())}</p><p>{warehouse?.warehouseName || "Main Warehouse"}</p><div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "14px", flexWrap: "wrap", justifyContent: "flex-end" }}><button type="button" className="inbound-secondary inventory-qr-history-btn" onClick={() => setShowQrHistory(true)} title="Lihat riwayat pembuatan dan pencetakan QR Code"><span aria-hidden="true">📜</span> Riwayat QR</button><button type="button" className="inbound-primary inventory-qr-standalone-btn" onClick={() => openRackQr(allUniqueRacks[0] || "RACK-A1-01-A")} title="Buka Generator QR Code Rak Gudang"><span aria-hidden="true">🏁</span> Generator QR Rak</button></div></div></div>
+  return <div className="dashboard-layout"><DashboardSidebar activePage="Inventory" warehouseName={warehouse?.warehouseName || "Main Warehouse"} onNavigate={navigate} open={navOpen} onClose={() => setNavOpen(false)} /><div className="dashboard-main"><WarehouseHeader onViewProfile={() => onNavigate("settings-profile")} manager={manager} search={query} onSearch={setQuery} onMenu={() => setNavOpen(true)} onSignOut={onSignOut} onNavigate={onNavigate} shipments={shipments} /><main className="dashboard-content inventory-content"><div className="dashboard-intro"><div><p>WAREHOUSE OPERATIONS</p><h1>Inventory</h1><p className="inventory-description">Manage products, stock levels, and storage locations.</p></div><div className="dashboard-date"><p>{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(/* @__PURE__ */ new Date())}</p><p>{warehouse?.warehouseName || "Main Warehouse"}</p><div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "14px", flexWrap: "wrap", justifyContent: "flex-end" }}><button type="button" className="inbound-primary inventory-qr-list-btn" onClick={() => setShowQrList(true)} title="Buka Daftar QR Code Default untuk Rak dan Produk Inventaris" style={{ height: "40px", padding: "0 16px", display: "inline-flex", alignItems: "center", gap: "8px", fontWeight: 700, fontSize: "13px" }}><span aria-hidden="true">📋</span> List QR</button></div></div></div>
  {initialRequest && <div className="inventory-selection"><span>Opened from AI Insight · {initialRequest.sku}</span><button className="dashboard-link" onClick={() => onNavigate("ai-insight")}>‹ Back to AI Insight</button></div>}
  <div className={`inventory-grid${product ? " with-panel" : ""}`}><div className="inventory-primary"><section className="inventory-metrics" aria-label="Inventory summary">{summaries.map(([label, value, icon, tone], index) => <div className={`metric-card metric-${tone}`} key={label}><div><h2>{label}</h2><div className="inventory-metric-value"><Icon name={icon} size={42} /><strong>{formatNumber(value)}</strong></div><p><span>{activeInventoryItems.length > 0 ? "Stok terdata" : "Belum ada produk"}</span></p></div></div>)}</section>
  {pendingInboundItems.length > 0 && (
@@ -185,25 +189,12 @@ function Inventory({ manager, warehouse, items, movements, onSave, onNavigate, o
    </div>
  )}
  <section className="inventory-list dashboard-card" aria-label="Inventory products"><div className="inventory-filters"><div className="inventory-filter-search"><Icon name="search" /><input aria-label="Search product, SKU or supplier" placeholder="Search product, SKU, or supplier..." value={query} onChange={(e) => setQuery(e.target.value)} /></div><input type="text" autoComplete="off" placeholder="Search product type..." aria-label="Category filter" value={category === "All Categories" ? "" : category} onChange={(e) => setCategory(e.target.value)} /><select aria-label="Stock status filter" value={status} onChange={(e) => setStatus(e.target.value)}>{["All Stock Status", "Critical", "Low", "In Stock", "Out of Stock"].map((value) => <option key={value}>{value}</option>)}</select><input type="text" autoComplete="off" placeholder="Search warehouse..." aria-label="Warehouse filter" value={location === "All Warehouses" ? "" : location} onChange={(e) => setLocation(e.target.value)} /><select aria-label="Sort products" value={sort} onChange={(e) => setSort(e.target.value)}><option value="default">Sort</option><option value="name">Name A–Z</option><option value="stock-low">Stock ascending</option><option value="stock-high">Stock descending</option></select></div>
- {checks.length > 0 && <div className="inventory-selection">{checks.length} selected <button className="dashboard-link" onClick={() => setChecks([])}>Clear selection</button></div>}
+
             <div className="inventory-table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>
-                      <input
-                        type="checkbox"
-                        aria-label="Select visible products"
-                        checked={visible.length > 0 && visible.every((item) => checks.includes(item.sku))}
-                        onChange={(e) =>
-                          setChecks((current) =>
-                            e.target.checked
-                              ? [...new Set([...current, ...visible.map((item) => item.sku)])]
-                              : current.filter((sku) => !visible.some((item) => item.sku === sku))
-                          )
-                        }
-                      />
-                    </th>
+                    <th style={{ width: '48px', textAlign: 'center' }}>No</th>
                     {["Product", "Code", "Product Type", "Current", "Safety Stock", "Rack", "Supplier", "Status", "Actions"].map((label) => (
                       <th key={label}>{label}</th>
                     ))}
@@ -212,17 +203,8 @@ function Inventory({ manager, warehouse, items, movements, onSave, onNavigate, o
                 <tbody>
                   {visible.map((item, index) => (
                     <tr key={item.sku} className={item.sku === selected ? "inventory-row-selected" : ""}>
-                      <td>
-                        <input
-                          aria-label={`Select ${item.name}`}
-                          type="checkbox"
-                          checked={checks.includes(item.sku)}
-                          onChange={(e) =>
-                            setChecks((current) =>
-                              e.target.checked ? [...current, item.sku] : current.filter((sku) => sku !== item.sku)
-                            )
-                          }
-                        />
+                      <td style={{ textAlign: 'center', color: '#737b6c', fontWeight: 600 }}>
+                        {(page - 1) * 9 + index + 1}
                       </td>
                       <td>
                         <div className="inventory-product-cell">
@@ -486,14 +468,11 @@ function Inventory({ manager, warehouse, items, movements, onSave, onNavigate, o
     onClose={() => setRackQrTarget(null)}
   />
 )}
-{showQrHistory && (
-  <QrHistoryDialog
-    onClose={() => setShowQrHistory(false)}
-    onSelectQr={(item) => {
-      if (item.type === "RACK") {
-        openRackQr(item.code);
-      }
-    }}
+{showQrList && (
+  <QrListDialog
+    items={activeInventoryItems}
+    warehouseName={warehouse?.warehouseName || "Main Warehouse"}
+    onClose={() => setShowQrList(false)}
   />
 )}
 </div>;

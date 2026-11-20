@@ -4,7 +4,7 @@ const acceptedUnits = (row) => Number(row.received) - Number(row.damaged) - Numb
 function inspectionSummary(rows) {
   return rows.reduce((sum, row) => ({ ordered: sum.ordered + Number(row.ordered), received: sum.received + Number(row.received), accepted: sum.accepted + acceptedUnits(row), damaged: sum.damaged + Number(row.damaged), rejected: sum.rejected + Number(row.rejected), short: sum.short + Math.max(0, Number(row.ordered) - Number(row.received)) }), { ordered: 0, received: 0, accepted: 0, damaged: 0, rejected: 0, short: 0 });
 }
-function validateInspection(draft, { allowZeroAccepted = false } = {}) {
+function validateInspection(draft, { allowZeroAccepted = false, isReview = false } = {}) {
   for (const row of draft.rows) {
     if (!["received", "damaged", "rejected"].every((key) => whole(row[key]))) return `${row.name}: quantities must be nonnegative whole numbers.`;
     if (Number(row.received) > row.ordered) return `${row.name}: received cannot exceed ordered in this demo.`;
@@ -13,7 +13,10 @@ function validateInspection(draft, { allowZeroAccepted = false } = {}) {
   const total = inspectionSummary(draft.rows);
   if (total.accepted <= 0 && !allowZeroAccepted) return "At least one accepted unit is needed to proceed with receiving.";
   if (allowZeroAccepted && total.received <= 0) return "Record at least one delivered unit.";
-  if (total.damaged + total.rejected + total.short > 0 && (!draft.notes.trim() || !draft.evidence.length)) return "Add inspection notes and at least one evidence file for damaged, rejected or missing units.";
+  const isReviewStage = isReview || draft.stage === "review";
+  if (!isReviewStage && total.damaged + total.rejected + total.short > 0 && (!draft.notes?.trim() || !draft.evidence?.length)) {
+    return "Add inspection notes and at least one evidence file for damaged, rejected or missing units.";
+  }
   return "";
 }
 function allocationSummary(draft) {
@@ -30,14 +33,14 @@ function validateAllocation(draft, racks, options = {}) {
   return validateInspection(draft, options);
 }
 function receiveShipment({ shipment, draft, inventory, movements, racks, user, date, allowZeroAccepted = false }) {
-  if (!["Inspected", "Issue"].includes(shipment.status) || shipment.receivingCompleted) {
+  if (!["Review", "Inspected", "Issue"].includes(shipment.status) || shipment.receivingCompleted) {
     return { error: "Shipment belum selesai diinspeksi oleh staf dok atau sudah pernah diproses." };
   }
   if (shipment.issueResolution && (shipment.issue?.items || []).some((item) => {
     const row = draft.rows.find((row2) => row2.sku === item.sku);
     return !row || ["received", "damaged", "rejected"].some((key) => Number(row[key]) !== Number(item[key]));
   })) return { error: "Resolved issue quantities cannot be changed during receiving." };
-  const error = validateInspection(draft, { allowZeroAccepted });
+  const error = validateInspection(draft, { allowZeroAccepted, isReview: true });
   if (error) return { error };
   const stockChanges = draft.rows.map((row) => {
     const before = inventory.find((item) => item.sku === row.sku)?.current || 0;

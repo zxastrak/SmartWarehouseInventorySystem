@@ -204,14 +204,33 @@ const productModel = {
   // Update lokasi rak produk (Putaway)
   updateLocation: async (id, zone_location, location_id = null) => {
     let locId = location_id;
-    if (!locId && zone_location) {
-      const [locRows] = await db.query('SELECT id FROM locations WHERE location_code = ?', [zone_location]);
+    let targetLoc = (zone_location || '').trim().toUpperCase();
+
+    if (!locId && targetLoc) {
+      // 1. Coba cocokkan langsung ke tabel locations (misal "A1")
+      let [locRows] = await db.query('SELECT id, location_code FROM locations WHERE location_code = ?', [targetLoc]);
+
+      // 2. Jika belum ketemu, coba normalisasi format variasi: "RACK-A1", "A-01", "A-1" -> "A1"
+      if (locRows.length === 0) {
+        const cleanMatch = targetLoc.match(/([A-Z])-?0*(\d+)/i) || targetLoc.match(/([A-Z])(\d+)/i);
+        if (cleanMatch) {
+          const simplified = `${cleanMatch[1]}${cleanMatch[2]}`.toUpperCase();
+          [locRows] = await db.query('SELECT id, location_code FROM locations WHERE location_code = ?', [simplified]);
+        }
+      }
+
       if (locRows.length > 0) {
         locId = locRows[0].id;
+        targetLoc = locRows[0].location_code;
+      } else {
+        // 3. Jika lokasi belum ada di tabel locations, buatkan otomatis
+        const zoneName = targetLoc.startsWith('B') ? 'Zone B' : targetLoc.startsWith('C') ? 'Zone C' : 'Zone A';
+        const [insLoc] = await db.query('INSERT INTO locations (location_code, zone) VALUES (?, ?)', [targetLoc, zoneName]);
+        locId = insLoc.insertId;
       }
     }
     const sql = 'UPDATE products SET zone_location = ?, location_id = ? WHERE id = ?';
-    const [result] = await db.query(sql, [zone_location, locId, id]);
+    const [result] = await db.query(sql, [targetLoc, locId, id]);
     return result;
   },
 
@@ -219,19 +238,6 @@ const productModel = {
   updateStock: async (id, newQuantity) => {
     const sql = 'UPDATE products SET stock_quantity = ? WHERE id = ?';
     const [result] = await db.query(sql, [newQuantity, id]);
-    return result;
-  },
-
-  updateLocation: async (id, zone_location, location_id = null) => {
-    let locId = location_id;
-    if (!locId && zone_location) {
-      const [locRows] = await db.query('SELECT id FROM locations WHERE location_code = ?', [zone_location]);
-      if (locRows.length > 0) {
-        locId = locRows[0].id;
-      }
-    }
-    const sql = 'UPDATE products SET zone_location = ?, location_id = ? WHERE id = ?';
-    const [result] = await db.query(sql, [zone_location, locId, id]);
     return result;
   },
 

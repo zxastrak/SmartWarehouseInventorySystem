@@ -1,0 +1,78 @@
+{
+  "footprint": [
+    { "length": 2400, "depth": 1000, "rotation": 0, "expected": { "width": 2400, "depth": 1000 } },
+    { "length": 2400, "depth": 1000, "rotation": 90, "expected": { "width": 1000, "depth": 2400 } },
+    { "length": 2400, "depth": 1000, "rotation": 180, "expected": { "width": 2400, "depth": 1000 } },
+    { "length": 2400, "depth": 1000, "rotation": 270, "expected": { "width": 1000, "depth": 2400 } }
+  ],
+  "rotate90": [
+    {
+      "input": { "x": 1000, "y": 1000, "length": 2400, "depth": 1000, "rotation": 0 },
+      "expected": { "x": 1700, "y": 300, "rotation": 90, "width": 1000, "depth": 2400 }
+    },
+    {
+      "input": { "x": 1700, "y": 300, "length": 2400, "depth": 1000, "rotation": 90 },
+      "expected": { "x": 1000, "y": 1000, "rotation": 180, "width": 2400, "depth": 1000 }
+    },
+    {
+      "input": { "x": 1000, "y": 1000, "length": 2400, "depth": 1000, "rotation": 180 },
+      "expected": { "x": 1700, "y": 300, "rotation": 270, "width": 1000, "depth": 2400 }
+    },
+    {
+      "input": { "x": 1700, "y": 300, "length": 2400, "depth": 1000, "rotation": 270 },
+      "expected": { "x": 1000, "y": 1000, "rotation": 0, "width": 2400, "depth": 1000 }
+    }
+  ],
+  "overlaps": [
+    {
+      "name": "Edge touch on right edge (no positive area overlap)",
+      "rectA": { "x": 0, "y": 0, "width": 1000, "depth": 1000 },
+      "rectB": { "x": 1000, "y": 0, "width": 1000, "depth": 1000 },
+      "expected": false
+    },
+    {
+      "name": "Edge touch on bottom edge",
+      "rectA": { "x": 0, "y": 0, "width": 1000, "depth": 1000 },
+      "rectB": { "x": 0, "y": 1000, "width": 1000, "depth": 1000 },
+      "expected": false
+    },
+    {
+      "name": "Positive area overlap (collision)",
+      "rectA": { "x": 0, "y": 0, "width": 1000, "depth": 1000 },
+      "rectB": { "x": 500, "y": 500, "width": 1000, "depth": 1000 },
+      "expected": true
+    },
+    {
+      "name": "Completely separate rectangles",
+      "rectA": { "x": 0, "y": 0, "width": 1000, "depth": 1000 },
+      "rectB": { "x": 2000, "y": 2000, "width": 1000, "depth": 1000 },
+      "expected": false
+    }
+  ],
+  "inside": [
+    {
+      "name": "Fully inside warehouse boundary",
+      "inner": { "x": 100, "y": 100, "width": 2000, "depth": 1000 },
+      "boundary": { "x": 0, "y": 0, "width": 50000, "depth": 30000 },
+      "expected": true
+    },
+    {
+      "name": "Exceeding right warehouse boundary",
+      "inner": { "x": 49000, "y": 100, "width": 2000, "depth": 1000 },
+      "boundary": { "x": 0, "y": 0, "width": 50000, "depth": 30000 },
+      "expected": false
+    },
+    {
+      "name": "Exceeding top boundary (negative coordinate)",
+      "inner": { "x": 100, "y": -50, "width": 2000, "depth": 1000 },
+      "boundary": { "x": 0, "y": 0, "width": 50000, "depth": 30000 },
+      "expected": false
+    }
+  ],
+  "snap": [
+    { "value": 104, "grid": 100, "tolerance": 10, "expected": 100 },
+    { "value": 94, "grid": 100, "tolerance": 10, "expected": 100 },
+    { "value": 85, "grid": 100, "tolerance": 10, "expected": 85 },
+    { "value": 115, "grid": 100, "tolerance": 10, "expected": 115 }
+  ]
+}

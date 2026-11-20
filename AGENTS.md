@@ -72,4 +72,14 @@ Apabila pengguna memberikan perintah **"audit"**:
 
 ---
 
+## 5. Aturan Khusus Modul Warehouse Layout (Pengecualian Planning & Proteksi Hapus)
+
+> **ATURAN KHUSUS WAREHOUSE LAYOUT:**
+1. **Tanpa Perlu Meminta Persetujuan Berulang**:
+   - Untuk pengerjaan dan modifikasi pada modul **Warehouse Layout**, agen AI **tidak perlu meminta persetujuan ulang / konfirmasi rencana** di setiap giliran (dapat langsung mengeksekusi instruksi pengguna).
+2. **Dilarang Menghapus Tanpa Perintah**:
+   - **DILARANG KERAS MENGHAPUS KODE, ELEMEN, FITUR, ATAU FILE APAPUN** pada modul Warehouse Layout tanpa perintah eksplisit dari pengguna.
+
+---
+
 *Aturan ini mengikat dan wajib dipatuhi oleh setiap sesi agen AI saat berinteraksi dalam repositori ini.*

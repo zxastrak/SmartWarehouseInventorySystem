@@ -415,9 +415,7 @@ class StockCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            item.price > 0
-                                ? '${formatRupiah(item.price)} / ${item.unit}'
-                                : 'Satuan: ${item.unit}',
+                            'Satuan: ${item.unit}',
                             textAlign: TextAlign.right,
                             style: const TextStyle(
                               fontSize: 11,
@@ -758,9 +756,7 @@ class StockCountBox extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    item.price > 0
-                        ? '${formatRupiah(item.price)} / ${item.unit}'
-                        : 'Satuan: ${item.unit}',
+                    'Satuan: ${item.unit}',
                     textAlign: TextAlign.right,
                     style: const TextStyle(
                       fontSize: 11,

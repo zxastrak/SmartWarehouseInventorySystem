@@ -19,6 +19,10 @@ function AuditTrail({ manager, warehouse, events, onNavigate, onSignOut, onAudit
     if (event) detailRef.current?.showModal();
   }, [event]);
   function navigate(label) {
+    if (label === "Warehouse Layout") {
+      onNavigate?.("warehouse-layout");
+      return;
+    }
     if (label === "Suppliers") {
       onNavigate("suppliers");
       return;

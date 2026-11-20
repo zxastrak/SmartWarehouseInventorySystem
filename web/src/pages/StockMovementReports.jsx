@@ -54,6 +54,10 @@ function StockMovementReports({ manager, warehouse, items, movements, sku, refer
     setPage(1);
   }
   function navigate(label) {
+    if (label === "Warehouse Layout") {
+      onNavigate?.("warehouse-layout");
+      return;
+    }
     if (label === "Staff Management" || label === "Settings") {
       onNavigate(label === "Settings" ? "settings" : "staff-management");
       return;

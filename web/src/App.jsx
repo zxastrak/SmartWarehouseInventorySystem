@@ -42,6 +42,51 @@ import Settings from './pages/Settings.jsx';
 import SessionVerification from './components/SessionVerification.jsx';
 import AIChatbotWidget from './components/AIChatbotWidget.jsx';
 
+class LayoutErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('[WAREHOUSE LAYOUT ERROR]', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="warehouse-layout-container" style={{ padding: '3rem', textAlign: 'center' }}>
+          <div className="layout-state-banner">
+            <div style={{ color: '#dc2626', fontSize: '2.5rem', marginBottom: 16 }}>⚠️</div>
+            <h2 style={{ margin: '0 0 12px 0', color: '#191d17' }}>Terjadi Kendala Memuat Layout</h2>
+            <p style={{ color: '#737b6c', marginBottom: 24, maxWidth: 480, margin: '0 auto 24px auto' }}>
+              {this.state.error?.message || 'Gagal merender denah warehouse layout.'}
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button
+                className="inbound-primary"
+                onClick={() => this.setState({ hasError: false, error: null })}
+              >
+                Coba Lagi
+              </button>
+              <button
+                className="inbound-secondary"
+                onClick={this.props.onBack}
+              >
+                Kembali ke Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const WarehouseLayoutPage = React.lazy(() => import('./features/warehouse-layout/pages/WarehouseLayoutPage.jsx'));
+
 import { staffSeed, staffRoles } from './data/staff.js';
 import { defaultPreferences, validateStaff, validateProfile, strongPassword } from './utils/staffSettings.js';
 import './styles/staffSettings.css';
@@ -64,6 +109,7 @@ import { inboundSeed } from './data/inbound.js';
 
 const ROUTE_PATH_MAP = {
   dashboard: '/dashboard',
+  'warehouse-layout': '/warehouse-layout',
   inbound: '/inbound',
   outbound: '/outbound',
   inventory: '/inventory',
@@ -90,6 +136,7 @@ const ROUTE_PATH_MAP = {
 const PATH_ROUTE_MAP = {
   '/': 'dashboard',
   '/dashboard': 'dashboard',
+  '/warehouse-layout': 'warehouse-layout',
   '/inbound': 'inbound',
   '/outbound': 'outbound',
   '/inventory': 'inventory',
@@ -386,6 +433,7 @@ export default function App() {
   function navigatePage(next, params) {
     let target = next;
     if (target === 'Dashboard') target = 'dashboard';
+    if (target === 'Warehouse Layout' || target === 'Layout' || target === 'warehouse-layout') target = 'warehouse-layout';
     if (target === 'Inventory') target = 'inventory';
     if (target === 'Inbound') target = 'inbound';
     if (target === 'Outbound') target = 'outbound';
@@ -2212,7 +2260,8 @@ export default function App() {
       const itemsToReceive = (result.shipment.receipt?.stockChanges || []).map((sc) => {
         const item = inventoryItems.find((it) => it.sku === sc.sku);
         return {
-          product_id: item?.id || 1,
+          product_id: item?.id || null,
+          sku: sc.sku,
           accepted_qty: sc.after - sc.before,
           notes: `Received via Inbound ${id}`,
         };
@@ -2719,6 +2768,31 @@ export default function App() {
   const renderCurrentView = () => {
     if (step === 'manager-verification') {
       return <SessionVerification onVerify={finishSignIn} onCancel={() => setStep('signin')} />;
+    }
+
+    if (step === 'warehouse-layout') {
+      return (
+        <LayoutErrorBoundary onBack={() => navigatePage('dashboard')}>
+          <React.Suspense
+            fallback={
+              <div className="warehouse-layout-container">
+                <div className="layout-state-banner">
+                  <div className="layout-state-spinner"></div>
+                  <p style={{ fontWeight: 600, color: '#3e5510' }}>Memuat Warehouse Layout...</p>
+                </div>
+              </div>
+            }
+          >
+            <WarehouseLayoutPage
+              warehouseId={effectiveWarehouse?.id || 1}
+              warehouse={effectiveWarehouse}
+              manager={effectiveManager}
+              onNavigate={navigatePage}
+              onBack={() => navigatePage('dashboard')}
+            />
+          </React.Suspense>
+        </LayoutErrorBoundary>
+      );
     }
 
   if (step === 'staff-management') {

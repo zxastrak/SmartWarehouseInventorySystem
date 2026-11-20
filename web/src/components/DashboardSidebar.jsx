@@ -3,6 +3,7 @@ import Icon from './DashboardIcon.jsx';
 
 const links = [
   ['Dashboard', 'grid'],
+  ['Warehouse Layout', 'map'],
   ['Inventory', 'box'],
   ['Inbound', 'inbound'],
   ['Outbound', 'outbound'],

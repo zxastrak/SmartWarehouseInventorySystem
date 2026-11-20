@@ -733,7 +733,14 @@ const inboundModel = {
       for (const item of itemsToReceive) {
         const qty = Number(item.accepted_qty) || 0;
         const damaged = Number(item.damaged_qty) || 0;
-        if (item.product_id) {
+        let prodId = item.product_id;
+        if ((!prodId || isNaN(Number(prodId))) && item.sku) {
+          const [pRows] = await connection.query('SELECT id FROM products WHERE sku = ? LIMIT 1', [item.sku]);
+          if (pRows.length > 0) {
+            prodId = pRows[0].id;
+          }
+        }
+        if (prodId) {
           if (qty > 0) {
             totalAccepted += qty;
 
@@ -741,19 +748,19 @@ const inboundModel = {
             if (item.location_id) {
               await connection.query(
                 'UPDATE products SET stock_quantity = stock_quantity + ?, location_id = ? WHERE id = ?',
-                [qty, item.location_id, item.product_id]
+                [qty, item.location_id, prodId]
               );
             } else {
               await connection.query(
                 'UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ?',
-                [qty, item.product_id]
+                [qty, prodId]
               );
             }
 
             // 2. Catat stock transaction tipe 'in'
             await connection.query(
               'INSERT INTO stock_transactions (product_id, user_id, type, quantity, notes) VALUES (?, ?, "in", ?, ?)',
-              [item.product_id, userId || shipment.scheduled_by || 1, qty, item.notes || `Penerimaan barang dari Inbound ${shipment.inbound_number}`]
+              [prodId, userId || shipment.scheduled_by || 1, qty, item.notes || `Penerimaan barang dari Inbound ${shipment.inbound_number}`]
             );
           }
 
@@ -761,8 +768,8 @@ const inboundModel = {
           await connection.query(
             `UPDATE inbound_shipment_items 
              SET accepted_qty = ?, damaged_qty = ?, notes = COALESCE(?, notes)
-             WHERE inbound_shipment_id = ? AND product_id = ?`,
-            [qty, damaged, item.notes || null, shipment.id, item.product_id]
+             WHERE inbound_shipment_id = ? AND (product_id = ? OR product_id IN (SELECT id FROM products WHERE sku = ?))`,
+            [qty, damaged, item.notes || null, shipment.id, prodId, item.sku || '']
           );
         }
       }

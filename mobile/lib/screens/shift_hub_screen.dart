@@ -5,6 +5,15 @@ import '../models/models.dart';
 import '../core/app_theme.dart';
 import 'stock_flows.dart';
 
+/// Helper untuk membuat kode sub-tugas berakhiran abjad unik jika terdapat > 1 barang
+String _getItemTaskCode(String baseCode, int index, int totalItems) {
+  if (totalItems <= 1) return baseCode;
+  final suffix = index < 26
+      ? String.fromCharCode(65 + index)
+      : '${String.fromCharCode(65 + (index ~/ 26) - 1)}${String.fromCharCode(65 + (index % 26))}';
+  return '$baseCode$suffix';
+}
+
 class ShiftHubScreen extends StatelessWidget {
   const ShiftHubScreen({super.key});
 
@@ -20,67 +29,84 @@ class ShiftHubScreen extends StatelessWidget {
       if (assignedStaff != null && assignedStaff.trim().isNotEmpty) {
         final a = assignedStaff.trim().toLowerCase();
         final me = myStaffName.toLowerCase();
-        if (me.isNotEmpty && (a == me || a.contains(me) || me.contains(a))) return true;
+        if (me.isNotEmpty && (a == me || a.contains(me) || me.contains(a))) {
+          return true;
+        }
       }
       return false;
     }
 
     // Filter tugas database agar TIDAK menduplikasi kartu inspeksi Inbound/Outbound dan TIDAK memunculkan tugas khusus Manager
-    final displayedDbTasks = s.pendingTasks.where((t) {
-      final title = (t['title'] ?? '').toString();
-      final desc = (t['description'] ?? '').toString();
-      final titleUpper = title.toUpperCase();
-      final descUpper = desc.toUpperCase();
+    final displayedDbTasks =
+        s.pendingTasks.where((t) {
+          final title = (t['title'] ?? '').toString();
+          final desc = (t['description'] ?? '').toString();
+          final titleUpper = title.toUpperCase();
+          final descUpper = desc.toUpperCase();
 
-      // 1. DILARANG menampilkan tugas khusus Review & ACC Manager di aplikasi mobile staf
-      if (titleUpper.contains('REVIEW') ||
-          titleUpper.contains('ACC') ||
-          descUpper.contains('REVIEW & ACC') ||
-          titleUpper.contains('[REVIEW') ||
-          titleUpper.contains('SIAP DI-ACC')) {
-        return false;
-      }
+          // 1. DILARANG menampilkan tugas khusus Review & ACC Manager di aplikasi mobile staf
+          if (titleUpper.contains('REVIEW') ||
+              titleUpper.contains('ACC') ||
+              descUpper.contains('REVIEW & ACC') ||
+              titleUpper.contains('[REVIEW') ||
+              titleUpper.contains('SIAP DI-ACC')) {
+            return false;
+          }
 
-      // 2. DILARANG menampilkan tugas yang pengirimannya sudah diinspeksi (Inspected / Received / Stored / Shipped)
-      final isCompletedInbound = s.inboundShipments.any((inb) =>
-          (inb.status.toLowerCase() == 'inspected' ||
-              inb.status.toLowerCase() == 'received' ||
-              inb.status.toLowerCase() == 'stored') &&
-          (title.contains(inb.inboundNumber) ||
-              desc.contains(inb.inboundNumber) ||
-              title.contains(inb.id.toString()) ||
-              desc.contains(inb.id.toString())));
-      if (isCompletedInbound) return false;
+          // 2. DILARANG menampilkan tugas yang pengirimannya sudah diinspeksi (Inspected / Received / Stored / Shipped)
+          final isCompletedInbound = s.inboundShipments.any(
+            (inb) =>
+                (inb.status.toLowerCase() == 'inspected' ||
+                    inb.status.toLowerCase() == 'received' ||
+                    inb.status.toLowerCase() == 'stored') &&
+                (title.contains(inb.inboundNumber) ||
+                    desc.contains(inb.inboundNumber) ||
+                    title.contains(inb.id.toString()) ||
+                    desc.contains(inb.id.toString())),
+          );
+          if (isCompletedInbound) return false;
 
-      final isCompletedOutbound = s.outboundShipments.any((outb) =>
-          (outb.status.toLowerCase() == 'inspected' ||
-              outb.status.toLowerCase() == 'ready to ship' ||
-              outb.status.toLowerCase() == 'shipped' ||
-              outb.status.toLowerCase() == 'completed') &&
-          (title.contains(outb.outboundNumber) ||
-              desc.contains(outb.outboundNumber) ||
-              title.contains(outb.id.toString()) ||
-              desc.contains(outb.id.toString())));
-      if (isCompletedOutbound) return false;
+          final isCompletedOutbound = s.outboundShipments.any(
+            (outb) =>
+                (outb.status.toLowerCase() == 'inspected' ||
+                    outb.status.toLowerCase() == 'ready to ship' ||
+                    outb.status.toLowerCase() == 'shipped' ||
+                    outb.status.toLowerCase() == 'completed') &&
+                (title.contains(outb.outboundNumber) ||
+                    desc.contains(outb.outboundNumber) ||
+                    title.contains(outb.id.toString()) ||
+                    desc.contains(outb.id.toString())),
+          );
+          if (isCompletedOutbound) return false;
 
-      final isDockInboundTask = title.contains('[TUGAS DOK]') ||
-          s.arrivedShipments.any((inb) =>
-              title.contains(inb.inboundNumber) ||
-              desc.contains(inb.inboundNumber) ||
-              title.contains(inb.id.toString()) ||
-              desc.contains(inb.id.toString()) ||
-              (inb.poNumber != null && inb.poNumber!.isNotEmpty && title.contains(inb.poNumber!)));
+          final isDockInboundTask =
+              title.contains('[TUGAS DOK]') ||
+              s.arrivedShipments.any(
+                (inb) =>
+                    title.contains(inb.inboundNumber) ||
+                    desc.contains(inb.inboundNumber) ||
+                    title.contains(inb.id.toString()) ||
+                    desc.contains(inb.id.toString()) ||
+                    (inb.poNumber != null &&
+                        inb.poNumber!.isNotEmpty &&
+                        title.contains(inb.poNumber!)),
+              );
 
-      final isDockOutboundTask = title.contains('[TUGAS PENGELUARAN]') ||
-          s.arrivedOutbounds.any((outb) =>
-              title.contains(outb.outboundNumber) ||
-              desc.contains(outb.outboundNumber) ||
-              title.contains(outb.id.toString()) ||
-              desc.contains(outb.id.toString()) ||
-              (outb.reference != null && outb.reference!.isNotEmpty && title.contains(outb.reference!)));
+          final isDockOutboundTask =
+              title.contains('[TUGAS PENGELUARAN]') ||
+              s.arrivedOutbounds.any(
+                (outb) =>
+                    title.contains(outb.outboundNumber) ||
+                    desc.contains(outb.outboundNumber) ||
+                    title.contains(outb.id.toString()) ||
+                    desc.contains(outb.id.toString()) ||
+                    (outb.reference != null &&
+                        outb.reference!.isNotEmpty &&
+                        title.contains(outb.reference!)),
+              );
 
-      return !isDockInboundTask && !isDockOutboundTask;
-    }).toList();
+          return !isDockInboundTask && !isDockOutboundTask;
+        }).toList();
 
     // 1. Kumpulkan kartu Tugas Anda & Tugas Menanti
     final List<Widget> myTaskCards = [];
@@ -91,22 +117,49 @@ class ShiftHubScreen extends StatelessWidget {
       final hasMultipleItems = shipment.items.length > 1;
 
       if (hasMultipleItems) {
-        for (final item in shipment.items) {
+        for (int i = 0; i < shipment.items.length; i++) {
+          final item = shipment.items[i];
           // Hanya tampilkan item yang BELUM selesai diperiksa / putaway
-          final isItemDone = (item.acceptedQty + item.damagedQty) >= item.orderedQty || item.acceptedQty > 0 || item.barcodes.isNotEmpty;
+          final isItemDone =
+              (item.acceptedQty + item.damagedQty) >= item.orderedQty ||
+              item.acceptedQty > 0 ||
+              item.barcodes.isNotEmpty;
           if (isItemDone) continue;
 
-          final itemStaff = (item.assignedStaff ?? shipment.assignedStaff).trim();
+          final subCode = _getItemTaskCode(
+            shipment.inboundNumber,
+            i,
+            shipment.items.length,
+          );
+          final itemStaff =
+              (item.assignedStaff ?? shipment.assignedStaff).trim();
           if (isStaffMe(itemStaff, null)) {
-            myTaskCards.add(_InboundItemTaskCard(shipment: shipment, item: item));
+            myTaskCards.add(
+              _InboundItemTaskCard(
+                shipment: shipment,
+                item: item,
+                subCode: subCode,
+              ),
+            );
           } else {
-            waitingTaskCards.add(_InboundItemTaskCard(shipment: shipment, item: item));
+            waitingTaskCards.add(
+              _InboundItemTaskCard(
+                shipment: shipment,
+                item: item,
+                subCode: subCode,
+              ),
+            );
           }
         }
       } else {
-        final allItemsDone = shipment.items.isNotEmpty && shipment.items.every(
-          (it) => (it.acceptedQty + it.damagedQty) >= it.orderedQty || it.acceptedQty > 0 || it.barcodes.isNotEmpty,
-        );
+        final allItemsDone =
+            shipment.items.isNotEmpty &&
+            shipment.items.every(
+              (it) =>
+                  (it.acceptedQty + it.damagedQty) >= it.orderedQty ||
+                  it.acceptedQty > 0 ||
+                  it.barcodes.isNotEmpty,
+            );
         if (!allItemsDone) {
           if (isStaffMe(shipment.assignedStaff, null)) {
             myTaskCards.add(_InboundShipmentCard(shipment: shipment));
@@ -117,12 +170,58 @@ class ShiftHubScreen extends StatelessWidget {
       }
     }
 
-    // Outbound
+    // Outbound: Periksa apakah item dipisahkan jika memiliki banyak item
     for (final shipment in s.arrivedOutbounds) {
-      if (isStaffMe(shipment.assignedStaff, null)) {
-        myTaskCards.add(_OutboundShipmentCard(shipment: shipment));
+      final hasMultipleItems = shipment.items.length > 1;
+
+      if (hasMultipleItems) {
+        for (int i = 0; i < shipment.items.length; i++) {
+          final item = shipment.items[i];
+          final isItemDone =
+              (item.fulfilledQty + item.damagedQty) >= item.orderedQty ||
+              item.fulfilledQty > 0 ||
+              item.barcodes.isNotEmpty;
+          if (isItemDone) continue;
+
+          final subCode = _getItemTaskCode(
+            shipment.outboundNumber,
+            i,
+            shipment.items.length,
+          );
+          if (isStaffMe(shipment.assignedStaff, null)) {
+            myTaskCards.add(
+              _OutboundItemTaskCard(
+                shipment: shipment,
+                item: item,
+                subCode: subCode,
+              ),
+            );
+          } else {
+            waitingTaskCards.add(
+              _OutboundItemTaskCard(
+                shipment: shipment,
+                item: item,
+                subCode: subCode,
+              ),
+            );
+          }
+        }
       } else {
-        waitingTaskCards.add(_OutboundShipmentCard(shipment: shipment));
+        final allItemsDone =
+            shipment.items.isNotEmpty &&
+            shipment.items.every(
+              (it) =>
+                  (it.fulfilledQty + it.damagedQty) >= it.orderedQty ||
+                  it.fulfilledQty > 0 ||
+                  it.barcodes.isNotEmpty,
+            );
+        if (!allItemsDone) {
+          if (isStaffMe(shipment.assignedStaff, null)) {
+            myTaskCards.add(_OutboundShipmentCard(shipment: shipment));
+          } else {
+            waitingTaskCards.add(_OutboundShipmentCard(shipment: shipment));
+          }
+        }
       }
     }
 
@@ -157,8 +256,7 @@ class ShiftHubScreen extends StatelessWidget {
                   title: 'Putaway',
                   imageAsset: 'assets/images/action_putaway.png',
                   onTap: () {
-                    final target =
-                        s.items.isNotEmpty ? s.items.first.sku : '';
+                    final target = s.items.isNotEmpty ? s.items.first.sku : '';
                     s.openScanner(target, mode: ScanMode.putaway);
                   },
                 ),
@@ -169,8 +267,7 @@ class ShiftHubScreen extends StatelessWidget {
                   title: 'Dispatch',
                   imageAsset: 'assets/images/action_dispatch.png',
                   onTap: () {
-                    final target =
-                        s.items.isNotEmpty ? s.items.first.sku : '';
+                    final target = s.items.isNotEmpty ? s.items.first.sku : '';
                     s.openScanner(target, mode: ScanMode.dispatch);
                   },
                 ),
@@ -181,8 +278,7 @@ class ShiftHubScreen extends StatelessWidget {
                   title: 'Single Scan',
                   imageAsset: 'assets/images/action_single_scan.png',
                   onTap: () {
-                    final target =
-                        s.items.isNotEmpty ? s.items.first.sku : '';
+                    final target = s.items.isNotEmpty ? s.items.first.sku : '';
                     s.openScanner(target, mode: ScanMode.single);
                   },
                 ),
@@ -193,8 +289,7 @@ class ShiftHubScreen extends StatelessWidget {
                   title: 'Rack Audit',
                   imageAsset: 'assets/images/action_cycle_count.png',
                   onTap: () {
-                    final target =
-                        s.items.isNotEmpty ? s.items.first.sku : '';
+                    final target = s.items.isNotEmpty ? s.items.first.sku : '';
                     if (target.isNotEmpty) {
                       openRack(context, target);
                     }
@@ -216,7 +311,10 @@ class ShiftHubScreen extends StatelessWidget {
               const _SectionTitle('Tugas Anda'),
               if (myTaskCards.isNotEmpty)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xffecfeff),
                     border: Border.all(color: const Color(0xffa5f3fc)),
@@ -250,18 +348,20 @@ class ShiftHubScreen extends StatelessWidget {
           const SizedBox(height: 14),
 
           // Daftar Kartu Tugas Anda (Dipisahkan oleh garis kecil)
-          if (myTaskCards.isNotEmpty)
-            ...[
-              for (int i = 0; i < myTaskCards.length; i++) ...[
-                myTaskCards[i],
-                if (i < myTaskCards.length - 1)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 14),
-                    child: Divider(height: 1, thickness: 1, color: Color(0xfff1f5f9)),
+          if (myTaskCards.isNotEmpty) ...[
+            for (int i = 0; i < myTaskCards.length; i++) ...[
+              myTaskCards[i],
+              if (i < myTaskCards.length - 1)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 14),
+                  child: Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Color(0xfff1f5f9),
                   ),
-              ],
-            ]
-          else
+                ),
+            ],
+          ] else
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
@@ -274,7 +374,11 @@ class ShiftHubScreen extends StatelessWidget {
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.assignment_turned_in_outlined, color: muted, size: 18),
+                  Icon(
+                    Icons.assignment_turned_in_outlined,
+                    color: muted,
+                    size: 18,
+                  ),
                   SizedBox(width: 8),
                   Text(
                     'Tidak ada tugas khusus untuk Anda saat ini',
@@ -300,7 +404,10 @@ class ShiftHubScreen extends StatelessWidget {
               const _SectionTitle('Tugas yang Menanti'),
               if (waitingTaskCards.isNotEmpty)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xfffef3c7),
                     border: Border.all(color: const Color(0xfffde68a)),
@@ -334,18 +441,20 @@ class ShiftHubScreen extends StatelessWidget {
           const SizedBox(height: 14),
 
           // Daftar Kartu Tugas Menanti (Dipisahkan oleh garis kecil)
-          if (waitingTaskCards.isNotEmpty)
-            ...[
-              for (int i = 0; i < waitingTaskCards.length; i++) ...[
-                waitingTaskCards[i],
-                if (i < waitingTaskCards.length - 1)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 14),
-                    child: Divider(height: 1, thickness: 1, color: Color(0xfff1f5f9)),
+          if (waitingTaskCards.isNotEmpty) ...[
+            for (int i = 0; i < waitingTaskCards.length; i++) ...[
+              waitingTaskCards[i],
+              if (i < waitingTaskCards.length - 1)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 14),
+                  child: Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Color(0xfff1f5f9),
                   ),
-              ],
-            ]
-          else
+                ),
+            ],
+          ] else
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
@@ -498,7 +607,7 @@ class _ShiftHeroCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Baris atas: avatar, nama, status online
+          // Baris atas: avatar & nama staf
           Row(
             children: [
               Expanded(
@@ -531,8 +640,6 @@ class _ShiftHeroCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              _OnlinePill(online: s.isBackendConnected),
             ],
           ),
 
@@ -586,11 +693,12 @@ class _ShiftHeroCard extends StatelessWidget {
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.5,
-                              color: s.isCheckedIn
-                                  ? forest
-                                  : (!hasShift
-                                      ? const Color(0xff64748b)
-                                      : const Color(0xffb45309)),
+                              color:
+                                  s.isCheckedIn
+                                      ? forest
+                                      : (!hasShift
+                                          ? const Color(0xff64748b)
+                                          : const Color(0xffb45309)),
                             ),
                           ),
                           const SizedBox(height: 3),
@@ -622,31 +730,32 @@ class _ShiftHeroCard extends StatelessWidget {
                         minimumSize: const Size(0, 40),
                         shape: const StadiumBorder(),
                       ),
-                      onPressed: canCheckIn
-                          ? () async {
-                              // Simpan status SEBELUM aksi, karena setelah await
-                              // state sudah berubah.
-                              final wasCheckedIn = s.isCheckedIn;
-                              final err =
-                                  wasCheckedIn
-                                      ? await s.checkOut()
-                                      : await s.checkIn();
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      err ??
-                                          (wasCheckedIn
-                                              ? 'Check-out berhasil dicatat'
-                                              : 'Check-in berhasil dicatat'),
+                      onPressed:
+                          canCheckIn
+                              ? () async {
+                                // Simpan status SEBELUM aksi, karena setelah await
+                                // state sudah berubah.
+                                final wasCheckedIn = s.isCheckedIn;
+                                final err =
+                                    wasCheckedIn
+                                        ? await s.checkOut()
+                                        : await s.checkIn();
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        err ??
+                                            (wasCheckedIn
+                                                ? 'Check-out berhasil dicatat'
+                                                : 'Check-in berhasil dicatat'),
+                                      ),
+                                      backgroundColor:
+                                          err != null ? danger : forest,
                                     ),
-                                    backgroundColor:
-                                        err != null ? danger : forest,
-                                  ),
-                                );
+                                  );
+                                }
                               }
-                            }
-                          : null,
+                              : null,
                       child: Text(
                         s.isCheckedIn ? 'Check-out' : 'Check-in',
                         style: const TextStyle(
@@ -661,30 +770,6 @@ class _ShiftHeroCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _OnlinePill extends StatelessWidget {
-  final bool online;
-  const _OnlinePill({required this.online});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        online ? 'Online' : 'Offline',
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: brandInk,
-        ),
       ),
     );
   }
@@ -764,7 +849,6 @@ class _QuickActionCard extends StatelessWidget {
   }
 }
 
-
 int _parseInt(dynamic val) {
   if (val == null) return 0;
   if (val is int) return val;
@@ -772,7 +856,8 @@ int _parseInt(dynamic val) {
 }
 
 ScanMode _resolveTaskScanMode(Map<String, dynamic> task) {
-  final type = (task['task_type'] ?? task['type'] ?? '').toString().toLowerCase();
+  final type =
+      (task['task_type'] ?? task['type'] ?? '').toString().toLowerCase();
   final title = (task['title'] ?? '').toString().toLowerCase();
   final desc = (task['description'] ?? '').toString().toLowerCase();
   final combined = '$type $title $desc';
@@ -823,27 +908,66 @@ class _DbTaskCard extends StatelessWidget {
     final combinedLower = '$titleLower $descLower';
 
     // Kategori Alur Tugas Dinamis (Bukan Hardcode Putaway)
-    final (String tagText, Color tagBg, Color tagBorder, Color tagColor, IconData tagIcon) = () {
-      if (combinedLower.contains('dok') ||
-          combinedLower.contains('inspeksi') ||
-          combinedLower.contains('inbound') ||
-          combinedLower.contains('penerimaan')) {
-        return ('INSPEKSI DOK', const Color(0xffecfeff), const Color(0xffa5f3fc), const Color(0xff0891b2), Icons.fact_check_outlined);
-      } else if (combinedLower.contains('dispatch') ||
-                 combinedLower.contains('outbound') ||
-                 combinedLower.contains('kirim') ||
-                 combinedLower.contains('pengeluaran')) {
-        return ('DISPATCH', const Color(0xfffffbeb), const Color(0xfffde68a), const Color(0xffb45309), Icons.upload_rounded);
-      } else if (combinedLower.contains('putaway') ||
-                 combinedLower.contains('penataan') ||
-                 combinedLower.contains('simpan')) {
-        return ('PUTAWAY', const Color(0xfff0fdf4), const Color(0xff86efac), forest, Icons.download_rounded);
+    final (
+      String tagText,
+      Color tagBg,
+      Color tagBorder,
+      Color tagColor,
+      IconData tagIcon,
+    ) = () {
+      if (combinedLower.contains('inbound') ||
+          combinedLower.contains('penerimaan') ||
+          combinedLower.contains('dok') ||
+          combinedLower.contains('putaway')) {
+        return (
+          'INBOUND',
+          const Color(0xffecfeff),
+          const Color(0xffa5f3fc),
+          const Color(0xff0891b2),
+          Icons.download_rounded,
+        );
+      } else if (combinedLower.contains('outbound') ||
+          combinedLower.contains('dispatch') ||
+          combinedLower.contains('kirim') ||
+          combinedLower.contains('pengeluaran') ||
+          combinedLower.contains('picking')) {
+        return (
+          'OUTBOUND',
+          const Color(0xfffffbeb),
+          const Color(0xfffde68a),
+          const Color(0xffb45309),
+          Icons.upload_rounded,
+        );
+      } else if (combinedLower.contains('mutasi') ||
+          combinedLower.contains('transfer') ||
+          combinedLower.contains('relokasi') ||
+          combinedLower.contains('pindah')) {
+        return (
+          'MUTASI',
+          const Color(0xffeff6ff),
+          const Color(0xffbfdbfe),
+          const Color(0xff1d4ed8),
+          Icons.swap_horiz_rounded,
+        );
       } else if (combinedLower.contains('audit') ||
-                 combinedLower.contains('opname') ||
-                 combinedLower.contains('cycle count')) {
-        return ('STOCK AUDIT', const Color(0xfff5f3ff), const Color(0xffddd6fe), const Color(0xff6d28d9), Icons.inventory_2_outlined);
+          combinedLower.contains('opname') ||
+          combinedLower.contains('cycle count') ||
+          combinedLower.contains('selisih')) {
+        return (
+          'OPNAME',
+          const Color(0xfff5f3ff),
+          const Color(0xffddd6fe),
+          const Color(0xff6d28d9),
+          Icons.fact_check_outlined,
+        );
       } else {
-        return ('OPERASIONAL', const Color(0xfff8fafc), const Color(0xffcbd5e1), const Color(0xff475569), Icons.assignment_outlined);
+        return (
+          'INBOUND',
+          const Color(0xffecfeff),
+          const Color(0xffa5f3fc),
+          const Color(0xff0891b2),
+          Icons.assignment_outlined,
+        );
       }
     }();
 
@@ -868,7 +992,10 @@ class _DbTaskCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 3.5,
+                ),
                 decoration: BoxDecoration(
                   color: tagBg,
                   borderRadius: BorderRadius.circular(8),
@@ -877,11 +1004,7 @@ class _DbTaskCard extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      tagIcon,
-                      size: 13,
-                      color: tagColor,
-                    ),
+                    Icon(tagIcon, size: 13, color: tagColor),
                     const SizedBox(width: 4),
                     Text(
                       tagText,
@@ -949,7 +1072,10 @@ class _DbTaskCard extends StatelessWidget {
             children: [
               if (sku.isNotEmpty) ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xfff8fafc),
                     borderRadius: BorderRadius.circular(6),
@@ -972,46 +1098,39 @@ class _DbTaskCard extends StatelessWidget {
                 const SizedBox(width: 2),
                 Text(
                   location,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: muted),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: muted,
+                  ),
                 ),
               ],
             ],
           ),
           const SizedBox(height: 10),
 
-          // Baris 4: Penanda Penugasan (BENTUK SERAGAM ANTARA TUGAS SENDIRI & STAF LAIN)
+          // Baris 4: Penanda Penugasan (Tanpa logo orang)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: isMine ? const Color(0xfff0fdf4) : const Color(0xfff8fafc),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: isMine ? const Color(0xff86efac) : const Color(0xffcbd5e1),
+                color:
+                    isMine ? const Color(0xff86efac) : const Color(0xffcbd5e1),
               ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isMine ? Icons.star_rounded : Icons.person_outline,
-                  size: 15,
-                  color: isMine ? const Color(0xff16a34a) : const Color(0xff475569),
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    isMine
-                        ? '⭐ Tugas Khusus Anda (${s.staff.name})'
-                        : '👤 Ditugaskan ke: $assigneeName',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: isMine ? const Color(0xff166534) : const Color(0xff334155),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+            child: Text(
+              isMine
+                  ? 'Tugas Khusus Anda (${s.staff.name})'
+                  : 'Ditugaskan ke: $assigneeName',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color:
+                    isMine ? const Color(0xff166534) : const Color(0xff334155),
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           const SizedBox(height: 14),
@@ -1033,11 +1152,12 @@ class _DbTaskCard extends StatelessWidget {
                 Expanded(
                   flex: 3,
                   child: _PillButton(
-                    label: targetMode == ScanMode.putaway
-                        ? 'Kerjakan Putaway'
-                        : (targetMode == ScanMode.dispatch
-                            ? 'Kerjakan Dispatch'
-                            : 'Kerjakan Tugas'),
+                    label:
+                        targetMode == ScanMode.putaway
+                            ? 'Kerjakan Putaway'
+                            : (targetMode == ScanMode.dispatch
+                                ? 'Kerjakan Dispatch'
+                                : 'Kerjakan Tugas'),
                     icon: Icons.qr_code_scanner,
                     onPressed: () async {
                       final taskId = _parseInt(task['id']);
@@ -1094,7 +1214,6 @@ class _DbTaskCard extends StatelessWidget {
   }
 }
 
-
 // -----------------------------------------------------------------------------
 // Inbound Shipment Card & Inspection Dialog (Tugas Dok Menunggu)
 // -----------------------------------------------------------------------------
@@ -1108,11 +1227,13 @@ class _InboundShipmentCard extends StatelessWidget {
     final s = context.watch<WarehouseState>();
     final myName = s.staff.name.trim();
     final assigned = shipment.assignedStaff.trim();
-    final isAssignedToMe = assigned.isNotEmpty &&
+    final isAssignedToMe =
+        assigned.isNotEmpty &&
         (assigned.toLowerCase() == myName.toLowerCase() ||
             myName.toLowerCase().contains(assigned.toLowerCase()) ||
             assigned.toLowerCase().contains(myName.toLowerCase()));
-    final isAssignedToAll = assigned.isEmpty ||
+    final isAssignedToAll =
+        assigned.isEmpty ||
         assigned.toLowerCase().contains('semua') ||
         assigned.toLowerCase() == 'staf dok' ||
         assigned.toLowerCase() == 'staf lapangan';
@@ -1124,7 +1245,10 @@ class _InboundShipmentCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: isAssignedToMe ? const Color(0xff86efac) : const Color(0xffbfe5dc),
+          color:
+              isAssignedToMe
+                  ? const Color(0xff86efac)
+                  : const Color(0xffbfe5dc),
           width: isAssignedToMe ? 1.5 : 1.2,
         ),
         boxShadow: brandCardShadow,
@@ -1135,19 +1259,22 @@ class _InboundShipmentCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: brandSoft,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: brandSoftBorder),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
                 ),
-                child: Text(
-                  'DOK ${shipment.dock}',
-                  style: const TextStyle(
+                decoration: BoxDecoration(
+                  color: const Color(0xffecfeff),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xffa5f3fc)),
+                ),
+                child: const Text(
+                  'INBOUND',
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.5,
-                    color: brand,
+                    color: Color(0xff0891b2),
                   ),
                 ),
               ),
@@ -1193,18 +1320,37 @@ class _InboundShipmentCard extends StatelessWidget {
           const SizedBox(height: 6),
           Row(
             children: [
+              const Icon(Icons.meeting_room_outlined, size: 14, color: muted),
+              const SizedBox(width: 4),
+              Text(
+                'Dok ${shipment.dock}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: brand,
+                ),
+              ),
+              const SizedBox(width: 12),
               const Icon(Icons.description_outlined, size: 14, color: muted),
               const SizedBox(width: 4),
               Text(
                 'PO: ${shipment.poNumber ?? '-'}',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: muted),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: muted,
+                ),
               ),
               const SizedBox(width: 12),
               const Icon(Icons.inventory_2_outlined, size: 14, color: muted),
               const SizedBox(width: 4),
               Text(
-                '${formatNumber(shipment.units)} unit total',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: muted),
+                '${formatNumber(shipment.units)} unit',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: muted,
+                ),
               ),
             ],
           ),
@@ -1212,71 +1358,61 @@ class _InboundShipmentCard extends StatelessWidget {
             const SizedBox(height: 4),
             Row(
               children: [
-                const Icon(Icons.local_shipping_outlined, size: 14, color: muted),
+                const Icon(
+                  Icons.local_shipping_outlined,
+                  size: 14,
+                  color: muted,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   shipment.carrier!,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: muted),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: muted,
+                  ),
                 ),
               ],
             ),
           ],
           const SizedBox(height: 10),
-          // Penanda Penugasan Staf oleh Manager
+          // Penanda Penugasan Staf (Tanpa logo orang)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: isAssignedToMe
-                  ? const Color(0xfff0fdf4)
-                  : isAssignedToAll
+              color:
+                  isAssignedToMe
+                      ? const Color(0xfff0fdf4)
+                      : isAssignedToAll
                       ? const Color(0xfff8fafc)
                       : const Color(0xfffffbeb),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: isAssignedToMe
-                    ? const Color(0xff86efac)
-                    : isAssignedToAll
+                color:
+                    isAssignedToMe
+                        ? const Color(0xff86efac)
+                        : isAssignedToAll
                         ? const Color(0xffcbd5e1)
                         : const Color(0xfffde68a),
               ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isAssignedToMe
-                      ? Icons.star_rounded
-                      : isAssignedToAll
-                          ? Icons.people_outline
-                          : Icons.person_outline,
-                  size: 15,
-                  color: isAssignedToMe
-                      ? const Color(0xff16a34a)
-                      : isAssignedToAll
-                          ? const Color(0xff475569)
-                          : const Color(0xffb45309),
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
+            child: Text(
+              isAssignedToMe
+                  ? 'Tugas Khusus Anda ($assigned)'
+                  : isAssignedToAll
+                  ? 'Terbuka untuk Semua Staf Dok'
+                  : 'Ditugaskan ke: $assigned',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color:
                     isAssignedToMe
-                        ? '⭐ Tugas Khusus Anda ($assigned)'
+                        ? const Color(0xff166534)
                         : isAssignedToAll
-                            ? '👥 Terbuka untuk Semua Staf Dok'
-                            : '👤 Ditugaskan ke: $assigned',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: isAssignedToMe
-                          ? const Color(0xff166534)
-                          : isAssignedToAll
-                              ? const Color(0xff334155)
-                              : const Color(0xff92400e),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+                        ? const Color(0xff334155)
+                        : const Color(0xff92400e),
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           const SizedBox(height: 14),
@@ -1288,7 +1424,8 @@ class _InboundShipmentCard extends StatelessWidget {
                   label: 'Detail',
                   icon: Icons.visibility_outlined,
                   outlined: true,
-                  onPressed: () => _showInboundTaskDetailSheet(context, shipment),
+                  onPressed:
+                      () => _showInboundTaskDetailSheet(context, shipment),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1298,8 +1435,14 @@ class _InboundShipmentCard extends StatelessWidget {
                   label: 'Kerjakan Putaway',
                   icon: Icons.qr_code_scanner,
                   onPressed: () {
-                    final firstSku = shipment.items.isNotEmpty ? shipment.items.first.sku : '';
-                    final firstQty = shipment.items.isNotEmpty ? shipment.items.first.orderedQty : 1;
+                    final firstSku =
+                        shipment.items.isNotEmpty
+                            ? shipment.items.first.sku
+                            : '';
+                    final firstQty =
+                        shipment.items.isNotEmpty
+                            ? shipment.items.first.orderedQty
+                            : 1;
                     s.openScanner(
                       firstSku,
                       mode: ScanMode.putaway,
@@ -1322,10 +1465,12 @@ class _InboundShipmentCard extends StatelessWidget {
 class _InboundItemTaskCard extends StatelessWidget {
   final InboundShipmentModel shipment;
   final InboundShipmentItemModel item;
+  final String? subCode;
 
   const _InboundItemTaskCard({
     required this.shipment,
     required this.item,
+    this.subCode,
   });
 
   @override
@@ -1333,14 +1478,18 @@ class _InboundItemTaskCard extends StatelessWidget {
     final s = context.watch<WarehouseState>();
     final myName = s.staff.name.trim();
     final assigned = (item.assignedStaff ?? shipment.assignedStaff).trim();
-    final isAssignedToMe = assigned.isNotEmpty &&
+    final isAssignedToMe =
+        assigned.isNotEmpty &&
         (assigned.toLowerCase() == myName.toLowerCase() ||
             myName.toLowerCase().contains(assigned.toLowerCase()) ||
             assigned.toLowerCase().contains(myName.toLowerCase()));
-    final isAssignedToAll = assigned.isEmpty ||
+    final isAssignedToAll =
+        assigned.isEmpty ||
         assigned.toLowerCase().contains('semua') ||
         assigned.toLowerCase() == 'staf dok' ||
         assigned.toLowerCase() == 'staf lapangan';
+
+    final displayCode = subCode ?? shipment.inboundNumber;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -1349,7 +1498,10 @@ class _InboundItemTaskCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: isAssignedToMe ? const Color(0xff86efac) : const Color(0xffbfe5dc),
+          color:
+              isAssignedToMe
+                  ? const Color(0xff86efac)
+                  : const Color(0xffbfe5dc),
           width: isAssignedToMe ? 1.5 : 1.2,
         ),
         boxShadow: brandCardShadow,
@@ -1360,58 +1512,56 @@ class _InboundItemTaskCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: brandSoft,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: brandSoftBorder),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
                 ),
-                child: Text(
-                  'DOK ${shipment.dock}',
-                  style: const TextStyle(
+                decoration: BoxDecoration(
+                  color: const Color(0xffecfeff),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xffa5f3fc)),
+                ),
+                child: const Text(
+                  'INBOUND',
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.5,
-                    color: brand,
+                    color: Color(0xff0891b2),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xfff1f5f9),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  'ITEM INBOUND',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: brandSlate,
+              Expanded(
+                child: Text(
+                  displayCode,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: brandInk,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: const Color(0xffecfeff),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xffa5f3fc)),
                 ),
-                child: Text(
-                  shipment.inboundNumber,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                child: const Text(
+                  'ARRIVED',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
                     color: Color(0xff0891b2),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
             item.name.isNotEmpty ? item.name : item.sku,
             style: const TextStyle(
@@ -1423,77 +1573,122 @@ class _InboundItemTaskCard extends StatelessWidget {
           const SizedBox(height: 6),
           Row(
             children: [
-              const Icon(Icons.qr_code_2_outlined, size: 14, color: muted),
+              const Icon(Icons.meeting_room_outlined, size: 14, color: muted),
               const SizedBox(width: 4),
               Text(
-                'SKU: ${item.sku}',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: muted),
+                'Dok ${shipment.dock}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: brand,
+                ),
               ),
               const SizedBox(width: 12),
+              const Icon(Icons.business_outlined, size: 14, color: muted),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  shipment.supplierName,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: muted,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 7,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xfff8fafc),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xffe2e8f0)),
+                ),
+                child: Text(
+                  '║▌║ ${item.sku}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: brandInk,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
               const Icon(Icons.inventory_2_outlined, size: 14, color: muted),
               const SizedBox(width: 4),
               Text(
                 '${formatNumber(item.orderedQty)} unit',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: brand),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          // Penanda Penugasan Staf oleh Manager
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: isAssignedToMe
-                  ? const Color(0xfff0fdf4)
-                  : isAssignedToAll
-                      ? const Color(0xfff8fafc)
-                      : const Color(0xfffffbeb),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: isAssignedToMe
-                    ? const Color(0xff86efac)
-                    : isAssignedToAll
-                        ? const Color(0xffcbd5e1)
-                        : const Color(0xfffde68a),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isAssignedToMe
-                      ? Icons.star_rounded
-                      : isAssignedToAll
-                          ? Icons.people_outline
-                          : Icons.person_outline,
-                  size: 15,
-                  color: isAssignedToMe
-                      ? const Color(0xff16a34a)
-                      : isAssignedToAll
-                          ? const Color(0xff475569)
-                          : const Color(0xffb45309),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: brand,
                 ),
-                const SizedBox(width: 6),
+              ),
+              if (shipment.poNumber != null && shipment.poNumber!.isNotEmpty) ...[
+                const SizedBox(width: 10),
+                const Icon(Icons.description_outlined, size: 14, color: muted),
+                const SizedBox(width: 4),
                 Flexible(
                   child: Text(
-                    isAssignedToMe
-                        ? '⭐ Tugas Khusus Anda ($assigned)'
-                        : isAssignedToAll
-                            ? '👥 Terbuka untuk Semua Staf Dok'
-                            : '👤 Ditugaskan ke: $assigned',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: isAssignedToMe
-                          ? const Color(0xff166534)
-                          : isAssignedToAll
-                              ? const Color(0xff334155)
-                              : const Color(0xff92400e),
+                    'PO: ${shipment.poNumber}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: muted,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Penanda Penugasan Staf (Tanpa logo orang)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color:
+                  isAssignedToMe
+                      ? const Color(0xfff0fdf4)
+                      : isAssignedToAll
+                      ? const Color(0xfff8fafc)
+                      : const Color(0xfffffbeb),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color:
+                    isAssignedToMe
+                        ? const Color(0xff86efac)
+                        : isAssignedToAll
+                        ? const Color(0xffcbd5e1)
+                        : const Color(0xfffde68a),
+              ),
+            ),
+            child: Text(
+              isAssignedToMe
+                  ? 'Tugas Khusus Anda ($assigned)'
+                  : isAssignedToAll
+                  ? 'Terbuka untuk Semua Staf Dok'
+                  : 'Ditugaskan ke: $assigned',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color:
+                    isAssignedToMe
+                        ? const Color(0xff166534)
+                        : isAssignedToAll
+                        ? const Color(0xff334155)
+                        : const Color(0xff92400e),
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           const SizedBox(height: 14),
@@ -1505,7 +1700,13 @@ class _InboundItemTaskCard extends StatelessWidget {
                   label: 'Detail',
                   icon: Icons.visibility_outlined,
                   outlined: true,
-                  onPressed: () => _showInboundTaskDetailSheet(context, shipment),
+                  onPressed:
+                      () => _showInboundTaskDetailSheet(
+                        context,
+                        shipment,
+                        focusedItem: item,
+                        subCode: displayCode,
+                      ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1518,7 +1719,8 @@ class _InboundItemTaskCard extends StatelessWidget {
                     s.openScanner(
                       item.sku,
                       mode: ScanMode.putaway,
-                      taskTitle: 'Putaway ${item.name} (${shipment.inboundNumber})',
+                      taskTitle:
+                          'Putaway ${item.name} ($displayCode)',
                       inboundShipmentId: shipment.id,
                       rack: 'Dok ${shipment.dock}',
                       quantity: item.orderedQty > 0 ? item.orderedQty : 1,
@@ -1543,11 +1745,13 @@ class _OutboundShipmentCard extends StatelessWidget {
     final s = context.watch<WarehouseState>();
     final myName = s.staff.name.trim();
     final assigned = shipment.assignedStaff.trim();
-    final isAssignedToMe = assigned.isNotEmpty &&
+    final isAssignedToMe =
+        assigned.isNotEmpty &&
         (assigned.toLowerCase() == myName.toLowerCase() ||
             myName.toLowerCase().contains(assigned.toLowerCase()) ||
             assigned.toLowerCase().contains(myName.toLowerCase()));
-    final isAssignedToAll = assigned.isEmpty ||
+    final isAssignedToAll =
+        assigned.isEmpty ||
         assigned.toLowerCase().contains('semua') ||
         assigned.toLowerCase() == 'staf dok' ||
         assigned.toLowerCase() == 'staf lapangan';
@@ -1559,7 +1763,10 @@ class _OutboundShipmentCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: isAssignedToMe ? const Color(0xfff59e0b) : const Color(0xfffed7aa),
+          color:
+              isAssignedToMe
+                  ? const Color(0xfff59e0b)
+                  : const Color(0xfffed7aa),
           width: isAssignedToMe ? 1.5 : 1.2,
         ),
         boxShadow: brandCardShadow,
@@ -1570,15 +1777,18 @@ class _OutboundShipmentCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
-                  color: const Color(0xfffef3c7),
+                  color: const Color(0xfffffbeb),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: const Color(0xfffde68a)),
                 ),
-                child: Text(
-                  'DOK ${shipment.dock}',
-                  style: const TextStyle(
+                child: const Text(
+                  'OUTBOUND',
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.5,
@@ -1605,7 +1815,7 @@ class _OutboundShipmentCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Text(
-                  'OUTBOUND',
+                  'READY',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
@@ -1628,18 +1838,37 @@ class _OutboundShipmentCard extends StatelessWidget {
           const SizedBox(height: 6),
           Row(
             children: [
+              const Icon(Icons.meeting_room_outlined, size: 14, color: muted),
+              const SizedBox(width: 4),
+              Text(
+                'Dok ${shipment.dock}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xffb45309),
+                ),
+              ),
+              const SizedBox(width: 12),
               const Icon(Icons.description_outlined, size: 14, color: muted),
               const SizedBox(width: 4),
               Text(
                 'DO/Ref: ${shipment.reference ?? '-'}',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: muted),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: muted,
+                ),
               ),
               const SizedBox(width: 12),
               const Icon(Icons.inventory_2_outlined, size: 14, color: muted),
               const SizedBox(width: 4),
               Text(
                 '${formatNumber(shipment.units)} unit',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: muted),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: muted,
+                ),
               ),
             ],
           ),
@@ -1647,70 +1876,61 @@ class _OutboundShipmentCard extends StatelessWidget {
             const SizedBox(height: 4),
             Row(
               children: [
-                const Icon(Icons.local_shipping_outlined, size: 14, color: muted),
+                const Icon(
+                  Icons.local_shipping_outlined,
+                  size: 14,
+                  color: muted,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   shipment.carrier!,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: muted),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: muted,
+                  ),
                 ),
               ],
             ),
           ],
           const SizedBox(height: 10),
+          // Penanda Penugasan Staf (Tanpa logo orang)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: isAssignedToMe
-                  ? const Color(0xfff0fdf4)
-                  : isAssignedToAll
+              color:
+                  isAssignedToMe
+                      ? const Color(0xfff0fdf4)
+                      : isAssignedToAll
                       ? const Color(0xfff8fafc)
                       : const Color(0xfffffbeb),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: isAssignedToMe
-                    ? const Color(0xff86efac)
-                    : isAssignedToAll
+                color:
+                    isAssignedToMe
+                        ? const Color(0xff86efac)
+                        : isAssignedToAll
                         ? const Color(0xffcbd5e1)
                         : const Color(0xfffde68a),
               ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isAssignedToMe
-                      ? Icons.star_rounded
-                      : isAssignedToAll
-                          ? Icons.people_outline
-                          : Icons.person_outline,
-                  size: 15,
-                  color: isAssignedToMe
-                      ? const Color(0xff16a34a)
-                      : isAssignedToAll
-                          ? const Color(0xff475569)
-                          : const Color(0xffb45309),
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
+            child: Text(
+              isAssignedToMe
+                  ? 'Tugas Khusus Anda ($assigned)'
+                  : isAssignedToAll
+                  ? 'Terbuka untuk Semua Staf Dok'
+                  : 'Ditugaskan ke: $assigned',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color:
                     isAssignedToMe
-                        ? '⭐ Tugas Khusus Anda ($assigned)'
+                        ? const Color(0xff166534)
                         : isAssignedToAll
-                            ? '👥 Terbuka untuk Semua Staf Dok'
-                            : '👤 Ditugaskan ke: $assigned',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: isAssignedToMe
-                          ? const Color(0xff166534)
-                          : isAssignedToAll
-                              ? const Color(0xff334155)
-                              : const Color(0xff92400e),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+                        ? const Color(0xff334155)
+                        : const Color(0xff92400e),
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           const SizedBox(height: 14),
@@ -1722,7 +1942,8 @@ class _OutboundShipmentCard extends StatelessWidget {
                   label: 'Detail',
                   icon: Icons.visibility_outlined,
                   outlined: true,
-                  onPressed: () => _showOutboundTaskDetailSheet(context, shipment),
+                  onPressed:
+                      () => _showOutboundTaskDetailSheet(context, shipment),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1732,9 +1953,18 @@ class _OutboundShipmentCard extends StatelessWidget {
                   label: 'Kerjakan Dispatch',
                   icon: Icons.qr_code_scanner,
                   onPressed: () {
-                    final firstSku = shipment.items.isNotEmpty ? shipment.items.first.sku : '';
-                    final firstRack = shipment.items.isNotEmpty ? shipment.items.first.rack : 'A-01';
-                    final firstQty = shipment.items.isNotEmpty ? shipment.items.first.orderedQty : 1;
+                    final firstSku =
+                        shipment.items.isNotEmpty
+                            ? shipment.items.first.sku
+                            : '';
+                    final firstRack =
+                        shipment.items.isNotEmpty
+                            ? shipment.items.first.rack
+                            : 'A-01';
+                    final firstQty =
+                        shipment.items.isNotEmpty
+                            ? shipment.items.first.orderedQty
+                            : 1;
                     s.openScanner(
                       firstSku,
                       mode: ScanMode.dispatch,
@@ -1754,15 +1984,311 @@ class _OutboundShipmentCard extends StatelessWidget {
   }
 }
 
+class _OutboundItemTaskCard extends StatelessWidget {
+  final OutboundShipmentModel shipment;
+  final OutboundShipmentItemModel item;
+  final String? subCode;
+
+  const _OutboundItemTaskCard({
+    required this.shipment,
+    required this.item,
+    this.subCode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.watch<WarehouseState>();
+    final myName = s.staff.name.trim();
+    final assigned = shipment.assignedStaff.trim();
+    final isAssignedToMe =
+        assigned.isNotEmpty &&
+        (assigned.toLowerCase() == myName.toLowerCase() ||
+            myName.toLowerCase().contains(assigned.toLowerCase()) ||
+            assigned.toLowerCase().contains(myName.toLowerCase()));
+    final isAssignedToAll =
+        assigned.isEmpty ||
+        assigned.toLowerCase().contains('semua') ||
+        assigned.toLowerCase() == 'staf dok' ||
+        assigned.toLowerCase() == 'staf lapangan';
+
+    final displayCode = subCode ?? shipment.outboundNumber;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color:
+              isAssignedToMe
+                  ? const Color(0xfff59e0b)
+                  : const Color(0xfffed7aa),
+          width: isAssignedToMe ? 1.5 : 1.2,
+        ),
+        boxShadow: brandCardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xfffffbeb),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xfffde68a)),
+                ),
+                child: const Text(
+                  'OUTBOUND',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    color: Color(0xffb45309),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  displayCode,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: brandInk,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xfffff7ed),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'READY',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    color: Color(0xffc2410c),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            item.name.isNotEmpty ? item.name : item.sku,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: brandInk,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.meeting_room_outlined, size: 14, color: muted),
+              const SizedBox(width: 4),
+              Text(
+                'Dok ${shipment.dock}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xffb45309),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Icon(Icons.send_outlined, size: 14, color: muted),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  shipment.destination,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: muted,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 7,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xfff8fafc),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xffe2e8f0)),
+                ),
+                child: Text(
+                  '║▌║ ${item.sku}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: brandInk,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Icon(Icons.location_on_outlined, size: 14, color: muted),
+              const SizedBox(width: 2),
+              Text(
+                item.rack.isNotEmpty ? item.rack : 'A-01',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: brand,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Icon(Icons.inventory_2_outlined, size: 14, color: muted),
+              const SizedBox(width: 4),
+              Text(
+                '${formatNumber(item.orderedQty)} unit',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xffb45309),
+                ),
+              ),
+              if (shipment.reference != null && shipment.reference!.isNotEmpty) ...[
+                const SizedBox(width: 10),
+                const Icon(Icons.description_outlined, size: 14, color: muted),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    'Ref: ${shipment.reference}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: muted,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Penanda Penugasan Staf
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color:
+                  isAssignedToMe
+                      ? const Color(0xfff0fdf4)
+                      : isAssignedToAll
+                      ? const Color(0xfff8fafc)
+                      : const Color(0xfffffbeb),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color:
+                    isAssignedToMe
+                        ? const Color(0xff86efac)
+                        : isAssignedToAll
+                        ? const Color(0xffcbd5e1)
+                        : const Color(0xfffde68a),
+              ),
+            ),
+            child: Text(
+              isAssignedToMe
+                  ? 'Tugas Khusus Anda ($assigned)'
+                  : isAssignedToAll
+                  ? 'Terbuka untuk Semua Staf Dok'
+                  : 'Ditugaskan ke: $assigned',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color:
+                    isAssignedToMe
+                        ? const Color(0xff166534)
+                        : isAssignedToAll
+                        ? const Color(0xff334155)
+                        : const Color(0xff92400e),
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: _PillButton(
+                  label: 'Detail',
+                  icon: Icons.visibility_outlined,
+                  outlined: true,
+                  onPressed:
+                      () => _showOutboundTaskDetailSheet(
+                        context,
+                        shipment,
+                        focusedItem: item,
+                        subCode: displayCode,
+                      ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 3,
+                child: _PillButton(
+                  label: 'Kerjakan Dispatch',
+                  icon: Icons.qr_code_scanner,
+                  onPressed: () {
+                    s.openScanner(
+                      item.sku,
+                      mode: ScanMode.dispatch,
+                      taskTitle: 'Picking ${item.name} ($displayCode)',
+                      outboundShipmentId: shipment.id,
+                      rack: item.rack.isNotEmpty ? item.rack : 'A-01',
+                      quantity: item.orderedQty > 0 ? item.orderedQty : 1,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Helper Detail Bottom Sheets & Components (Tugas, Produk & Dokumen)
 // -----------------------------------------------------------------------------
 
-void _showInboundTaskDetailSheet(BuildContext context, InboundShipmentModel shipment) {
+void _showInboundTaskDetailSheet(
+  BuildContext context,
+  InboundShipmentModel shipment, {
+  InboundShipmentItemModel? focusedItem,
+  String? subCode,
+}) {
   final s = context.read<WarehouseState>();
-  final assigned = shipment.assignedStaff.trim().isEmpty ? 'Semua Staf' : shipment.assignedStaff.trim();
-  final isAssignedToMe = assigned.toLowerCase() == s.staff.name.trim().toLowerCase();
-  final isAssignedToAll = assigned.toLowerCase() == 'semua staf' || assigned.toLowerCase() == 'staff' || assigned.isEmpty;
+  final assigned =
+      shipment.assignedStaff.trim().isEmpty
+          ? 'Semua Staf'
+          : shipment.assignedStaff.trim();
+  final isAssignedToMe =
+      assigned.toLowerCase() == s.staff.name.trim().toLowerCase();
+  final isAssignedToAll =
+      assigned.toLowerCase() == 'semua staf' ||
+      assigned.toLowerCase() == 'staff' ||
+      assigned.isEmpty;
 
   showModalBottomSheet<void>(
     context: context,
@@ -1794,7 +2320,10 @@ void _showInboundTaskDetailSheet(BuildContext context, InboundShipmentModel ship
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     Container(
@@ -1803,7 +2332,11 @@ void _showInboundTaskDetailSheet(BuildContext context, InboundShipmentModel ship
                         color: const Color(0xffecfeff),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.inventory_2_outlined, color: Color(0xff0891b2), size: 22),
+                      child: const Icon(
+                        Icons.inventory_2_outlined,
+                        color: Color(0xff0891b2),
+                        size: 22,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1811,7 +2344,7 @@ void _showInboundTaskDetailSheet(BuildContext context, InboundShipmentModel ship
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Detail Tugas: ${shipment.inboundNumber}',
+                            'Detail Tugas: ${subCode ?? shipment.inboundNumber}',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w900,
@@ -1821,7 +2354,10 @@ void _showInboundTaskDetailSheet(BuildContext context, InboundShipmentModel ship
                           const SizedBox(height: 2),
                           Text(
                             'Supplier: ${shipment.supplierName}',
-                            style: const TextStyle(fontSize: 12, color: brandSlate),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: brandSlate,
+                            ),
                           ),
                         ],
                       ),
@@ -1851,17 +2387,36 @@ void _showInboundTaskDetailSheet(BuildContext context, InboundShipmentModel ship
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              _MetaCol(label: 'NO. PO', value: shipment.poNumber ?? '-'),
-                              _MetaCol(label: 'DOK BONGKAR', value: shipment.dock),
-                              _MetaCol(label: 'TOTAL UNIT', value: '${formatNumber(shipment.units)} Unit'),
+                              _MetaCol(
+                                label: 'NO. PO',
+                                value: shipment.poNumber ?? '-',
+                              ),
+                              _MetaCol(
+                                label: 'DOK BONGKAR',
+                                value: shipment.dock,
+                              ),
+                              _MetaCol(
+                                label: 'TOTAL UNIT',
+                                value: '${formatNumber(shipment.units)} Unit',
+                              ),
                             ],
                           ),
                           const Divider(height: 18, color: Color(0xffe2e8f0)),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              _MetaCol(label: 'ARMADA / CARRIER', value: shipment.carrier?.isNotEmpty == true ? shipment.carrier! : 'Reguler'),
-                              _MetaCol(label: 'JADWAL', value: '${shipment.scheduledDate} ${shipment.scheduledTime}'),
+                              _MetaCol(
+                                label: 'ARMADA / CARRIER',
+                                value:
+                                    shipment.carrier?.isNotEmpty == true
+                                        ? shipment.carrier!
+                                        : 'Reguler',
+                              ),
+                              _MetaCol(
+                                label: 'JADWAL',
+                                value:
+                                    '${shipment.scheduledDate} ${shipment.scheduledTime}',
+                              ),
                             ],
                           ),
                         ],
@@ -1869,51 +2424,43 @@ void _showInboundTaskDetailSheet(BuildContext context, InboundShipmentModel ship
                     ),
                     const SizedBox(height: 16),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
-                        color: isAssignedToMe
-                            ? const Color(0xfff0fdf4)
-                            : isAssignedToAll
+                        color:
+                            isAssignedToMe
+                                ? const Color(0xfff0fdf4)
+                                : isAssignedToAll
                                 ? const Color(0xfff8fafc)
                                 : const Color(0xfffffbeb),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isAssignedToMe
-                              ? const Color(0xff86efac)
-                              : isAssignedToAll
+                          color:
+                              isAssignedToMe
+                                  ? const Color(0xff86efac)
+                                  : isAssignedToAll
                                   ? const Color(0xffcbd5e1)
                                   : const Color(0xfffde68a),
                         ),
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            isAssignedToMe
-                                ? Icons.star_rounded
-                                : isAssignedToAll
-                                    ? Icons.people_outline
-                                    : Icons.person_outline,
-                            size: 16,
-                            color: isAssignedToMe
-                                ? const Color(0xff16a34a)
-                                : isAssignedToAll
-                                    ? const Color(0xff475569)
-                                    : const Color(0xffb45309),
-                          ),
-                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               isAssignedToMe
-                                  ? '⭐ Tugas Khusus Anda ($assigned)'
+                                  ? 'Tugas Khusus Anda ($assigned)'
                                   : isAssignedToAll
-                                      ? '👥 Terbuka untuk Semua Staf Dok'
-                                      : '👤 Ditugaskan ke: $assigned',
+                                  ? 'Terbuka untuk Semua Staf Dok'
+                                  : 'Ditugaskan ke: $assigned',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: isAssignedToMe
-                                    ? const Color(0xff166534)
-                                    : isAssignedToAll
+                                color:
+                                    isAssignedToMe
+                                        ? const Color(0xff166534)
+                                        : isAssignedToAll
                                         ? const Color(0xff334155)
                                         : const Color(0xff92400e),
                               ),
@@ -1925,7 +2472,11 @@ void _showInboundTaskDetailSheet(BuildContext context, InboundShipmentModel ship
                     const SizedBox(height: 20),
                     Row(
                       children: [
-                        const Icon(Icons.category_outlined, size: 16, color: brandInk),
+                        const Icon(
+                          Icons.category_outlined,
+                          size: 16,
+                          color: brandInk,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           'Rincian Produk (${shipment.items.length} Item)',
@@ -1939,7 +2490,10 @@ void _showInboundTaskDetailSheet(BuildContext context, InboundShipmentModel ship
                     ),
                     const SizedBox(height: 10),
                     if (shipment.items.isEmpty)
-                      const Text('Belum ada item produk terdaftar.', style: TextStyle(color: muted, fontSize: 12))
+                      const Text(
+                        'Belum ada item produk terdaftar.',
+                        style: TextStyle(color: muted, fontSize: 12),
+                      )
                     else
                       for (final it in shipment.items) ...[
                         _InboundItemDetailCard(item: it, state: s),
@@ -1957,20 +2511,43 @@ void _showInboundTaskDetailSheet(BuildContext context, InboundShipmentModel ship
                 child: SafeArea(
                   top: false,
                   child: _PillButton(
-                    label: 'Kerjakan Putaway (Scan QR)',
+                    label:
+                        focusedItem != null
+                            ? 'Kerjakan Putaway (${focusedItem.name})'
+                            : 'Kerjakan Putaway (Scan QR)',
                     icon: Icons.qr_code_scanner,
                     onPressed: () {
                       Navigator.pop(ctx);
-                      final pending = shipment.items.where(
-                        (it) => !((it.acceptedQty + it.damagedQty) >= it.orderedQty || it.acceptedQty > 0 || it.barcodes.isNotEmpty)
-                      ).toList();
-                      final target = pending.isNotEmpty ? pending.first : (shipment.items.isNotEmpty ? shipment.items.first : null);
+                      final pending =
+                          shipment.items
+                              .where(
+                                (it) =>
+                                    !((it.acceptedQty + it.damagedQty) >=
+                                            it.orderedQty ||
+                                        it.acceptedQty > 0 ||
+                                        it.barcodes.isNotEmpty),
+                              )
+                              .toList();
+                      final target =
+                          focusedItem ??
+                          (pending.isNotEmpty
+                              ? pending.first
+                              : (shipment.items.isNotEmpty
+                                  ? shipment.items.first
+                                  : null));
                       final targetSku = target?.sku ?? '';
-                      final targetQty = (target != null && target.orderedQty > 0) ? target.orderedQty : 1;
+                      final targetQty =
+                          (target != null && target.orderedQty > 0)
+                              ? target.orderedQty
+                              : 1;
+                      final code = subCode ?? shipment.inboundNumber;
                       s.openScanner(
                         targetSku,
                         mode: ScanMode.putaway,
-                        taskTitle: 'Putaway Inbound ${shipment.inboundNumber}',
+                        taskTitle:
+                            target != null
+                                ? 'Putaway ${target.name} ($code)'
+                                : 'Putaway Inbound $code',
                         inboundShipmentId: shipment.id,
                         rack: 'Dok ${shipment.dock}',
                         quantity: targetQty,
@@ -1987,11 +2564,23 @@ void _showInboundTaskDetailSheet(BuildContext context, InboundShipmentModel ship
   );
 }
 
-void _showOutboundTaskDetailSheet(BuildContext context, OutboundShipmentModel shipment) {
+void _showOutboundTaskDetailSheet(
+  BuildContext context,
+  OutboundShipmentModel shipment, {
+  OutboundShipmentItemModel? focusedItem,
+  String? subCode,
+}) {
   final s = context.read<WarehouseState>();
-  final assigned = shipment.assignedStaff.trim().isEmpty ? 'Semua Staf' : shipment.assignedStaff.trim();
-  final isAssignedToMe = assigned.toLowerCase() == s.staff.name.trim().toLowerCase();
-  final isAssignedToAll = assigned.toLowerCase() == 'semua staf' || assigned.toLowerCase() == 'staff' || assigned.isEmpty;
+  final assigned =
+      shipment.assignedStaff.trim().isEmpty
+          ? 'Semua Staf'
+          : shipment.assignedStaff.trim();
+  final isAssignedToMe =
+      assigned.toLowerCase() == s.staff.name.trim().toLowerCase();
+  final isAssignedToAll =
+      assigned.toLowerCase() == 'semua staf' ||
+      assigned.toLowerCase() == 'staff' ||
+      assigned.isEmpty;
 
   showModalBottomSheet<void>(
     context: context,
@@ -2023,7 +2612,10 @@ void _showOutboundTaskDetailSheet(BuildContext context, OutboundShipmentModel sh
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     Container(
@@ -2032,7 +2624,11 @@ void _showOutboundTaskDetailSheet(BuildContext context, OutboundShipmentModel sh
                         color: const Color(0xfffef3c7),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.outbox_rounded, color: Color(0xffd97706), size: 22),
+                      child: const Icon(
+                        Icons.outbox_rounded,
+                        color: Color(0xffd97706),
+                        size: 22,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -2040,7 +2636,7 @@ void _showOutboundTaskDetailSheet(BuildContext context, OutboundShipmentModel sh
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Detail Outbound: ${shipment.outboundNumber}',
+                            'Detail Outbound: ${subCode ?? shipment.outboundNumber}',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w900,
@@ -2050,7 +2646,10 @@ void _showOutboundTaskDetailSheet(BuildContext context, OutboundShipmentModel sh
                           const SizedBox(height: 2),
                           Text(
                             'Tujuan: ${shipment.destination}',
-                            style: const TextStyle(fontSize: 12, color: brandSlate),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: brandSlate,
+                            ),
                           ),
                         ],
                       ),
@@ -2080,17 +2679,36 @@ void _showOutboundTaskDetailSheet(BuildContext context, OutboundShipmentModel sh
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              _MetaCol(label: 'REF / DO', value: shipment.reference ?? '-'),
-                              _MetaCol(label: 'DOK MUAT', value: 'Dok ${shipment.dock}'),
-                              _MetaCol(label: 'TOTAL UNIT', value: '${formatNumber(shipment.units)} Unit'),
+                              _MetaCol(
+                                label: 'REF / DO',
+                                value: shipment.reference ?? '-',
+                              ),
+                              _MetaCol(
+                                label: 'DOK MUAT',
+                                value: 'Dok ${shipment.dock}',
+                              ),
+                              _MetaCol(
+                                label: 'TOTAL UNIT',
+                                value: '${formatNumber(shipment.units)} Unit',
+                              ),
                             ],
                           ),
                           const Divider(height: 18, color: Color(0xffe2e8f0)),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              _MetaCol(label: 'ARMADA', value: shipment.carrier?.isNotEmpty == true ? shipment.carrier! : 'Logistik Internal'),
-                              _MetaCol(label: 'JADWAL', value: '${shipment.scheduledDate} ${shipment.scheduledTime}'),
+                              _MetaCol(
+                                label: 'ARMADA',
+                                value:
+                                    shipment.carrier?.isNotEmpty == true
+                                        ? shipment.carrier!
+                                        : 'Logistik Internal',
+                              ),
+                              _MetaCol(
+                                label: 'JADWAL',
+                                value:
+                                    '${shipment.scheduledDate} ${shipment.scheduledTime}',
+                              ),
                             ],
                           ),
                         ],
@@ -2098,51 +2716,43 @@ void _showOutboundTaskDetailSheet(BuildContext context, OutboundShipmentModel sh
                     ),
                     const SizedBox(height: 16),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
-                        color: isAssignedToMe
-                            ? const Color(0xfff0fdf4)
-                            : isAssignedToAll
+                        color:
+                            isAssignedToMe
+                                ? const Color(0xfff0fdf4)
+                                : isAssignedToAll
                                 ? const Color(0xfff8fafc)
                                 : const Color(0xfffffbeb),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isAssignedToMe
-                              ? const Color(0xff86efac)
-                              : isAssignedToAll
+                          color:
+                              isAssignedToMe
+                                  ? const Color(0xff86efac)
+                                  : isAssignedToAll
                                   ? const Color(0xffcbd5e1)
                                   : const Color(0xfffde68a),
                         ),
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            isAssignedToMe
-                                ? Icons.star_rounded
-                                : isAssignedToAll
-                                    ? Icons.people_outline
-                                    : Icons.person_outline,
-                            size: 16,
-                            color: isAssignedToMe
-                                ? const Color(0xff16a34a)
-                                : isAssignedToAll
-                                    ? const Color(0xff475569)
-                                    : const Color(0xffb45309),
-                          ),
-                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               isAssignedToMe
-                                  ? '⭐ Tugas Khusus Anda ($assigned)'
+                                  ? 'Tugas Khusus Anda ($assigned)'
                                   : isAssignedToAll
-                                      ? '👥 Terbuka untuk Semua Staf Dok'
-                                      : '👤 Ditugaskan ke: $assigned',
+                                  ? 'Terbuka untuk Semua Staf Dok'
+                                  : 'Ditugaskan ke: $assigned',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: isAssignedToMe
-                                    ? const Color(0xff166534)
-                                    : isAssignedToAll
+                                color:
+                                    isAssignedToMe
+                                        ? const Color(0xff166534)
+                                        : isAssignedToAll
                                         ? const Color(0xff334155)
                                         : const Color(0xff92400e),
                               ),
@@ -2154,7 +2764,11 @@ void _showOutboundTaskDetailSheet(BuildContext context, OutboundShipmentModel sh
                     const SizedBox(height: 20),
                     Row(
                       children: [
-                        const Icon(Icons.category_outlined, size: 16, color: brandInk),
+                        const Icon(
+                          Icons.category_outlined,
+                          size: 16,
+                          color: brandInk,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           'Barang yang Harus Diambil (${shipment.items.length} Item)',
@@ -2168,7 +2782,10 @@ void _showOutboundTaskDetailSheet(BuildContext context, OutboundShipmentModel sh
                     ),
                     const SizedBox(height: 10),
                     if (shipment.items.isEmpty)
-                      const Text('Belum ada item produk terdaftar.', style: TextStyle(color: muted, fontSize: 12))
+                      const Text(
+                        'Belum ada item produk terdaftar.',
+                        style: TextStyle(color: muted, fontSize: 12),
+                      )
                     else
                       for (final it in shipment.items) ...[
                         _OutboundItemDetailCard(item: it, state: s),
@@ -2193,36 +2810,50 @@ void _showOutboundTaskDetailSheet(BuildContext context, OutboundShipmentModel sh
                         icon: Icons.check_circle_outline,
                         onPressed: () async {
                           Navigator.pop(ctx);
-                          final itemsToSubmit = shipment.items.map((it) {
-                            final ful = it.fulfilledQty > 0 ? it.fulfilledQty : it.orderedQty;
-                            final bcs = it.barcodes.isNotEmpty
-                                ? it.barcodes
-                                : List.generate(ful, (i) => '${it.sku}-${(i + 1).toString().padLeft(3, '0')}');
-                            return OutboundShipmentItemModel(
-                              id: it.id,
-                              productId: it.productId,
-                              sku: it.sku,
-                              name: it.name,
-                              rack: it.rack,
-                              orderedQty: it.orderedQty,
-                              fulfilledQty: ful,
-                              damagedQty: it.damagedQty,
-                              barcodes: bcs,
-                              notes: it.notes,
-                            );
-                          }).toList();
+                          final itemsToSubmit =
+                              shipment.items.map((it) {
+                                final ful =
+                                    it.fulfilledQty > 0
+                                        ? it.fulfilledQty
+                                        : it.orderedQty;
+                                final bcs =
+                                    it.barcodes.isNotEmpty
+                                        ? it.barcodes
+                                        : List.generate(
+                                          ful,
+                                          (i) =>
+                                              '${it.sku}-${(i + 1).toString().padLeft(3, '0')}',
+                                        );
+                                return OutboundShipmentItemModel(
+                                  id: it.id,
+                                  productId: it.productId,
+                                  sku: it.sku,
+                                  name: it.name,
+                                  rack: it.rack,
+                                  orderedQty: it.orderedQty,
+                                  fulfilledQty: ful,
+                                  damagedQty: it.damagedQty,
+                                  barcodes: bcs,
+                                  notes: it.notes,
+                                );
+                              }).toList();
 
                           final res = await s.submitOutboundInspection(
                             shipmentId: shipment.id,
                             items: itemsToSubmit,
-                            notes: 'Pengambilan barang selesai oleh ${s.staff.name}',
+                            notes:
+                                'Pengambilan barang selesai oleh ${s.staff.name}',
                           );
 
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(res['message'] ?? 'Laporan picking berhasil dikirim'),
-                                backgroundColor: res['success'] == true ? forest : danger,
+                                content: Text(
+                                  res['message'] ??
+                                      'Laporan picking berhasil dikirim',
+                                ),
+                                backgroundColor:
+                                    res['success'] == true ? forest : danger,
                               ),
                             );
                           }
@@ -2232,20 +2863,49 @@ void _showOutboundTaskDetailSheet(BuildContext context, OutboundShipmentModel sh
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(double.infinity, 48),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                           side: const BorderSide(color: brand, width: 1.5),
                         ),
-                        icon: const Icon(Icons.qr_code_scanner, color: brand, size: 20),
-                        label: const Text('Kerjakan Dispatch (Scan QR)', style: TextStyle(color: brand, fontWeight: FontWeight.w700)),
+                        icon: const Icon(
+                          Icons.qr_code_scanner,
+                          color: brand,
+                          size: 20,
+                        ),
+                        label: Text(
+                          focusedItem != null
+                              ? 'Kerjakan Dispatch (${focusedItem.name})'
+                              : 'Kerjakan Dispatch (Scan QR)',
+                          style: const TextStyle(
+                            color: brand,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                         onPressed: () {
                           Navigator.pop(ctx);
-                          final firstSku = shipment.items.isNotEmpty ? shipment.items.first.sku : '';
-                          final firstRack = shipment.items.isNotEmpty ? shipment.items.first.rack : 'A-01';
-                          final firstQty = shipment.items.isNotEmpty ? shipment.items.first.orderedQty : 1;
+                          final targetItem =
+                              focusedItem ??
+                              (shipment.items.isNotEmpty
+                                  ? shipment.items.first
+                                  : null);
+                          final firstSku = targetItem?.sku ?? '';
+                          final firstRack =
+                              (targetItem != null && targetItem.rack.isNotEmpty)
+                                  ? targetItem.rack
+                                  : 'A-01';
+                          final firstQty =
+                              (targetItem != null && targetItem.orderedQty > 0)
+                                  ? targetItem.orderedQty
+                                  : 1;
+                          final code = subCode ?? shipment.outboundNumber;
                           s.openScanner(
                             firstSku,
                             mode: ScanMode.dispatch,
-                            taskTitle: 'Picking Dok ${shipment.outboundNumber}',
+                            taskTitle:
+                                targetItem != null
+                                    ? 'Picking ${targetItem.name} ($code)'
+                                    : 'Picking Dok $code',
                             outboundShipmentId: shipment.id,
                             rack: firstRack,
                             quantity: firstQty > 0 ? firstQty : 1,
@@ -2294,7 +2954,11 @@ class _OutboundItemDetailCard extends StatelessWidget {
               color: const Color(0xfffff7ed),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.inventory_2_outlined, color: Color(0xffc2410c), size: 22),
+            child: const Icon(
+              Icons.inventory_2_outlined,
+              color: Color(0xffc2410c),
+              size: 22,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -2315,7 +2979,10 @@ class _OutboundItemDetailCard extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xfff8fafc),
                         borderRadius: BorderRadius.circular(4),
@@ -2334,7 +3001,11 @@ class _OutboundItemDetailCard extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       '• 📍 Rak: ${item.rack}',
-                      style: const TextStyle(fontSize: 11, color: muted, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: muted,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -2354,7 +3025,11 @@ class _OutboundItemDetailCard extends StatelessWidget {
               ),
               Text(
                 product?.unit ?? 'Unit',
-                style: const TextStyle(fontSize: 10, color: muted, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: muted,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
@@ -2366,9 +3041,10 @@ class _OutboundItemDetailCard extends StatelessWidget {
 
 void _showDbTaskDetailSheet(BuildContext context, Map<String, dynamic> task) {
   final s = context.read<WarehouseState>();
-  final taskId = task['id'] is num
-      ? (task['id'] as num).toInt()
-      : int.tryParse(task['id'].toString()) ?? 0;
+  final taskId =
+      task['id'] is num
+          ? (task['id'] as num).toInt()
+          : int.tryParse(task['id'].toString()) ?? 0;
   final isMine = task['current_assignee_id'] == s.staff.id;
   final status = (task['status'] ?? 'pending').toString().toLowerCase();
   final title = (task['title'] ?? 'Tugas Operasional').toString();
@@ -2410,7 +3086,10 @@ void _showDbTaskDetailSheet(BuildContext context, Map<String, dynamic> task) {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     Container(
@@ -2419,7 +3098,11 @@ void _showDbTaskDetailSheet(BuildContext context, Map<String, dynamic> task) {
                         color: const Color(0xfff0fdf4),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.assignment_outlined, color: forest, size: 22),
+                      child: const Icon(
+                        Icons.assignment_outlined,
+                        color: forest,
+                        size: 22,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -2437,7 +3120,10 @@ void _showDbTaskDetailSheet(BuildContext context, Map<String, dynamic> task) {
                           const SizedBox(height: 2),
                           Text(
                             isMine ? 'Tugas Anda' : 'PIC: $assigneeName',
-                            style: const TextStyle(fontSize: 12, color: brandSlate),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: brandSlate,
+                            ),
                           ),
                         ],
                       ),
@@ -2468,7 +3154,11 @@ void _showDbTaskDetailSheet(BuildContext context, Map<String, dynamic> task) {
                       const SizedBox(height: 6),
                       Text(
                         description,
-                        style: const TextStyle(fontSize: 14, color: brandInk, height: 1.4),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: brandInk,
+                          height: 1.4,
+                        ),
                       ),
                       const SizedBox(height: 16),
                     ],
@@ -2482,10 +3172,24 @@ void _showDbTaskDetailSheet(BuildContext context, Map<String, dynamic> task) {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _MetaCol(label: 'STATUS', value: status == 'done' ? 'Selesai' : status == 'in_progress' ? 'Sedang Dikerjakan' : 'Belum Dikerjakan'),
+                          _MetaCol(
+                            label: 'STATUS',
+                            value:
+                                status == 'done'
+                                    ? 'Selesai'
+                                    : status == 'in_progress'
+                                    ? 'Sedang Dikerjakan'
+                                    : 'Belum Dikerjakan',
+                          ),
                           if (location.isNotEmpty)
                             _MetaCol(label: 'LOKASI RAK', value: location),
-                          _MetaCol(label: 'DITUGASKAN KE', value: isMine ? '${s.staff.name} (Anda)' : assigneeName),
+                          _MetaCol(
+                            label: 'DITUGASKAN KE',
+                            value:
+                                isMine
+                                    ? '${s.staff.name} (Anda)'
+                                    : assigneeName,
+                          ),
                         ],
                       ),
                     ),
@@ -2514,7 +3218,14 @@ void _showDbTaskDetailSheet(BuildContext context, Map<String, dynamic> task) {
                           children: [
                             const Icon(Icons.qr_code, size: 24, color: brand),
                             const SizedBox(width: 10),
-                            Text('SKU Produk: $sku', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: brandInk)),
+                            Text(
+                              'SKU Produk: $sku',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                                color: brandInk,
+                              ),
+                            ),
                           ],
                         ),
                       )
@@ -2525,7 +3236,10 @@ void _showDbTaskDetailSheet(BuildContext context, Map<String, dynamic> task) {
                           color: const Color(0xfff8fafc),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: const Text('Tugas umum gudang (tidak terkait produk spesifik).', style: TextStyle(color: muted, fontSize: 12)),
+                        child: const Text(
+                          'Tugas umum gudang (tidak terkait produk spesifik).',
+                          style: TextStyle(color: muted, fontSize: 12),
+                        ),
                       ),
                   ],
                 ),
@@ -2538,26 +3252,57 @@ void _showDbTaskDetailSheet(BuildContext context, Map<String, dynamic> task) {
                 ),
                 child: SafeArea(
                   top: false,
-                  child: status == 'done'
-                      ? const Center(
-                          child: Text(
-                            '✓ Tugas ini telah selesai dikerjakan',
-                            style: TextStyle(fontWeight: FontWeight.w800, color: forest),
-                          ),
-                        )
-                      : isMine
+                  child:
+                      status == 'done'
+                          ? const Center(
+                            child: Text(
+                              '✓ Tugas ini telah selesai dikerjakan',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: forest,
+                              ),
+                            ),
+                          )
+                          : isMine
                           ? _PillButton(
-                              label: targetMode == ScanMode.putaway
-                                  ? 'Kerjakan Putaway (Scan QR)'
-                                  : (targetMode == ScanMode.dispatch
-                                      ? 'Kerjakan Dispatch (Scan QR)'
-                                      : (status == 'in_progress' ? 'Lanjut Kerjakan' : 'Kerjakan Sekarang')),
-                              icon: Icons.qr_code_scanner,
-                              onPressed: () async {
-                                Navigator.pop(ctx);
-                                if (status == 'pending') {
-                                  await s.updateTaskStatus(taskId, 'in_progress');
-                                }
+                            label:
+                                targetMode == ScanMode.putaway
+                                    ? 'Kerjakan Putaway (Scan QR)'
+                                    : (targetMode == ScanMode.dispatch
+                                        ? 'Kerjakan Dispatch (Scan QR)'
+                                        : (status == 'in_progress'
+                                            ? 'Lanjut Kerjakan'
+                                            : 'Kerjakan Sekarang')),
+                            icon: Icons.qr_code_scanner,
+                            onPressed: () async {
+                              Navigator.pop(ctx);
+                              if (status == 'pending') {
+                                await s.updateTaskStatus(taskId, 'in_progress');
+                              }
+                              s.openScanner(
+                                sku,
+                                mode: targetMode,
+                                taskTitle: title,
+                                taskId: taskId,
+                                rack: location.isNotEmpty ? location : null,
+                              );
+                            },
+                          )
+                          : _PillButton(
+                            label:
+                                targetMode == ScanMode.putaway
+                                    ? 'Ambil Alih & Kerjakan Putaway'
+                                    : (targetMode == ScanMode.dispatch
+                                        ? 'Ambil Alih & Kerjakan Dispatch'
+                                        : 'Ambil Alih & Kerjakan'),
+                            icon: Icons.front_hand_outlined,
+                            color: const Color(0xffb45309),
+                            outlined: true,
+                            onPressed: () async {
+                              Navigator.pop(ctx);
+                              final err = await s.takeOverTask(taskId);
+                              if (err == null) {
+                                await s.updateTaskStatus(taskId, 'in_progress');
                                 s.openScanner(
                                   sku,
                                   mode: targetMode,
@@ -2565,32 +3310,9 @@ void _showDbTaskDetailSheet(BuildContext context, Map<String, dynamic> task) {
                                   taskId: taskId,
                                   rack: location.isNotEmpty ? location : null,
                                 );
-                              },
-                            )
-                          : _PillButton(
-                              label: targetMode == ScanMode.putaway
-                                  ? 'Ambil Alih & Kerjakan Putaway'
-                                  : (targetMode == ScanMode.dispatch
-                                      ? 'Ambil Alih & Kerjakan Dispatch'
-                                      : 'Ambil Alih & Kerjakan'),
-                              icon: Icons.front_hand_outlined,
-                              color: const Color(0xffb45309),
-                              outlined: true,
-                              onPressed: () async {
-                                Navigator.pop(ctx);
-                                final err = await s.takeOverTask(taskId);
-                                if (err == null) {
-                                  await s.updateTaskStatus(taskId, 'in_progress');
-                                  s.openScanner(
-                                    sku,
-                                    mode: targetMode,
-                                    taskTitle: title,
-                                    taskId: taskId,
-                                    rack: location.isNotEmpty ? location : null,
-                                  );
-                                }
-                              },
-                            ),
+                              }
+                            },
+                          ),
                 ),
               ),
             ],
@@ -2600,7 +3322,6 @@ void _showDbTaskDetailSheet(BuildContext context, Map<String, dynamic> task) {
     },
   );
 }
-
 
 class _MetaCol extends StatelessWidget {
   final String label, value;
@@ -2642,13 +3363,18 @@ class _InboundItemDetailCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final product = state.resolve(item.sku);
-    final isDone = (item.acceptedQty + item.damagedQty) >= item.orderedQty || item.acceptedQty > 0 || item.barcodes.isNotEmpty;
+    final isDone =
+        (item.acceptedQty + item.damagedQty) >= item.orderedQty ||
+        item.acceptedQty > 0 ||
+        item.barcodes.isNotEmpty;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: isDone ? const Color(0xff86efac) : const Color(0xffe2e8f0)),
+        border: Border.all(
+          color: isDone ? const Color(0xff86efac) : const Color(0xffe2e8f0),
+        ),
       ),
       child: Row(
         children: [
@@ -2660,7 +3386,9 @@ class _InboundItemDetailCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
-              isDone ? Icons.check_circle_outline_rounded : Icons.inventory_2_outlined,
+              isDone
+                  ? Icons.check_circle_outline_rounded
+                  : Icons.inventory_2_outlined,
               color: isDone ? const Color(0xff16a34a) : brandSlate,
               size: 22,
             ),
@@ -2671,7 +3399,9 @@ class _InboundItemDetailCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.name.isNotEmpty ? item.name : (product?.name ?? item.sku),
+                  item.name.isNotEmpty
+                      ? item.name
+                      : (product?.name ?? item.sku),
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
@@ -2684,7 +3414,10 @@ class _InboundItemDetailCard extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xfff8fafc),
                         borderRadius: BorderRadius.circular(4),
@@ -2702,18 +3435,32 @@ class _InboundItemDetailCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
-                        color: isDone ? const Color(0xfff0fdf4) : const Color(0xfffffbeb),
+                        color:
+                            isDone
+                                ? const Color(0xfff0fdf4)
+                                : const Color(0xfffffbeb),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: isDone ? const Color(0xff86efac) : const Color(0xfffde68a)),
+                        border: Border.all(
+                          color:
+                              isDone
+                                  ? const Color(0xff86efac)
+                                  : const Color(0xfffde68a),
+                        ),
                       ),
                       child: Text(
                         isDone ? '✓ Selesai (${item.acceptedQty})' : 'Pending',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: isDone ? const Color(0xff166534) : const Color(0xff92400e),
+                          color:
+                              isDone
+                                  ? const Color(0xff166534)
+                                  : const Color(0xff92400e),
                         ),
                       ),
                     ),
@@ -2721,7 +3468,11 @@ class _InboundItemDetailCard extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         '• ${product.rack}',
-                        style: const TextStyle(fontSize: 11, color: muted, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: muted,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ],
@@ -2742,7 +3493,11 @@ class _InboundItemDetailCard extends StatelessWidget {
               ),
               Text(
                 product?.unit ?? 'Unit',
-                style: const TextStyle(fontSize: 10, color: muted, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: muted,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
@@ -2784,7 +3539,11 @@ class _ProductStockDetailCard extends StatelessWidget {
                   color: const Color(0xfff1f5f9),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.inventory_2_outlined, color: brand, size: 26),
+                child: const Icon(
+                  Icons.inventory_2_outlined,
+                  color: brand,
+                  size: 26,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2805,7 +3564,10 @@ class _ProductStockDetailCard extends StatelessWidget {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xfff8fafc),
                             borderRadius: BorderRadius.circular(4),
@@ -2821,11 +3583,16 @@ class _ProductStockDetailCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (item.category != null && item.category!.isNotEmpty) ...[
+                        if (item.category != null &&
+                            item.category!.isNotEmpty) ...[
                           const SizedBox(width: 6),
                           Text(
                             '• ${item.category}',
-                            style: const TextStyle(fontSize: 11, color: muted, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: muted,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ],
@@ -2841,9 +3608,18 @@ class _ProductStockDetailCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _MetaCol(label: 'STOK GUDANG', value: '${formatNumber(item.quantity)} ${item.unit}'),
-              _MetaCol(label: 'BATAS MINIMUM', value: '${formatNumber(item.minimum)} ${item.unit}'),
-              _MetaCol(label: 'LOKASI RAK', value: item.rack.isNotEmpty ? item.rack : '-'),
+              _MetaCol(
+                label: 'STOK GUDANG',
+                value: '${formatNumber(item.quantity)} ${item.unit}',
+              ),
+              _MetaCol(
+                label: 'BATAS MINIMUM',
+                value: '${formatNumber(item.minimum)} ${item.unit}',
+              ),
+              _MetaCol(
+                label: 'LOKASI RAK',
+                value: item.rack.isNotEmpty ? item.rack : '-',
+              ),
             ],
           ),
         ],

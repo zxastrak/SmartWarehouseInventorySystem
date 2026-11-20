@@ -357,6 +357,19 @@ class _ScannerScreenState extends State<ScannerScreen> {
       }
     }
 
+    // Untuk Putaway barang, pastikan lokasi rak produk di backend database selalu diperbarui
+    if (isPutaway && item.id != null && s.token != null) {
+      try {
+        await s.api.updateProductLocation(
+          token: s.token!,
+          productId: item.id!,
+          location: savedRack,
+        );
+        item.rack = savedRack;
+        item.zone = 'Zone ${savedRack.substring(0, 1).toUpperCase()}';
+      } catch (_) {}
+    }
+
     // Auto-match task fallback jika taskId null: cari tugas pending yang cocok dengan SKU ini
     int? currentTaskId = taskId;
     if (currentTaskId == null) {

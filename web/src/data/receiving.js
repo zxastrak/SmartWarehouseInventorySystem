@@ -5,7 +5,7 @@ export function shipmentProducts(shipment, inventory = []) {
     return scannerShipmentProducts.map((row) => ({ ...row }));
   }
 
-  const isInspected = shipment.status === "Inspected" || shipment.status === "Received";
+  const isInspected = ["Review", "Inspected", "Received", "Complete"].includes(shipment.status);
 
   // 1. Ambil dari shipment.products jika ada
   if (Array.isArray(shipment.products) && shipment.products.length > 0) {
@@ -120,7 +120,7 @@ export function rackMatches(category, rack) {
 }
 
 export function newReceivingDraft(shipment, inventory, racks = []) {
-  const isInspected = shipment.status === "Inspected";
+  const isInspected = ["Review", "Inspected", "Received", "Complete"].includes(shipment.status);
   const rows = shipmentProducts(shipment, inventory).map((row) => ({
     ...row,
     received: row.received !== undefined ? row.received : row.ordered,

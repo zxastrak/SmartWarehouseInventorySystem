@@ -863,11 +863,11 @@ class WarehouseState extends ChangeNotifier {
           final loc = (p['zone_location'] as String?)?.trim();
           final rackCode =
               loc != null && loc.isNotEmpty
-                  ? (loc.startsWith('RACK-') ? loc : 'RACK-$loc-01-A')
-                  : 'RACK-A1-01-A';
+                  ? loc
+                  : 'A1';
           final zoneCode =
               loc != null && loc.isNotEmpty
-                  ? 'Zone ${loc.substring(0, 1).toUpperCase()}'
+                  ? (loc.startsWith('Zone ') ? loc : 'Zone ${loc.substring(0, 1).toUpperCase()}')
                   : 'Zone A';
           final qty = _parseInt(p['stock_quantity']);
           final prc = _parseDouble(p['price']);

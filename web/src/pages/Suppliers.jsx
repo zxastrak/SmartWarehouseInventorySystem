@@ -369,6 +369,10 @@ export default function Suppliers({
   }, [catalogSearch, catalogCategoryFilter, catalogStockFilter, catalogSort, detailsSupplier?.id]);
 
   function navigate(label) {
+    if (label === 'Warehouse Layout') {
+      onNavigate?.('warehouse-layout');
+      return;
+    }
     const routes = {
       Dashboard: 'dashboard',
       Inventory: 'inventory',

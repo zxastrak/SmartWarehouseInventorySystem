@@ -19,7 +19,7 @@ export default function WarehouseHeader({
   const localSearchRef = useRef(null);
   const inputRef = searchRef || localSearchRef;
 
-  const inspected = shipments.filter((s) => s.status === 'Inspected');
+  const inspected = shipments.filter((s) => ['Review', 'Inspected'].includes(s.status));
   const arrived = shipments.filter((s) => s.status === 'Arrived');
   const totalNotifs = inspected.length + arrived.length;
 

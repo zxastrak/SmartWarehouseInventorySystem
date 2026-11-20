@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test modules/warehouse-layout/test/*.test.js",
+    "seed:large": "node modules/warehouse-layout/scripts/seedLarge.js",
+    "perf:snapshot": "node modules/warehouse-layout/scripts/perfHarness.js snapshot",
+    "perf:harness": "node modules/warehouse-layout/scripts/perfHarness.js"
   },
   "keywords": [],
   "author": "",

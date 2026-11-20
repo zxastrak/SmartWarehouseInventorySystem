@@ -13,6 +13,20 @@ async function initCategories() {
       console.log('Kategori default berhasil ditambahkan ke database.');
     }
 
+    // Inisialisasi master data lokasi fixed rak A1-A10 jika tabel locations kosong
+    try {
+      const [locCount] = await db.query('SELECT COUNT(*) as count FROM locations');
+      if (locCount && locCount[0] && locCount[0].count === 0) {
+        console.log('Master data locations kosong. Mengisi 10 fixed rak default (A1-A10)...');
+        for (let i = 1; i <= 10; i++) {
+          await db.query('INSERT IGNORE INTO locations (location_code, zone) VALUES (?, ?)', [`A${i}`, 'Zone A']);
+        }
+        console.log('10 fixed rak default (A1-A10) berhasil ditambahkan ke database.');
+      }
+    } catch (locErr) {
+      console.warn('Inisialisasi locations warning:', locErr.message);
+    }
+
     // Pastikan kolom pendukung barcode dan hasil inspeksi staf tersedia di tabel inbound
     try {
       await db.query('ALTER TABLE inbound_shipment_items ADD COLUMN barcodes TEXT NULL');

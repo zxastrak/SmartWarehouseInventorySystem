@@ -15,6 +15,10 @@ function AIInsight({ manager, warehouse, items, onReview, onNavigate, onSignOut 
   const points = data.forecast.map((row) => [46 + row.day / 14 * 720, 230 - row.percent / 100 * 165]);
   const line = points.map(([x, y]) => `${x},${y}`).join(" "), area = `M ${points[0][0]} 230 L ${points.map(([x, y]) => `${x} ${y}`).join(" L ")} L 766 230 Z`, estimated = data.forecast.at(-1).stockouts;
   function navigate(label) {
+    if (label === "Warehouse Layout") {
+      onNavigate?.("warehouse-layout");
+      return;
+    }
     if (label === "Suppliers") {
       onNavigate("suppliers");
       return;

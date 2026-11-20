@@ -235,6 +235,10 @@ function PurchaseOrders({
   }
 
   function navigate(label) {
+    if (label === "Warehouse Layout") {
+      onNavigate?.("warehouse-layout");
+      return;
+    }
     if (label === "Suppliers") {
       onNavigate("suppliers");
       return;

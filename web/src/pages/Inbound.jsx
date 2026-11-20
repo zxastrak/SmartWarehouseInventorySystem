@@ -149,6 +149,10 @@ function Inbound({ manager, warehouse, shipments, inventory, racks, receivingDra
     if (detail) dialogRef.current?.showModal();
   }, [detail]);
   function navigate(label) {
+    if (label === "Warehouse Layout") {
+      onNavigate?.("warehouse-layout");
+      return;
+    }
     if (label === "Suppliers") {
       onNavigate("suppliers");
       return;

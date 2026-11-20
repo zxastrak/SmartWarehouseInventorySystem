@@ -19,6 +19,10 @@ function Reports({ manager, warehouse, items, movements, orders, onNavigate, onS
   const inventoryCols = [["name", "Product"], ["sku", "SKU"], ["category", "Product Type"], ["current", "Current"], ["reorder", "Reorder"], ["value", "Value IDR"], ["status", "Status"], ["rack", "Rack"]], orderCols = [["id", "PO"], ["supplier", "Supplier"], ["status", "Status"], ["expected", "Expected"], ["currency", "Currency"], ["total", "Total"]], supplierCols = [["supplier", "Supplier"], ["orders", "Orders"], ["received", "Known accepted units"], ["ordered", "Known ordered units"], ["fulfilment", "Known fulfilment %"], ["completed", "Completed orders"], ["unknown", "Orders with unknown quantities"]];
   const invRows = filtered.map((row) => ({ ...row, value: row.value === null ? "Not provided" : row.value })), orderRows = matchingOrders.map((row) => ({ ...row, total: poTotal(row) }));
   function navigate(label) {
+    if (label === "Warehouse Layout") {
+      onNavigate?.("warehouse-layout");
+      return;
+    }
     if (label === "Suppliers") {
       onNavigate("suppliers");
       return;

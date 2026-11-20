@@ -28,6 +28,7 @@ const appUpdateRoute = require('./routes/appUpdateRoute');
 const qrHistoryRoute = require('./routes/qrHistoryRoute');
 const unitRoute = require('./routes/unitRoute');
 const aiRoute = require('./routes/aiRoute');
+const warehouseLayoutRoute = require('./modules/warehouse-layout/routes/layoutRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -75,7 +76,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Accept', 'If-None-Match', 'X-Requested-With'],
 };
 app.use(cors(corsOptions));
 
@@ -106,6 +107,7 @@ app.use('/api/users', userRoute);
 app.use('/api/upload', uploadRoute);
 app.use('/api/app', appUpdateRoute);
 app.use('/api/ai', aiRoute);
+app.use('/api/warehouse-layout', warehouseLayoutRoute);
 
 app.get('/', (req, res) => {
   res.send('Backend Smart Warehouse jalan!');
@@ -129,6 +131,10 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server jalan di http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server jalan di http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
