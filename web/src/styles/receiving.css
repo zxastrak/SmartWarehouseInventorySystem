@@ -1248,5 +1248,351 @@
   box-shadow: 0 0 0 2px rgba(92, 115, 43, 0.15);
 }
 
+/* Photo Evidence Pill & Cards in Receiving Review */
+.inbound-photo-pill {
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+.inbound-photo-pill:hover {
+  background: #fdecec !important;
+  border-color: #fca5a5 !important;
+  transform: translateY(-1px);
+}
+
+.receiving-evidence-card-preview:hover {
+  border-color: #8a5a5b !important;
+  box-shadow: 0 4px 12px rgba(138, 90, 91, 0.12) !important;
+  transform: translateY(-1px);
+}
+
+.inbound-photo-modal-dialog::backdrop {
+  background: rgba(25, 29, 23, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+/* Small Dropdown Bukti Foto Kerusakan */
+.evidence-small-dropdown {
+  margin-top: 8px;
+  background: #ffffff;
+  border: 1.5px solid #d4dec3;
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.evidence-small-dropdown[open] {
+  border-color: #5c732b;
+  box-shadow: 0 4px 14px rgba(25, 29, 23, 0.08);
+}
+
+.evidence-dropdown-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f8faf5;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #3e5510;
+  list-style: none;
+  transition: background 0.15s ease;
+}
+
+.evidence-dropdown-summary::-webkit-details-marker {
+  display: none;
+}
+
+.evidence-dropdown-summary:hover {
+  background: #eef3e6;
+  color: #273708;
+}
+
+.evidence-dropdown-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.evidence-dropdown-arrow {
+  font-size: 11px;
+  transition: transform 0.2s ease;
+  color: #5c732b;
+}
+
+.evidence-small-dropdown[open] .evidence-dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.evidence-dropdown-content {
+  padding: 6px;
+  background: #ffffff;
+  border-top: 1px solid #edf2e9;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.evidence-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #fafbf8;
+  border: 1px solid #edf2e9;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.evidence-dropdown-item:hover {
+  background: #fdecec;
+  border-color: #fca5a5;
+  transform: translateX(2px);
+}
+
+.evidence-dropdown-item-thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: #f8f9f5;
+  border: 1px solid #dfe4d9;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #737b6c;
+  font-size: 14px;
+}
+
+.evidence-dropdown-item-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.evidence-dropdown-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.evidence-dropdown-item-info strong {
+  display: block;
+  font-size: 12px;
+  color: #191d17;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.evidence-dropdown-item-info small {
+  display: block;
+  font-size: 10.5px;
+  color: #8a5a5b;
+  font-weight: 600;
+}
+
+.evidence-dropdown-item-action {
+  font-size: 11px;
+  font-weight: 700;
+  color: #5c732b;
+  flex-shrink: 0;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 3px 8px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.evidence-dropdown-item:hover .evidence-dropdown-item-action {
+  background: #5c732b;
+  color: #ffffff;
+  border-color: #5c732b;
+}
+
+/* SUSUNO Standard Photo Evidence Modal & Lightbox */
+.evidence-photo-modal-dialog {
+  max-width: 580px;
+  width: 95vw;
+  max-height: 88vh;
+  padding: 0;
+  border-radius: 14px;
+  border: 1px solid #dfe4d9;
+  background: #ffffff;
+  box-shadow: 0 16px 36px rgba(25, 29, 23, 0.16);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.evidence-photo-modal-dialog::backdrop {
+  background: rgba(25, 29, 23, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.evidence-photo-modal-header {
+  padding: 14px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #dfe4d9;
+  background: #f8f9f5;
+}
+
+.evidence-photo-modal-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8a5a5b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+}
+
+.evidence-photo-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #191d17;
+  margin: 2px 0 0;
+}
+
+.evidence-photo-modal-close {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  color: #737b6c;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.evidence-photo-modal-close:hover {
+  color: #191d17;
+  background: #edf2e9;
+}
+
+.evidence-photo-modal-body {
+  padding: 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.evidence-photo-frame {
+  width: 100%;
+  min-height: 240px;
+  max-height: 380px;
+  background: #f8f9f5;
+  border: 1px solid #dfe4d9;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.evidence-photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  max-height: 360px;
+  display: block;
+}
+
+.evidence-photo-empty {
+  padding: 32px 20px;
+  text-align: center;
+  color: #737b6c;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.evidence-photo-empty svg {
+  color: #737b6c;
+  opacity: 0.75;
+}
+
+.evidence-photo-empty strong {
+  font-size: 13px;
+  color: #191d17;
+}
+
+.evidence-photo-empty p {
+  margin: 0;
+  font-size: 12px;
+  color: #737b6c;
+}
+
+.evidence-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.evidence-meta-card {
+  background: #f8f9f5;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #dfe4d9;
+}
+
+.evidence-meta-label {
+  font-size: 11px;
+  color: #737b6c;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.evidence-meta-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: #191d17;
+}
+
+.evidence-meta-val.val-issue {
+  color: #8a5a5b;
+}
+
+.evidence-meta-val.val-dock {
+  color: #3e5510;
+}
+
+.evidence-notes-card {
+  background: #fdecec;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.evidence-notes-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8a5a5b;
+  display: block;
+  margin-bottom: 3px;
+}
+
+.evidence-notes-desc {
+  margin: 0;
+  font-size: 12px;
+  color: #191d17;
+  line-height: 1.4;
+}
+
+.evidence-photo-modal-footer {
+  padding: 12px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #dfe4d9;
+  background: #f8f9f5;
+}
+
 
 

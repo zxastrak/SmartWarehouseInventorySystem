@@ -3,7 +3,7 @@
  * Allows adding and managing Entry Doors, Exit Doors, and Aisles / Walkways.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 export default function ManageAssetsDrawer({
   isOpen,
@@ -86,11 +86,114 @@ export default function ManageAssetsDrawer({
   const [dockWidthM, setDockWidthM] = useState(4.0);
   const [dockLengthM, setDockLengthM] = useState(6.0);
 
+  const handleExpandSide = (direction, amountM = 0.5) => {
+    const amountMm = Math.round(amountM * 1000);
+    if (editingAssetId && onUpdateAsset) {
+      if (editingAssetType === 'aisle' || activeTab === 'aisle') {
+        const aisle = (existingAisles || []).find((a) => String(a.id) === String(editingAssetId));
+        if (aisle) {
+          let newX = aisle.x_mm || 0;
+          let newY = aisle.y_mm || 0;
+          let newW = aisle.width_mm || 2000;
+          let newL = aisle.length_mm || 5000;
+
+          const isFk = aisle.type === 'forklift' || String(aisle.name || '').toLowerCase().includes('forklift') || aisle.direction === 'forklift';
+          const isHoriz = (aisle.width_mm || 2000) >= (aisle.length_mm || 5000);
+
+          if (isFk) {
+            // "kunci lebar forklift sesuai dengan yang diinput oleh user, jadi khusus forklift tidak bisa membesar atau mengecil"
+            // Hanya panjang koridor jalan yang dapat dilebarkan, lebar penampang dikunci
+            if (isHoriz && (direction === 'top' || direction === 'bottom')) return;
+            if (!isHoriz && (direction === 'left' || direction === 'right')) return;
+          }
+
+          if (direction === 'left') {
+            newX = Math.max(0, newX - amountMm);
+            newW = aisle.width_mm + (aisle.x_mm - newX);
+          } else if (direction === 'right') {
+            newW = newW + amountMm;
+          } else if (direction === 'top') {
+            newY = Math.max(0, newY - amountMm);
+            newL = aisle.length_mm + (aisle.y_mm - newY);
+          } else if (direction === 'bottom') {
+            newL = newL + amountMm;
+          }
+
+          if (isFk) {
+            if (isHoriz) newL = aisle.length_mm;
+            else newW = aisle.width_mm;
+          }
+
+          const wM = Math.round((newW / 1000) * 10) / 10;
+          const lM = Math.round((newL / 1000) * 10) / 10;
+          setAisleWidthM(wM);
+          setAisleLengthM(lM);
+
+          onUpdateAsset('aisle', editingAssetId, {
+            x_mm: newX,
+            y_mm: newY,
+            width_mm: newW,
+            length_mm: newL,
+          });
+          return;
+        }
+      }
+
+      const dock = (existingAssets || []).find((a) => String(a.id) === String(editingAssetId));
+      if (dock) {
+        let newX = dock.x_mm || 0;
+        let newY = dock.y_mm || 0;
+        let newW = dock.width_mm || 4000;
+        let newL = dock.length_mm || 6000;
+
+        if (direction === 'left') {
+          newX = Math.max(0, newX - amountMm);
+          newW = dock.width_mm + (dock.x_mm - newX);
+        } else if (direction === 'right') {
+          newW = newW + amountMm;
+        } else if (direction === 'top') {
+          newY = Math.max(0, newY - amountMm);
+          newL = dock.length_mm + (dock.y_mm - newY);
+        } else if (direction === 'bottom') {
+          newL = newL + amountMm;
+        }
+
+        const wM = Math.round((newW / 1000) * 10) / 10;
+        const lM = Math.round((newL / 1000) * 10) / 10;
+        setDockWidthM(wM);
+        setDockLengthM(lM);
+
+        onUpdateAsset('layout_object', editingAssetId, {
+          x_mm: newX,
+          y_mm: newY,
+          width_mm: newW,
+          length_mm: newL,
+        });
+        return;
+      }
+    }
+
+    if (direction === 'left' || direction === 'right') {
+      const newW = Math.max(1.0, Math.round((Number(dockWidthM) + amountM) * 10) / 10);
+      setDockWidthM(newW);
+      if (isFillDockMode && onToggleFillDockMode) {
+        onToggleFillDockMode({ name: dockName, widthM: newW, lengthM: dockLengthM });
+      }
+    } else {
+      const newL = Math.max(1.0, Math.round((Number(dockLengthM) + amountM) * 10) / 10);
+      setDockLengthM(newL);
+      if (isFillDockMode && onToggleFillDockMode) {
+        onToggleFillDockMode({ name: dockName, widthM: dockWidthM, lengthM: newL });
+      }
+    }
+  };
+
   // Aisle State
   const [selectedAisleType, setSelectedAisleType] = useState('standard'); // 'standard' | 'forklift'
   const [aisleCode, setAisleCode] = useState('');
   const [aisleName, setAisleName] = useState('Jalur Standar');
   const [aisleWidthM, setAisleWidthM] = useState(1.5);
+  const [aisleLengthM, setAisleLengthM] = useState(5.0);
   const [aisleDirection, setAisleDirection] = useState('two_way');
   const [showAllAssets, setShowAllAssets] = useState(false);
 
@@ -136,19 +239,24 @@ export default function ManageAssetsDrawer({
     }
   };
 
+  const prevSelectedIdRef = useRef(null);
+
   // Reset tab ke default dan pastikan mode gambar jalan nonaktif saat drawer ditutup
   useEffect(() => {
     if (!isOpen) {
       setActiveTab('door');
       setEditingAssetId(null);
       setEditingAssetType(null);
+      prevSelectedIdRef.current = null;
     }
   }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
-      if (selectedAssets && selectedAssets.length > 0) {
-        const first = selectedAssets[0];
+      const first = selectedAssets && selectedAssets.length > 0 ? selectedAssets[0] : null;
+      const firstId = first ? String(first.id) : null;
+      if (firstId && firstId !== prevSelectedIdRef.current) {
+        prevSelectedIdRef.current = firstId;
         const t = String(first.object_type || first.type || '').toLowerCase();
         const isDoor = t.includes('door') || t.includes('entry') || t.includes('exit');
         const isDock = t.includes('dock');
@@ -177,8 +285,11 @@ export default function ManageAssetsDrawer({
           const isFk = first.direction === 'forklift' || String(first.type || '').includes('forklift');
           setSelectedAisleType(isFk ? 'forklift' : 'standard');
           setAisleWidthM(Math.round(((Number(first.width_mm) || 1500) / 1000) * 10) / 10);
+          setAisleLengthM(Math.round(((Number(first.length_mm) || 5000) / 1000) * 10) / 10);
           setAisleDirection(first.direction || (isFk ? 'forklift' : 'two_way'));
         }
+      } else if (!firstId) {
+        prevSelectedIdRef.current = null;
       }
     }
   }, [isOpen, selectedAssets]);
@@ -214,6 +325,7 @@ export default function ManageAssetsDrawer({
       const isFk = item.direction === 'forklift' || String(item.type || '').includes('forklift');
       setSelectedAisleType(isFk ? 'forklift' : 'standard');
       setAisleWidthM(Math.round(((Number(item.width_mm) || 1500) / 1000) * 10) / 10);
+      setAisleLengthM(Math.round(((Number(item.length_mm) || 5000) / 1000) * 10) / 10);
       setAisleDirection(item.direction || (isFk ? 'forklift' : 'two_way'));
       if (onSelectAsset) onSelectAsset('aisle', item.id);
     }
@@ -224,11 +336,18 @@ export default function ManageAssetsDrawer({
     if (editingAssetId) {
       if (editingAssetType === 'door' || activeTab === 'door') {
         if (onUpdateAsset) {
+          const currentDoor = (existingAssets || []).find((a) => String(a.id) === String(editingAssetId));
+          const isVerticalWall = currentDoor && (Number(currentDoor.length_mm) || 0) > (Number(currentDoor.width_mm) || 0);
+          const span_mm = Math.max(1000, Math.round(Number(doorWidthM) * 1000));
+          const clampedH = Math.min(Math.max(minDoorHeightM, Number(doorHeightM) || 2.0), maxDoorHeightM);
+          const height_mm = Math.round(clampedH * 1000);
+
           onUpdateAsset('layout_object', editingAssetId, {
             name: doorName.trim() || 'Pintu',
             object_type: doorType,
-            width_mm: Math.max(600, Math.round(Number(doorWidthM) * 1000)),
-            height_mm: Math.max(1800, Math.round(Number(doorHeightM) * 1000)),
+            width_mm: isVerticalWall ? 600 : span_mm,
+            length_mm: isVerticalWall ? span_mm : 600,
+            height_mm,
           });
         }
       } else if (editingAssetType === 'dock' || activeTab === 'dock') {
@@ -242,11 +361,13 @@ export default function ManageAssetsDrawer({
       } else if (editingAssetType === 'aisle' || activeTab === 'aisle') {
         const isFk = selectedAisleType === 'forklift';
         const targetWidthM = Number(aisleWidthM) || (isFk ? forkliftLaneWidthM : localAisleWidthM);
+        const targetLengthM = Number(aisleLengthM) || 5.0;
         if (onUpdateAsset) {
           onUpdateAsset('aisle', editingAssetId, {
             name: aisleName.trim() || (isFk ? 'Jalur Forklift' : 'Jalur Standar'),
             aisle_code: aisleCode.trim(),
             width_mm: Math.max(300, Math.round(targetWidthM * 1000)),
+            length_mm: Math.max(300, Math.round(targetLengthM * 1000)),
             direction: isFk ? 'forklift' : (aisleDirection || 'two_way'),
           });
         }
@@ -271,6 +392,10 @@ export default function ManageAssetsDrawer({
 
   const handleSelectDoorTab = () => {
     setActiveTab('door');
+    if (editingAssetType && editingAssetType !== 'door') {
+      setEditingAssetId(null);
+      setEditingAssetType(null);
+    }
     if (isFillAisleMode && onToggleFillAisleMode) {
       onToggleFillAisleMode(null, false);
     }
@@ -281,6 +406,10 @@ export default function ManageAssetsDrawer({
 
   const handleSelectDockTab = () => {
     setActiveTab('dock');
+    if (editingAssetType && editingAssetType !== 'dock') {
+      setEditingAssetId(null);
+      setEditingAssetType(null);
+    }
     if (isFillAisleMode && onToggleFillAisleMode) {
       onToggleFillAisleMode(null, false);
     }
@@ -288,28 +417,23 @@ export default function ManageAssetsDrawer({
 
   const handleSelectAisleTab = () => {
     setActiveTab('aisle');
+    if (editingAssetType && editingAssetType !== 'aisle') {
+      setEditingAssetId(null);
+      setEditingAssetType(null);
+    }
     if (isFillDockMode && onToggleFillDockMode) {
       onToggleFillDockMode(null, false);
-    }
-    if (onEnsureSlotGrid) onEnsureSlotGrid();
-    if (onToggleFillAisleMode) {
-      onToggleFillAisleMode(
-        {
-          type: selectedAisleType,
-          name: aisleName.trim() || (selectedAisleType === 'forklift' ? 'Jalur Forklift' : 'Jalan Lorong'),
-          code: aisleCode.trim() || (selectedAisleType === 'forklift' ? 'FK' : 'A'),
-          widthM: Number(aisleWidthM) || (selectedAisleType === 'forklift' ? forkliftLaneWidthM : localAisleWidthM),
-          direction: aisleDirection,
-        },
-        true
-      );
     }
   };
 
   if (!isOpen) return null;
 
   const handleCreateDoor = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    if (editingAssetId) {
+      handleSaveClick(e);
+      return;
+    }
     const width_mm = Math.max(1000, Math.round(Number(doorWidthM) * 1000));
     const length_mm = 600; // tebal kusen dinding
     const clampedH = Math.min(Math.max(minDoorHeightM, Number(doorHeightM) || 2.0), maxDoorHeightM);
@@ -349,7 +473,11 @@ export default function ManageAssetsDrawer({
   };
 
   const handleCreateAisle = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    if (editingAssetId) {
+      handleSaveClick(e);
+      return;
+    }
     if (onEnsureSlotGrid) onEnsureSlotGrid();
     const isForklift = selectedAisleType === 'forklift';
     const prefix = isForklift ? 'FK' : 'A';
@@ -385,6 +513,10 @@ export default function ManageAssetsDrawer({
 
   const handleCreateDock = (e) => {
     if (e) e.preventDefault();
+    if (editingAssetId) {
+      handleSaveClick(e);
+      return;
+    }
     const width_mm = Math.max(1000, Math.round(Number(dockWidthM) * 1000));
     const length_mm = Math.max(1000, Math.round(Number(dockLengthM) * 1000));
 
@@ -739,9 +871,11 @@ export default function ManageAssetsDrawer({
                   onChange={(e) => {
                     const val = e.target.value;
                     setDoorType(val);
-                    if (val === 'door_both') setDoorName('Pintu Masuk & Keluar');
-                    else if (val === 'door_entry') setDoorName('Pintu Masuk Inbound');
-                    else if (val === 'door_exit') setDoorName('Pintu Keluar Outbound');
+                    if (!editingAssetId) {
+                      if (val === 'door_both') setDoorName('Pintu Masuk & Keluar');
+                      else if (val === 'door_entry') setDoorName('Pintu Masuk Inbound');
+                      else if (val === 'door_exit') setDoorName('Pintu Keluar Outbound');
+                    }
                   }}
                   style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.88rem', fontWeight: 600 }}
                 >
@@ -750,6 +884,131 @@ export default function ManageAssetsDrawer({
                   <option value="door_exit">🚪 Pintu Keluar Saja (Outbound Exit)</option>
                 </select>
               </label>
+
+              {/* Opsi Lebarkan Salah Satu Sisi Jalan */}
+              {(() => {
+                const curAisle = editingAssetId ? (existingAisles || []).find((a) => String(a.id) === String(editingAssetId)) : null;
+                const isFk = curAisle
+                  ? (curAisle.type === 'forklift' || String(curAisle.name || '').toLowerCase().includes('forklift') || curAisle.direction === 'forklift')
+                  : (aisleDirection === 'forklift');
+                const isHoriz = curAisle ? ((curAisle.width_mm || 2000) >= (curAisle.length_mm || 5000)) : true;
+                const lockedWidthM = curAisle
+                  ? ((isHoriz ? curAisle.length_mm : curAisle.width_mm) / 1000).toFixed(1)
+                  : aisleWidthM;
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+                      Lebarkan Salah Satu Sisi Jalan:
+                    </span>
+                    {isFk && (
+                      <div style={{ padding: '6px 10px', backgroundColor: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', fontSize: '0.74rem', color: '#92400e', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>🔒 Lebar jalur forklift ({lockedWidthM}m) dikunci sesuai input (hanya panjang lorong yang dapat diubah)</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                        <button
+                          type="button"
+                          disabled={isFk && !isHoriz}
+                          onClick={() => handleExpandSide('left', 0.5)}
+                          style={{
+                            padding: '8px 10px',
+                            backgroundColor: (isFk && !isHoriz) ? '#f1f5f9' : '#fefce8',
+                            border: `1px solid ${(isFk && !isHoriz) ? '#cbd5e1' : '#fde047'}`,
+                            borderRadius: '6px',
+                            fontSize: '0.76rem',
+                            fontWeight: 600,
+                            color: (isFk && !isHoriz) ? '#94a3b8' : '#854d0e',
+                            cursor: (isFk && !isHoriz) ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            opacity: (isFk && !isHoriz) ? 0.6 : 1,
+                          }}
+                          title={isFk && !isHoriz ? 'Lebar penampang forklift terkunci' : 'Lebarkan jalan ke arah kiri (+0.5m)'}
+                        >
+                          ⬅️ Sisi Kiri (+0.5m)
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isFk && !isHoriz}
+                          onClick={() => handleExpandSide('right', 0.5)}
+                          style={{
+                            padding: '8px 10px',
+                            backgroundColor: (isFk && !isHoriz) ? '#f1f5f9' : '#fefce8',
+                            border: `1px solid ${(isFk && !isHoriz) ? '#cbd5e1' : '#fde047'}`,
+                            borderRadius: '6px',
+                            fontSize: '0.76rem',
+                            fontWeight: 600,
+                            color: (isFk && !isHoriz) ? '#94a3b8' : '#854d0e',
+                            cursor: (isFk && !isHoriz) ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            opacity: (isFk && !isHoriz) ? 0.6 : 1,
+                          }}
+                          title={isFk && !isHoriz ? 'Lebar penampang forklift terkunci' : 'Lebarkan jalan ke arah kanan (+0.5m)'}
+                        >
+                          ➡️ Sisi Kanan (+0.5m)
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isFk && isHoriz}
+                          onClick={() => handleExpandSide('top', 0.5)}
+                          style={{
+                            padding: '8px 10px',
+                            backgroundColor: (isFk && isHoriz) ? '#f1f5f9' : '#fefce8',
+                            border: `1px solid ${(isFk && isHoriz) ? '#cbd5e1' : '#fde047'}`,
+                            borderRadius: '6px',
+                            fontSize: '0.76rem',
+                            fontWeight: 600,
+                            color: (isFk && isHoriz) ? '#94a3b8' : '#854d0e',
+                            cursor: (isFk && isHoriz) ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            opacity: (isFk && isHoriz) ? 0.6 : 1,
+                          }}
+                          title={isFk && isHoriz ? 'Lebar penampang forklift terkunci' : 'Lebarkan jalan ke arah atas (+0.5m)'}
+                        >
+                          ⬆️ Sisi Atas (+0.5m)
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isFk && isHoriz}
+                          onClick={() => handleExpandSide('bottom', 0.5)}
+                          style={{
+                            padding: '8px 10px',
+                            backgroundColor: (isFk && isHoriz) ? '#f1f5f9' : '#fefce8',
+                            border: `1px solid ${(isFk && isHoriz) ? '#cbd5e1' : '#fde047'}`,
+                            borderRadius: '6px',
+                            fontSize: '0.76rem',
+                            fontWeight: 600,
+                            color: (isFk && isHoriz) ? '#94a3b8' : '#854d0e',
+                            cursor: (isFk && isHoriz) ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            opacity: (isFk && isHoriz) ? 0.6 : 1,
+                          }}
+                          title={isFk && isHoriz ? 'Lebar penampang forklift terkunci' : 'Lebarkan jalan ke arah bawah (+0.5m)'}
+                        >
+                          ⬇️ Sisi Bawah (+0.5m)
+                        </button>
+                      </div>
+
+                      <div style={{ fontSize: '0.7rem', color: '#64748b', fontStyle: 'italic', marginTop: 2 }}>
+                        💡 Tip: Anda juga dapat langsung menarik handle kotak di ujung jalan pada kanvas untuk memperpanjang/memperpendek lorong.
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
                 Nama Pintu:
@@ -802,27 +1061,76 @@ export default function ManageAssetsDrawer({
                 💡 Minimal 2.0m, maksimal {maxDoorHeightM}m (1.5m sebelum ujung atap gudang {whHeightM}m). Pintu otomatis nempel pada dinding.
               </span>
 
-              <button
-                type="submit"
-                style={{
-                  marginTop: 6,
-                  padding: '10px 16px',
-                  backgroundColor: doorType === 'door_both' ? '#2563eb' : doorType === 'door_exit' ? '#dc2626' : '#16a34a',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: 700,
-                  fontSize: '0.9rem',
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                }}
-              >
-                + Tambah Pintu Baru ke Dinding
-              </button>
+              {editingAssetId ? (
+                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                  <button
+                    type="submit"
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      backgroundColor: '#15803d',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: 700,
+                      fontSize: '0.9rem',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 6px rgba(21, 128, 61, 0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                    }}
+                    title="Simpan pembaruan ukuran & spesifikasi pintu ini"
+                  >
+                    💾 Simpan Perubahan Pintu
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingAssetId(null);
+                      setEditingAssetType(null);
+                      setDoorName('Pintu Masuk & Keluar');
+                    }}
+                    style={{
+                      padding: '10px 14px',
+                      backgroundColor: '#f1f5f9',
+                      color: '#334155',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title="Batal edit dan beralih ke mode pasang pintu baru"
+                  >
+                    + Pintu Baru
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="submit"
+                  style={{
+                    marginTop: 6,
+                    padding: '10px 16px',
+                    backgroundColor: doorType === 'door_both' ? '#2563eb' : doorType === 'door_exit' ? '#dc2626' : '#16a34a',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                >
+                  + Tambah Pintu Baru ke Dinding
+                </button>
+              )}
             </form>
           </div>
         )}
@@ -910,72 +1218,390 @@ export default function ManageAssetsDrawer({
                 />
               </label>
 
-              {/* Tampilan Ukuran Dok (Read-only Display Ukuran Dok) */}
+              {/* Pengaturan Ukuran & Dimensi Dok */}
               <div
                 style={{
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '11px 14px',
-                  backgroundColor: '#eff6ff',
-                  border: '1px solid #bfdbfe',
+                  flexDirection: 'column',
+                  gap: 12,
+                  padding: '12px 14px',
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #e2e8f0',
                   borderRadius: '8px',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: '1.4rem' }}>📐</span>
-                  <div>
-                    <div style={{ fontSize: '0.74rem', color: '#1e40af', fontWeight: 600 }}>
-                      Ukuran Dok (Standar Armada Truk)
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: '1rem' }}>📐</span>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>
+                      Dimensi Dok Bongkar Muat
+                    </span>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      color: '#2563eb',
+                      backgroundColor: '#eff6ff',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      border: '1px solid #bfdbfe',
+                    }}
+                  >
+                    Luas: {(Number(dockWidthM) * Number(dockLengthM)).toFixed(1)} m²
+                  </span>
+                </div>
+
+                {/* Kontrol Lebar & Panjang */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {/* Lebar (Horizontal) */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#475569' }}>
+                      Lebar Horizontal (m)
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newW = Math.max(1.0, Math.round((Number(dockWidthM) - 0.5) * 10) / 10);
+                          setDockWidthM(newW);
+                          if (editingAssetId && onUpdateAsset) {
+                            onUpdateAsset('layout_object', editingAssetId, {
+                              width_mm: Math.round(newW * 1000),
+                            });
+                          }
+                        }}
+                        style={{
+                          width: 30,
+                          height: 34,
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          backgroundColor: '#ffffff',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          fontSize: '0.9rem',
+                        }}
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="1"
+                        value={dockWidthM}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 1;
+                          setDockWidthM(val);
+                          if (editingAssetId && onUpdateAsset) {
+                            onUpdateAsset('layout_object', editingAssetId, {
+                              width_mm: Math.round(val * 1000),
+                            });
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '6px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '0.85rem',
+                          textAlign: 'center',
+                          fontWeight: 600,
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newW = Math.round((Number(dockWidthM) + 0.5) * 10) / 10;
+                          setDockWidthM(newW);
+                          if (editingAssetId && onUpdateAsset) {
+                            onUpdateAsset('layout_object', editingAssetId, {
+                              width_mm: Math.round(newW * 1000),
+                            });
+                          }
+                        }}
+                        style={{
+                          width: 30,
+                          height: 34,
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          backgroundColor: '#ffffff',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          fontSize: '0.9rem',
+                        }}
+                      >
+                        +
+                      </button>
                     </div>
-                    <div style={{ fontSize: '1rem', fontWeight: 700, color: '#1d4ed8' }}>
-                      {dockWidthM}m × {dockLengthM}m{' '}
-                      <span style={{ fontSize: '0.76rem', fontWeight: 500, color: '#3b82f6' }}>
-                        ({Number(dockWidthM) * Number(dockLengthM)} m²)
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '0.71rem', color: '#64748b', marginTop: 2 }}>
-                      Ukuran fleksibel: Tentukan luas area langsung dengan <strong>Drag &amp; Fill</strong> di kanvas
+                  </div>
+
+                  {/* Panjang (Vertikal) */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#475569' }}>
+                      Panjang Vertikal (m)
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newL = Math.max(1.0, Math.round((Number(dockLengthM) - 0.5) * 10) / 10);
+                          setDockLengthM(newL);
+                          if (editingAssetId && onUpdateAsset) {
+                            onUpdateAsset('layout_object', editingAssetId, {
+                              length_mm: Math.round(newL * 1000),
+                            });
+                          }
+                        }}
+                        style={{
+                          width: 30,
+                          height: 34,
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          backgroundColor: '#ffffff',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          fontSize: '0.9rem',
+                        }}
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="1"
+                        value={dockLengthM}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 1;
+                          setDockLengthM(val);
+                          if (editingAssetId && onUpdateAsset) {
+                            onUpdateAsset('layout_object', editingAssetId, {
+                              length_mm: Math.round(val * 1000),
+                            });
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '6px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '0.85rem',
+                          textAlign: 'center',
+                          fontWeight: 600,
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newL = Math.round((Number(dockLengthM) + 0.5) * 10) / 10;
+                          setDockLengthM(newL);
+                          if (editingAssetId && onUpdateAsset) {
+                            onUpdateAsset('layout_object', editingAssetId, {
+                              length_mm: Math.round(newL * 1000),
+                            });
+                          }
+                        }}
+                        style={{
+                          width: 30,
+                          height: 34,
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          backgroundColor: '#ffffff',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          fontSize: '0.9rem',
+                        }}
+                      >
+                        +
+                      </button>
                     </div>
                   </div>
                 </div>
-                <span
+
+                {/* Bagian: Melebarkan Salah Satu Sisi Dok */}
+                <div
                   style={{
-                    fontSize: '0.72rem',
-                    fontWeight: 600,
-                    backgroundColor: '#dbeafe',
-                    color: '#1e40af',
-                    padding: '4px 8px',
-                    borderRadius: '6px',
-                    border: '1px solid #93c5fd',
-                    whiteSpace: 'nowrap',
+                    marginTop: 4,
+                    padding: '10px 12px',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '7px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
                   }}
                 >
-                  Standar Truk
-                </span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b' }}>
+                      ↔️ Opsi Melebarkan Salah Satu Sisi:
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                      Langkah +0.5m
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => handleExpandSide('left', 0.5)}
+                      style={{
+                        padding: '8px 10px',
+                        backgroundColor: '#eff6ff',
+                        border: '1px solid #93c5fd',
+                        borderRadius: '6px',
+                        fontSize: '0.76rem',
+                        fontWeight: 600,
+                        color: '#1d4ed8',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                      }}
+                      title="Lebarkan dok ke arah kiri (+0.5m)"
+                    >
+                      ⬅️ Sisi Kiri (+0.5m)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExpandSide('right', 0.5)}
+                      style={{
+                        padding: '8px 10px',
+                        backgroundColor: '#eff6ff',
+                        border: '1px solid #93c5fd',
+                        borderRadius: '6px',
+                        fontSize: '0.76rem',
+                        fontWeight: 600,
+                        color: '#1d4ed8',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                      }}
+                      title="Lebarkan dok ke arah kanan (+0.5m)"
+                    >
+                      ➡️ Sisi Kanan (+0.5m)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExpandSide('top', 0.5)}
+                      style={{
+                        padding: '8px 10px',
+                        backgroundColor: '#eff6ff',
+                        border: '1px solid #93c5fd',
+                        borderRadius: '6px',
+                        fontSize: '0.76rem',
+                        fontWeight: 600,
+                        color: '#1d4ed8',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                      }}
+                      title="Lebarkan dok ke arah atas (+0.5m)"
+                    >
+                      ⬆️ Sisi Atas (+0.5m)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExpandSide('bottom', 0.5)}
+                      style={{
+                        padding: '8px 10px',
+                        backgroundColor: '#eff6ff',
+                        border: '1px solid #93c5fd',
+                        borderRadius: '6px',
+                        fontSize: '0.76rem',
+                        fontWeight: 600,
+                        color: '#1d4ed8',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                      }}
+                      title="Lebarkan dok ke arah bawah (+0.5m)"
+                    >
+                      ⬇️ Sisi Bawah (+0.5m)
+                    </button>
+                  </div>
+
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontStyle: 'italic', marginTop: 2 }}>
+                    💡 Tip: Anda juga dapat langsung menarik salah satu dari 8 titik (handle) kotak di tepi Dok pada kanvas untuk melebarkan sisi yang diinginkan.
+                  </div>
+                </div>
               </div>
 
-              <button
-                type="submit"
-                style={{
-                  marginTop: 6,
-                  padding: '10px 16px',
-                  backgroundColor: '#2563eb',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: 700,
-                  fontSize: '0.9rem',
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 6px rgba(37,99,235,0.3)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                }}
-              >
-                + Tambah Area Dok Baru
-              </button>
+              {editingAssetId ? (
+                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                  <button
+                    type="submit"
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      backgroundColor: '#15803d',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: 700,
+                      fontSize: '0.9rem',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 6px rgba(21, 128, 61, 0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                    }}
+                    title="Simpan pembaruan ukuran & spesifikasi area dok ini"
+                  >
+                    💾 Simpan Perubahan Dok
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingAssetId(null);
+                      setEditingAssetType(null);
+                      setDockName('Dok Standar');
+                    }}
+                    style={{
+                      padding: '10px 14px',
+                      backgroundColor: '#f1f5f9',
+                      color: '#334155',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title="Batal edit dan beralih ke mode tambah area dok baru"
+                  >
+                    + Dok Baru
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="submit"
+                  style={{
+                    marginTop: 6,
+                    padding: '10px 16px',
+                    backgroundColor: '#2563eb',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(37,99,235,0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                >
+                  + Tambah Area Dok Baru
+                </button>
+              )}
             </form>
           </div>
         )}
@@ -1616,29 +2242,202 @@ export default function ManageAssetsDrawer({
                 </select>
               </label>
 
-              <button
-                type="submit"
-                style={{
-                  marginTop: 6,
-                  padding: '10px 16px',
-                  backgroundColor: selectedAisleType === 'forklift' ? '#d97706' : '#5c732b',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: 700,
-                  fontSize: '0.9rem',
-                  cursor: 'pointer',
-                  boxShadow: selectedAisleType === 'forklift'
-                    ? '0 2px 6px rgba(217, 119, 6, 0.3)'
-                    : '0 2px 6px rgba(92, 115, 43, 0.3)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                }}
-              >
-                + Tambah Jalur Jalan Baru
-              </button>
+              {/* Opsi Lebarkan Salah Satu Sisi Jalan */}
+              {(() => {
+                const curAisle = editingAssetId ? (existingAisles || []).find((a) => String(a.id) === String(editingAssetId)) : null;
+                const isFk = curAisle
+                  ? (curAisle.type === 'forklift' || String(curAisle.name || '').toLowerCase().includes('forklift') || curAisle.direction === 'forklift')
+                  : (aisleDirection === 'forklift');
+                const isHoriz = curAisle ? ((curAisle.width_mm || 2000) >= (curAisle.length_mm || 5000)) : true;
+                const lockedWidthM = curAisle
+                  ? ((isHoriz ? curAisle.length_mm : curAisle.width_mm) / 1000).toFixed(1)
+                  : aisleWidthM;
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+                      Lebarkan Salah Satu Sisi Jalan:
+                    </span>
+                    {isFk && (
+                      <div style={{ padding: '6px 10px', backgroundColor: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', fontSize: '0.74rem', color: '#92400e', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>🔒 Lebar jalur forklift ({lockedWidthM}m) dikunci sesuai input (hanya panjang lorong yang dapat diubah)</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                        <button
+                          type="button"
+                          disabled={isFk && !isHoriz}
+                          onClick={() => handleExpandSide('left', 0.5)}
+                          style={{
+                            padding: '8px 10px',
+                            backgroundColor: (isFk && !isHoriz) ? '#f1f5f9' : '#fefce8',
+                            border: `1px solid ${(isFk && !isHoriz) ? '#cbd5e1' : '#fde047'}`,
+                            borderRadius: '6px',
+                            fontSize: '0.76rem',
+                            fontWeight: 600,
+                            color: (isFk && !isHoriz) ? '#94a3b8' : '#854d0e',
+                            cursor: (isFk && !isHoriz) ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            opacity: (isFk && !isHoriz) ? 0.6 : 1,
+                          }}
+                          title={isFk && !isHoriz ? 'Lebar penampang forklift terkunci' : 'Lebarkan jalan ke arah kiri (+0.5m)'}
+                        >
+                          ⬅️ Sisi Kiri (+0.5m)
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isFk && !isHoriz}
+                          onClick={() => handleExpandSide('right', 0.5)}
+                          style={{
+                            padding: '8px 10px',
+                            backgroundColor: (isFk && !isHoriz) ? '#f1f5f9' : '#fefce8',
+                            border: `1px solid ${(isFk && !isHoriz) ? '#cbd5e1' : '#fde047'}`,
+                            borderRadius: '6px',
+                            fontSize: '0.76rem',
+                            fontWeight: 600,
+                            color: (isFk && !isHoriz) ? '#94a3b8' : '#854d0e',
+                            cursor: (isFk && !isHoriz) ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            opacity: (isFk && !isHoriz) ? 0.6 : 1,
+                          }}
+                          title={isFk && !isHoriz ? 'Lebar penampang forklift terkunci' : 'Lebarkan jalan ke arah kanan (+0.5m)'}
+                        >
+                          ➡️ Sisi Kanan (+0.5m)
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isFk && isHoriz}
+                          onClick={() => handleExpandSide('top', 0.5)}
+                          style={{
+                            padding: '8px 10px',
+                            backgroundColor: (isFk && isHoriz) ? '#f1f5f9' : '#fefce8',
+                            border: `1px solid ${(isFk && isHoriz) ? '#cbd5e1' : '#fde047'}`,
+                            borderRadius: '6px',
+                            fontSize: '0.76rem',
+                            fontWeight: 600,
+                            color: (isFk && isHoriz) ? '#94a3b8' : '#854d0e',
+                            cursor: (isFk && isHoriz) ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            opacity: (isFk && isHoriz) ? 0.6 : 1,
+                          }}
+                          title={isFk && isHoriz ? 'Lebar penampang forklift terkunci' : 'Lebarkan jalan ke arah atas (+0.5m)'}
+                        >
+                          ⬆️ Sisi Atas (+0.5m)
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isFk && isHoriz}
+                          onClick={() => handleExpandSide('bottom', 0.5)}
+                          style={{
+                            padding: '8px 10px',
+                            backgroundColor: (isFk && isHoriz) ? '#f1f5f9' : '#fefce8',
+                            border: `1px solid ${(isFk && isHoriz) ? '#cbd5e1' : '#fde047'}`,
+                            borderRadius: '6px',
+                            fontSize: '0.76rem',
+                            fontWeight: 600,
+                            color: (isFk && isHoriz) ? '#94a3b8' : '#854d0e',
+                            cursor: (isFk && isHoriz) ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            opacity: (isFk && isHoriz) ? 0.6 : 1,
+                          }}
+                          title={isFk && isHoriz ? 'Lebar penampang forklift terkunci' : 'Lebarkan jalan ke arah bawah (+0.5m)'}
+                        >
+                          ⬇️ Sisi Bawah (+0.5m)
+                        </button>
+                      </div>
+
+                      <div style={{ fontSize: '0.7rem', color: '#64748b', fontStyle: 'italic', marginTop: 2 }}>
+                        💡 Tip: Anda juga dapat langsung menarik handle kotak di ujung jalan pada kanvas untuk memperpanjang/memperpendek lorong.
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {editingAssetId ? (
+                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                  <button
+                    type="submit"
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      backgroundColor: '#15803d',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: 700,
+                      fontSize: '0.9rem',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 6px rgba(21, 128, 61, 0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                    }}
+                    title="Simpan pembaruan ukuran & spesifikasi jalur jalan ini"
+                  >
+                    💾 Simpan Perubahan Jalan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingAssetId(null);
+                      setEditingAssetType(null);
+                    }}
+                    style={{
+                      padding: '10px 14px',
+                      backgroundColor: '#f1f5f9',
+                      color: '#334155',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title="Batal edit dan beralih ke mode tambah jalan baru"
+                  >
+                    + Jalan Baru
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="submit"
+                  style={{
+                    marginTop: 6,
+                    padding: '10px 16px',
+                    backgroundColor: selectedAisleType === 'forklift' ? '#d97706' : '#5c732b',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    boxShadow: selectedAisleType === 'forklift'
+                      ? '0 2px 6px rgba(217, 119, 6, 0.3)'
+                      : '0 2px 6px rgba(92, 115, 43, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                >
+                  + Tambah Jalur Jalan Baru
+                </button>
+              )}
             </form>
           </div>
         )}

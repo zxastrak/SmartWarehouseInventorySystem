@@ -37,6 +37,18 @@ function requirePermission(permission) {
       });
     }
 
+    // Granular Per-Warehouse Scope Guard
+    const targetWhId = req.params?.warehouseId || req.params?.id;
+    const assignedWhId = req.user?.assigned_warehouse_id || req.user?.warehouse_id;
+    if (assignedWhId && targetWhId && String(assignedWhId) !== String(targetWhId) && userRole !== 'manager') {
+      return res.status(403).json({
+        error: 'WAREHOUSE_SCOPE_DENIED',
+        code: 'WAREHOUSE_SCOPE_DENIED',
+        message: `Akses ditolak: Anda tidak memiliki wewenang pada gudang ID ${targetWhId}`,
+        requestId: req.requestId,
+      });
+    }
+
     next();
   };
 }

@@ -28,6 +28,7 @@ export function shipmentProducts(shipment, inventory = []) {
         ? safeBarcodes
         : (isInspected ? Array.from({ length: Math.max(0, actualReceived) }, (_, idx) => `${code}-${String(idx + 1).padStart(3, '0')}`) : []);
 
+      const itemEvidence = row.damage_photo || row.evidence_url || (damaged > 0 ? shipment.evidence_url : null);
       return {
         sku: code || `SKU-${Math.random().toString(36).substring(7)}`,
         name,
@@ -42,6 +43,8 @@ export function shipmentProducts(shipment, inventory = []) {
         image_url: row.image_url || inv?.image_url || null,
         assigned_staff: row.assigned_staff || row.staff || shipment.assigned_staff || shipment.staff || "Semua Staf Lapangan",
         notes: row.notes || inv?.description || "",
+        damage_photo: itemEvidence,
+        evidence_url: itemEvidence,
       };
     });
   }
@@ -68,6 +71,7 @@ export function shipmentProducts(shipment, inventory = []) {
         ? safeBarcodes
         : (isInspected ? Array.from({ length: Math.max(0, actualReceived) }, (_, idx) => `${code}-${String(idx + 1).padStart(3, '0')}`) : []);
 
+      const itemEvidence = row.damage_photo || row.evidence_url || (damaged > 0 ? shipment.evidence_url : null);
       return {
         sku: code,
         name,
@@ -82,6 +86,8 @@ export function shipmentProducts(shipment, inventory = []) {
         image_url: row.image_url || inv?.image_url || null,
         assigned_staff: row.assigned_staff || row.staff || shipment.assigned_staff || shipment.staff || "Semua Staf Lapangan",
         notes: row.notes || inv?.description || "",
+        damage_photo: itemEvidence,
+        evidence_url: itemEvidence,
       };
     });
   }
@@ -99,6 +105,8 @@ export function shipmentProducts(shipment, inventory = []) {
       ordered: unitsPerItem + (index === 0 ? (totalUnits % chosen.length) : 0),
       category: item.category || "General",
       unit: item.unit || "pcs",
+      damage_photo: shipment.evidence_url || null,
+      evidence_url: shipment.evidence_url || null,
     }));
   }
 
@@ -111,6 +119,8 @@ export function shipmentProducts(shipment, inventory = []) {
     category: "General",
     ordered: Math.floor(units / count) + (index < units % count ? 1 : 0),
     unit: "pcs",
+    damage_photo: shipment.evidence_url || null,
+    evidence_url: shipment.evidence_url || null,
   }));
 }
 
@@ -127,12 +137,15 @@ export function newReceivingDraft(shipment, inventory, racks = []) {
     damaged: row.damaged !== undefined ? row.damaged : 0,
     rejected: row.rejected !== undefined ? row.rejected : 0,
     barcodes: row.barcodes || [],
+    damage_photo: row.damage_photo || (Number(row.damaged) > 0 ? shipment.evidence_url : null),
+    evidence_url: row.evidence_url || shipment.evidence_url || null,
   }));
   return {
     stage: isInspected ? "review" : "inspect",
     rows,
     notes: shipment.notes || "",
     evidence: shipment.evidence_url ? [{ id: "evidence-dock-1", name: "Bukti Foto Dok (Mobile)", url: shipment.evidence_url }] : [],
+    evidence_url: shipment.evidence_url || null,
     allocations: {},
     savedAt: isInspected ? new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : null,
   };

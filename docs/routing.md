@@ -36,6 +36,8 @@ Silakan buka tautan di atas untuk melihat pemetaan rute lengkap pada **Backend**
      - Manager **HANYA BISA MEMBACA HASIL INPUTAN DARI STAF MOBILE**:
        - Membaca nama staf pemeriksa (`inspector`), waktu pemeriksaan dok, dan catatan segel lapangan.
        - Membaca tabel hasil hitungan aktual diterima vs rusak dan melihat visual chip barcode fisik hasil scan staf dok.
+       - Memeriksa foto bukti fisik kerusakan barang melalui dropdown kecil (`📷 Bukti Foto Kerusakan (n) ▾` di panel *Issue Resolution* dan pill `📷 Bukti ▾` di tabel) serta modal Lightbox fullscreen untuk inspeksi detail foto sebelum persetujuan ACC.
+       - Mengakses modal detail komprehensif barang via [`web/src/components/InboundItemDetailModal.jsx`](file:///d:/Coding/Susuno/web/src/components/InboundItemDetailModal.jsx).
        - Tombol edit / koreksi hitungan dihilangkan bagi manager (karena keabsahan fisik dipegang oleh staf lapangan).
 6. **Persetujuan ACC Manager & Update Stok Inventaris:**
    - Manager membaca dan memvalidasi laporan staf, mencentang konfirmasi: *"Saya telah membaca dan memverifikasi laporan hasil inputan dan pemindaian barcode dari staf mobile"*.

@@ -44,11 +44,13 @@ class _SusunoAppState extends State<SusunoApp> {
 
   @override
   Widget build(BuildContext context) {
-    final s = context.watch<WarehouseState>();
+    final (loggedIn, highContrast) = context.select<WarehouseState, (bool, bool)>(
+      (s) => (s.loggedIn, s.staff.highContrast),
+    );
     return MaterialApp(
       title: 'SUSUNO',
       debugShowCheckedModeBanner: false,
-      theme: appTheme(s.staff.highContrast),
+      theme: appTheme(highContrast),
       home: AnimatedSwitcher(
         duration: const Duration(milliseconds: 600),
         switchInCurve: Curves.easeInOut,
@@ -62,7 +64,7 @@ class _SusunoAppState extends State<SusunoApp> {
                   });
                 },
               )
-            : (s.loggedIn
+            : (loggedIn
                 ? const AppShell(key: ValueKey('app_shell'))
                 : const LoginScreen(key: ValueKey('login_screen'))),
       ),

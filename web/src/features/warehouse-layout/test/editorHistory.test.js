@@ -364,7 +364,7 @@ test('DocumentStore - Jalan Manusia Bertemu di Ujung Menjadi Satu (Tidak Tumpang
   assert.equal(merged.width_mm, 18000, 'Lebar gabungan horizontal harus 10000 + 8000 = 18000mm');
 });
 
-test('DocumentStore - Proteksi Jalan Pejalan Menolak Menimpa Jalan Lain (Pejalan Tidak Bisa Menimpa)', () => {
+test('DocumentStore - Jalan Pejalan Kaki Bertabrakan dengan Jalan Pejalan Kaki Digabungkan Menjadi Satu', () => {
   const store = new DocumentStore({
     warehouse: { id: 1, width_mm: 50000, length_mm: 30000 },
     zones: [],
@@ -376,7 +376,7 @@ test('DocumentStore - Proteksi Jalan Pejalan Menolak Menimpa Jalan Lain (Pejalan
     layout_objects: [],
   });
 
-  // Coba tambahkan jalan pejalan lain yang menimpa (x=10000..22000, y=10000)
+  // Coba tambahkan jalan pejalan lain yang menimpa/bertabrakan (x=10000..22000, y=10000)
   const result = store.addAisle({
     x_mm: 10000,
     y_mm: 10000,
@@ -386,8 +386,98 @@ test('DocumentStore - Proteksi Jalan Pejalan Menolak Menimpa Jalan Lain (Pejalan
     name: 'Jalur Pejalan Menimpa',
   });
 
-  assert.equal(result.error, 'PEDESTRIAN_CANNOT_OVERLAP', 'Pejalan tidak bisa menimpa jalan lain harus ditolak');
-  assert.equal(store.snapshot.aisles.length, 1, 'Jumlah lorong tidak boleh bertambah');
+  assert.equal(result.isMerged, true, 'Pejalan yang bertabrakan dengan pejalan harus digabungkan');
+  assert.equal(store.snapshot.aisles.length, 1, 'Jumlah lorong tetap 1 karena digabung');
+  assert.equal(result.x_mm, 5000);
+  assert.equal(result.width_mm, 17000, 'Lebar gabungan dari x=5000 s/d 22000 = 17000mm');
+  assert.equal(result.type, 'standard', 'Tipe tetap jalan standard pejalan');
+});
+
+test('DocumentStore - Jalan Forklift Bertabrakan dengan Jalan Forklift Digabungkan Menjadi Satu', () => {
+  const store = new DocumentStore({
+    warehouse: { id: 1, width_mm: 50000, length_mm: 30000 },
+    zones: [],
+    aisles: [
+      { id: 20, aisle_code: 'FK-01', name: 'Jalur Forklift 1', x_mm: 5000, y_mm: 10000, width_mm: 10000, length_mm: 3000, type: 'forklift', direction: 'forklift' },
+    ],
+    racks: [],
+    layout_objects: [],
+  });
+
+  // Tambahkan forklift lain yang menimpa/bertabrakan (x=10000..22000, y=10000)
+  const result = store.addAisle({
+    x_mm: 10000,
+    y_mm: 10000,
+    width_mm: 12000,
+    length_mm: 3000,
+    type: 'forklift',
+    direction: 'forklift',
+    name: 'Jalur Forklift 2',
+  });
+
+  assert.equal(result.isMerged, true, 'Forklift yang bertabrakan dengan forklift harus digabungkan');
+  assert.equal(store.snapshot.aisles.length, 1, 'Jumlah lorong tetap 1 karena digabung');
+  assert.equal(result.x_mm, 5000);
+  assert.equal(result.width_mm, 17000, 'Lebar gabungan dari x=5000 s/d 22000 = 17000mm');
+  assert.equal(result.type, 'forklift', 'Tipe tetap jalan forklift');
+});
+
+test('DocumentStore - Memindahkan Jalan yang Bertabrakan Otomatis Menggabungkan', () => {
+  const store = new DocumentStore({
+    warehouse: { id: 1, width_mm: 50000, length_mm: 30000 },
+    zones: [],
+    aisles: [
+      { id: 31, aisle_code: 'FK-01', name: 'Jalur Forklift 1', x_mm: 5000, y_mm: 10000, width_mm: 10000, length_mm: 3000, type: 'forklift', direction: 'forklift' },
+      { id: 32, aisle_code: 'FK-02', name: 'Jalur Forklift 2', x_mm: 30000, y_mm: 10000, width_mm: 10000, length_mm: 3000, type: 'forklift', direction: 'forklift' },
+    ],
+    racks: [],
+    layout_objects: [],
+  });
+
+  assert.equal(store.snapshot.aisles.length, 2);
+
+  // Geser FK-02 ke x=12000 sehingga bertabrakan dengan FK-01 (x=5000..15000)
+  const moveRes = store.moveEntity('aisle', 32, 12000, 10000);
+
+  assert.ok(moveRes, 'Perpindahan berhasil');
+  assert.equal(moveRes.isMerged, true, 'Harus terdeteksi bertabrakan dan otomatis digabungkan');
+  assert.equal(store.snapshot.aisles.length, 1, 'Kedua lorong sekarang bergabung menjadi 1 entitas');
+  assert.equal(moveRes.aisle.x_mm, 5000);
+  assert.equal(moveRes.aisle.width_mm, 17000);
+});
+
+test('DocumentStore - Melebarkan Salah Satu Sisi Dok Bongkar Muat (Resize Entity)', () => {
+  const history = new HistoryManager(100);
+  const store = new DocumentStore({
+    warehouse: { id: 1, width_mm: 50000, length_mm: 30000 },
+    zones: [],
+    aisles: [],
+    racks: [],
+    layout_objects: [
+      { id: 101, object_type: 'dock', name: 'Area Dok Bongkar Muat', x_mm: 4000, y_mm: 4000, width_mm: 4000, length_mm: 6000 },
+    ],
+  }, history);
+
+  const dock = store.findEntity('layout_object', 101);
+  assert.equal(dock.width_mm, 4000);
+  assert.equal(dock.length_mm, 6000);
+
+  // Lebarkan sisi kanan (+1000mm)
+  store.updateEntity('layout_object', 101, { width_mm: 5000 });
+  assert.equal(dock.width_mm, 5000);
+
+  // Lebarkan sisi kiri: geser x_mm ke kiri dan tambah width_mm (+1000mm)
+  store.updateEntity('layout_object', 101, { x_mm: 3000, width_mm: 6000 });
+  assert.equal(dock.x_mm, 3000);
+  assert.equal(dock.width_mm, 6000);
+
+  // Undo kembali ke ukuran awal
+  history.undo((patch) => store.applyPatch(patch));
+  assert.equal(dock.x_mm, 4000);
+  assert.equal(dock.width_mm, 5000);
+
+  history.undo((patch) => store.applyPatch(patch));
+  assert.equal(dock.width_mm, 4000);
 });
 
 test('DocumentStore - Jalan Forklift BISA Menimpa Jalan Lain (Menjadi Jalur Bersama & Set Lebar Min 2.5m)', () => {
@@ -441,4 +531,90 @@ test('DocumentStore - Jalan Forklift BISA Menimpa Dok Tanpa Ditolak', () => {
 
   assert.ok(!fk.error, 'Forklift tidak boleh ditolak saat menimpa dok');
   assert.equal(store.snapshot.aisles.length, 1, 'Lorong forklift berhasil ditambahkan di atas dok');
+});
+
+test('DocumentStore - Jalan Forklift Tegak Lurus BISA Tumpang Tindih & Menyambung di Sudut L (Intersection Flush Snap)', () => {
+  const store = new DocumentStore({
+    warehouse: { id: 1, width_mm: 50000, length_mm: 30000 },
+    zones: [],
+    aisles: [
+      // FK-02: Vertikal (x: 2000..6000, y: 0..14000)
+      { id: 1, aisle_code: 'FK-02', name: 'Jalur Forklift 2', x_mm: 2000, y_mm: 0, width_mm: 4000, length_mm: 14000, type: 'forklift', direction: 'forklift' },
+    ],
+    racks: [],
+    layout_objects: [],
+  });
+
+  // Tambah FK-01: Horizontal (x: 3000..20000, y: 14000..18000) yang bertemu tegak lurus
+  const fk1 = store.addAisle({
+    x_mm: 3000,
+    y_mm: 14000,
+    width_mm: 17000,
+    length_mm: 4000,
+    type: 'forklift',
+    direction: 'forklift',
+    aisle_code: 'FK-01',
+    name: 'Jalur Forklift 1',
+  });
+
+  assert.ok(!fk1.error, 'Jalan forklift tegak lurus tidak boleh ditolak');
+  assert.equal(store.snapshot.aisles.length, 2, 'Kedua jalan tetap ada sebagai 2 lengan persimpangan jalan');
+  // Sudut L harus tersambung flush ke batas luar FK-02 (x=2000)
+  assert.equal(fk1.x_mm, 2000, 'FK-01 harus otomatis snap flush ke tepi luar FK-02 (x=2000)');
+  assert.ok(fk1.width_mm >= 17000, 'Lebar jalan harus menutupi seluruh sudut persimpangan');
+});
+
+test('DocumentStore - Geser / Ubah Ukuran Jalan Forklift Tegak Lurus Menyambung Mulus (mergeAisle Connected)', () => {
+  const store = new DocumentStore({
+    warehouse: { id: 1, width_mm: 50000, length_mm: 30000 },
+    zones: [],
+    aisles: [
+      // FK-02: Vertikal (x: 2000..6000, y: 0..14000)
+      { id: 2, aisle_code: 'FK-02', name: 'Jalur Forklift 2', x_mm: 2000, y_mm: 0, width_mm: 4000, length_mm: 14000, type: 'forklift', direction: 'forklift' },
+      // FK-01: Horizontal awalnya terpisah di x: 8000
+      { id: 1, aisle_code: 'FK-01', name: 'Jalur Forklift 1', x_mm: 8000, y_mm: 10000, width_mm: 15000, length_mm: 4000, type: 'forklift', direction: 'forklift' },
+    ],
+    racks: [],
+    layout_objects: [],
+  });
+
+  // Geser FK-01 mendekati dan tumpang tindih dengan FK-02 di x=4000
+  const moveRes = store.moveEntity('aisle', 1, 4000, 10000);
+  assert.ok(moveRes, 'Perpindahan berhasil');
+  assert.equal(moveRes.isMerged, true, 'Harus terdeteksi bergabung / tersambung');
+  assert.equal(moveRes.isConnected, true, 'Harus terdeteksi tersambung di persimpangan');
+  const fk1 = store.findEntity('aisle', 1);
+  assert.equal(fk1.x_mm, 2000, 'FK-01 snap flush ke batas luar FK-02');
+});
+
+test('DocumentStore - Lebar Jalur Forklift Dikunci Sesuai Input User (Tidak Membesar/Mengecil saat Merge Collinear)', () => {
+  const store = new DocumentStore({
+    warehouse: { id: 1, width_mm: 50000, length_mm: 30000 },
+    zones: [],
+    aisles: [
+      // FK-01: Horizontal dengan lebar penampang 3000mm (length_mm) dan panjang jalan 10000mm (width_mm)
+      { id: 1, aisle_code: 'FK-01', name: 'Jalur Forklift 1', x_mm: 5000, y_mm: 10000, width_mm: 10000, length_mm: 3000, type: 'forklift', direction: 'forklift' },
+    ],
+    racks: [],
+    layout_objects: [],
+  });
+
+  // Tambahkan FK sambungan collinear di x=14000 (menyambung secara horizontal), dengan offset Y sedikit berbeda
+  const addRes = store.addAisle({
+    x_mm: 14000,
+    y_mm: 10500,
+    width_mm: 8000,
+    length_mm: 3000,
+    type: 'forklift',
+    direction: 'forklift',
+    name: 'Jalur Forklift Sambungan',
+  });
+
+  assert.equal(addRes.isMerged, true, 'Lorong forklift segaris harus digabungkan');
+  assert.equal(store.snapshot.aisles.length, 1, 'Entitas lorong tetap 1');
+  const merged = store.snapshot.aisles[0];
+  // Panjang koridor bertambah
+  assert.equal(merged.width_mm, 17000, 'Panjang koridor diperpanjang (5000 ke 22000 = 17000)');
+  // Lebar jalur forklift TERKUNCI pada 3000mm (tidak membesar jadi 3500mm karena offset y_mm)
+  assert.equal(merged.length_mm, 3000, 'Lebar penampang forklift tetap terkunci 3000mm sesuai input');
 });

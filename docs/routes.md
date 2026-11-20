@@ -91,15 +91,16 @@ Server utama di-bootstrap melalui `backend/server.js`. Semua rute diakses melalu
 | | `PUT /:id` | `purchaseOrderController.update` | `purchaseOrderModel.js` | `manager` | `backend/routes/purchaseOrderRoute.js:10` |
 | | `PUT /:id/status` | `purchaseOrderController.updateStatus` | `purchaseOrderModel.js` | `manager` | `backend/routes/purchaseOrderRoute.js:11` |
 | | `PATCH /:id/status` | `purchaseOrderController.updateStatus` | `purchaseOrderModel.js` | `manager` | `backend/routes/purchaseOrderRoute.js:12` |
-| **Inbound** (`/api/inbound`) | `GET /` | `inboundController.getAll` | `inboundModel.js` | `authenticated` | `backend/routes/inboundRoute.js:5` |
-| | `GET /:id` | `inboundController.getById` | `inboundModel.js` | `authenticated` | `backend/routes/inboundRoute.js:6` |
-| | `POST /` | `inboundController.create` | `inboundModel.js` | `manager` | `backend/routes/inboundRoute.js:7` |
-| | `PUT /:id` | `inboundController.update` | `inboundModel.js` | `manager` | `backend/routes/inboundRoute.js:8` |
-| | `PUT /:id/status` | `inboundController.updateStatus` | `inboundModel.js` | `authenticated` | `backend/routes/inboundRoute.js:9` |
-| | `POST /:id/inspect` | `inboundController.inspect` | `inboundModel.js` | `authenticated` | `backend/routes/inboundRoute.js:10` |
-| | `PUT /:id/inspect` | `inboundController.inspect` | `inboundModel.js` | `authenticated` | `backend/routes/inboundRoute.js:11` |
-| | `POST /:id/receive` | `inboundController.completeReceiving` | `inboundModel.js` | `authenticated` | `backend/routes/inboundRoute.js:12` |
-| | `DELETE /:id` | `inboundController.remove` | `inboundModel.js` | `manager` | `backend/routes/inboundRoute.js:13` |
+| **Inbound** (`/api/inbound`) | `GET /` | `inboundController.getAll` | `inboundModel.js` | `authenticated` | `backend/routes/inboundRoute.js:9` |
+| | `GET /:id` | `inboundController.getById` | `inboundModel.js` | `authenticated` | `backend/routes/inboundRoute.js:10` |
+| | `POST /` | `inboundController.create` | `inboundModel.js` | `manager` | `backend/routes/inboundRoute.js:11` |
+| | `PUT /:id` | `inboundController.update` | `inboundModel.js` | `manager` | `backend/routes/inboundRoute.js:12` |
+| | `PUT /:id/item-staff` | `inboundController.updateItemStaff` | `inboundModel.js` | `manager` | `backend/routes/inboundRoute.js:13` |
+| | `PUT /:id/status` | `inboundController.updateStatus` | `inboundModel.js` | `authenticated` | `backend/routes/inboundRoute.js:14` |
+| | `POST /:id/inspect` | `inboundController.inspect` | `inboundModel.js` | `authenticated` | `backend/routes/inboundRoute.js:15` |
+| | `PUT /:id/inspect` | `inboundController.inspect` | `inboundModel.js` | `authenticated` | `backend/routes/inboundRoute.js:16` |
+| | `POST /:id/receive` | `inboundController.completeReceiving` | `inboundModel.js` | `authenticated` | `backend/routes/inboundRoute.js:17` |
+| | `DELETE /:id` | `inboundController.remove` | `inboundModel.js` | `manager` | `backend/routes/inboundRoute.js:18` |
 | **Outbound** (`/api/outbound`) | `GET /` | `outboundController.getAll` | `outboundModel.js` | `authenticated` | `backend/routes/outboundRoute.js:9` |
 | | `GET /:id` | `outboundController.getById` | `outboundModel.js` | `authenticated` | `backend/routes/outboundRoute.js:10` |
 | | `POST /` | `outboundController.create` | `outboundModel.js` | `manager` | `backend/routes/outboundRoute.js:11` |
@@ -158,7 +159,7 @@ Web frontend berbasis **React 19 + Vite** menggunakan router berbasis state inte
 | `password-updated` | [`pages/PasswordUpdated.jsx`](file:///d:/Coding/Susuno/web/src/pages/PasswordUpdated.jsx) (App.jsx:2277) | `Public / Guest` | `RecoveryLayout` | `styles/recovery.css` | Konfirmasi keberhasilan pembaharuan kata sandi. |
 | `manager-verification` | [`components/SessionVerification.jsx`](file:///d:/Coding/Susuno/web/src/components/SessionVerification.jsx) (App.jsx:1940) | `Manager Guarded` | Re-auth dialog box | `styles/recovery.css` | Verifikasi ulang kredensial untuk operasi berisiko tinggi. |
 | `dashboard` | [`pages/Dashboard.jsx`](file:///d:/Coding/Susuno/web/src/pages/Dashboard.jsx) (App.jsx:2009) | `Manager` | `DashboardSidebar`, `WarehouseHeader`, `DashboardIcon` | `styles/dashboard.css` | Ringkasan KPI gudang, aktivitas terkini, widget live Shift Operasional (status shift on-duty & staf terjadwal), alert stok menipis, shortcut navigasi. |
-| `inbound` | [`pages/Inbound.jsx`](file:///d:/Coding/Susuno/web/src/pages/Inbound.jsx) (App.jsx:2146) | `Manager` | `ScheduledShipment`, `InboundReceiving`, `InboundIssueReview`, `CompletedReceiving`, `CreateInbound` | `styles/inbound.css`, `styles/scheduled.css`, `styles/receiving.css`, `styles/inboundIssues.css`, `styles/completedReceiving.css` | Alur penerimaan barang terintegrasi: jadwal armada masuk dari PO, inspeksi fisik dok lapangan oleh staf via Mobile (`Inspected`), review & approval manager di Web Console, dan update stok otomatis ke inventaris (bebas pemetaan rak pada tahap inbound). |
+| `inbound` | [`pages/Inbound.jsx`](file:///d:/Coding/Susuno/web/src/pages/Inbound.jsx) (App.jsx:2146) | `Manager` | `ScheduledShipment`, `InboundReceiving`, `InboundItemDetailModal`, `InboundIssueReview`, `CompletedReceiving`, `CreateInbound` | `styles/inbound.css`, `styles/scheduled.css`, `styles/receiving.css`, `styles/inboundIssues.css`, `styles/completedReceiving.css` | Alur penerimaan barang terintegrasi: jadwal armada masuk dari PO, inspeksi fisik dok lapangan oleh staf via Mobile (`Inspected`), review & ACC manager di Web Console (termasuk verifikasi barcode unit fisik & dropdown kecil bukti foto kerusakan via Lightbox modal), dan update stok otomatis ke inventaris (bebas pemetaan rak pada tahap inbound). |
 | `outbound` | [`pages/Outbound.jsx`](file:///d:/Coding/Susuno/web/src/pages/Outbound.jsx) (App.jsx:2119) | `Manager` | `ScheduledOutbound`, `OutboundFulfillment`, `OutboundIssueReview`, `CompletedOutbound`, `CreateOutbound` | `styles/outbound.css`, `styles/scheduledOutbound.css`, `styles/outboundFulfillment.css`, `styles/outboundIssueReview.css` | Alur pengiriman barang: jadwal pengiriman, validasi stok, pemungutan (picking), packing, issue barang, dispatch. |
 | `purchase-orders` | [`pages/PurchaseOrders.jsx`](file:///d:/Coding/Susuno/web/src/pages/PurchaseOrders.jsx) (App.jsx:2058) | `Manager` | `PurchaseOrderFlow`, `ManagementShell` | `styles/purchaseOrders.css`, `styles/purchaseOrderFlow.css` | Siklus PO: buat order pengadaan, validasi anti self-approval, persetujuan/penolakan, konversi ke jadwal inbound, ekspor PDF. |
 | `suppliers` | [`pages/Suppliers.jsx`](file:///d:/Coding/Susuno/web/src/pages/Suppliers.jsx) (App.jsx:2087) | `Manager` | `ManagementShell` | `styles/suppliers.css` | Direktori mitra pemasok, performa lead time, katalog produk terkait tiap supplier. |
@@ -229,6 +230,7 @@ Navigasi aplikasi dikelola melalui drawer samping dan bottom navigation bar di [
 | `6` | [`screens/stock_flows.dart`](file:///d:/Coding/Susuno/mobile/lib/screens/stock_flows.dart) | `Staf Gudang` | `StockFlows` stepper wizard | Panduan alur kerja fisik penerimaan barang masuk (Inbound Putaway) dan pemenuhan pesanan keluar (Outbound Picking). |
 | `7` | [`screens/insight_screen.dart`](file:///d:/Coding/Susuno/mobile/lib/screens/insight_screen.dart) | `Staf Gudang` | `ui.dart` | Layar ringkasan wawasan prediksi AI untuk membantu staf mengantisipasi barang yang diprediksi akan segera habis. |
 | `8` | [`screens/profile_screen.dart`](file:///d:/Coding/Susuno/mobile/lib/screens/profile_screen.dart) | `Staf Gudang` | Presensi button, theme toggle, Update Panel | Profil akun staf, presensi (Check-In/Out), switch tema, fast-sign PIN, serta **Panel Pembaruan Aplikasi (In-App OTA Update)** untuk unduh APK baru langsung dari server gudang. |
+| *(Nav/FAB)* | [`screens/warehouse_map_screen.dart`](file:///d:/Coding/Susuno/mobile/lib/screens/warehouse_map_screen.dart) | `Staf Gudang` | `AppBar`, Zone chips, Dock & Rack cards | **Warehouse Map Screen:** Halaman mandiri denah & tata letak spasial rak gudang, visualisasi 4 dok bongkar muat, status terisi vs kosong, dan aksi pilih rak langsung ke scanner. |
 
 ---
 
@@ -260,7 +262,7 @@ Tabel berikut dirancang khusus untuk memenuhi instruksi penelusuran audit di `do
 | **Otentikasi & Profil Manajer** | `signin`, `manager`, `security` | - | `POST /api/auth/login`<br>`POST /api/auth/register` | `Public` / `manager` | `web/src/pages/SignIn.jsx`<br>`web/src/pages/SignUp.jsx`<br>`backend/controllers/authController.js`<br>`backend/models/userModel.js` | `users` |
 | **Otentikasi & Presensi Staf** | - | `LoginScreen`, `ProfileScreen (8)` | `POST /api/auth/login`<br>`POST /api/attendances/check-in`<br>`POST /api/attendances/check-out` | `staf` | `mobile/lib/screens/login_screen.dart`<br>`mobile/lib/screens/profile_screen.dart`<br>`mobile/lib/services/api_service.dart`<br>`backend/controllers/attendanceController.js` | `users`, `attendance_logs` |
 | **Katalog & Inventaris Produk** | `inventory` | `StockScreen (1)` | `GET /api/products`<br>`POST /api/products`<br>`PUT /api/products/:id` | `manager` (Web)<br>`staf` (Mobile) | `web/src/pages/Inventory.jsx`<br>`web/src/components/InventoryProductPanel.jsx`<br>`mobile/lib/screens/stock_screen.dart`<br>`backend/controllers/productController.js`<br>`backend/models/productModel.js` | `products`, `categories`, `locations` |
-| **Penerimaan Barang (Inbound)** | `inbound` | `StockFlows (5)` | `GET /api/inbound`<br>`POST /api/inbound`<br>`POST /api/inbound/:id/inspect`<br>`POST /api/inbound/:id/receive` | `manager` / `authenticated` | `web/src/pages/Inbound.jsx`<br>`web/src/components/InboundReceiving.jsx`<br>`web/src/components/InboundIssueReview.jsx`<br>`backend/controllers/inboundController.js`<br>`backend/models/inboundModel.js` | `inbound_shipments`, `inbound_shipment_items`, `stock_transactions`, `products` |
+| **Penerimaan Barang (Inbound)** | `inbound` | `StockFlows (5)` | `GET /api/inbound`<br>`POST /api/inbound`<br>`PUT /api/inbound/:id/item-staff`<br>`POST /api/inbound/:id/inspect`<br>`POST /api/inbound/:id/receive` | `manager` / `authenticated` | `web/src/pages/Inbound.jsx`<br>`web/src/components/InboundReceiving.jsx`<br>`web/src/components/InboundItemDetailModal.jsx`<br>`web/src/components/InboundIssueReview.jsx`<br>`backend/controllers/inboundController.js`<br>`backend/models/inboundModel.js` | `inbound_shipments`, `inbound_shipment_items`, `stock_transactions`, `products` |
 | **Pengiriman Barang (Outbound)** | `outbound` | `ShiftHubScreen (0)` | `GET /api/outbound`<br>`POST /api/outbound`<br>`POST /api/outbound/:id/inspect`<br>`POST /api/outbound/:id/dispatch`<br>`PUT /api/outbound/:id/status` | `manager` / `authenticated` | `web/src/pages/Outbound.jsx`<br>`web/src/components/CreateOutbound.jsx`<br>`web/src/components/ScheduledOutbound.jsx`<br>`web/src/components/OutboundFulfillment.jsx`<br>`mobile/lib/screens/shift_hub_screen.dart`<br>`backend/controllers/outboundController.js`<br>`backend/models/outboundModel.js` | `outbound_shipments`, `outbound_shipment_items`, `stock_transactions`, `products` |
 | **Pengadaan (Purchase Orders)** | `purchase-orders` | `OrdersScreen (7)` | `GET /api/purchase-orders`<br>`POST /api/purchase-orders`<br>`PUT /api/purchase-orders/:id/status` | `manager` | `web/src/pages/PurchaseOrders.jsx`<br>`web/src/components/PurchaseOrderFlow.jsx`<br>`web/src/utils/purchaseOrders.js`<br>`backend/controllers/purchaseOrderController.js`<br>`backend/models/purchaseOrderModel.js` | `purchase_orders`, `purchase_order_items`, `suppliers` |
 | **Mitra Pemasok (Suppliers)** | `suppliers` | - | `GET /api/suppliers`<br>`POST /api/suppliers`<br>`PUT /api/suppliers/:id` | `manager` | `web/src/pages/Suppliers.jsx`<br>`backend/controllers/supplierController.js`<br>`backend/models/supplierModel.js` | `suppliers`, `products` |
@@ -283,11 +285,13 @@ Alur rantai pasok Susuno telah disinkronkan secara end-to-end:
 3. **Auto-Scheduling ke Inbound (`App.jsx` -> `decidePO`):**
    - Begitu status PO menjadi `Approved`, sistem **secara otomatis** menjadwalkan kedatangan pengiriman truk di Inbound (`INB-xxxx`, status `Scheduled`).
    - Tombol **"Buka Pengiriman Inbound (Dock)"** di halaman PO menampilkan status truk dan langsung membuka shipment terkait di Inbound.
-4. **Dock Inspection & Receiving (`InboundReceiving.jsx`):**
+4. **Dock Inspection & Receiving (`InboundReceiving.jsx` & `InboundItemDetailModal.jsx`):**
    - Staf dock memeriksa jumlah dan kondisi fisik barang saat tiba (`Arrived` -> `Inspecting`).
    - **Tanpa Alokasi Rak**: Tahapan pemilihan rak gudang telah dihapus dari Inbound agar staf dock fokus verifikasi fisik kuantitas dan kondisi barang.
-   - Barang bagus (*Good condition*) langsung disetujui masuk inventaris gudang.
-   - Barang bermasalah (*Damaged / Rejected*) dicatat bersama bukti foto/dokumen sebagai issue dan tidak menambah stok aktif.
+   - Barang bagus (*Good condition*) diverifikasi barcode fisiknya oleh staf untuk persiapan masuk stok inventaris.
+   - Barang bermasalah (*Damaged / Rejected*) dicatat beserta foto bukti fisik dari handheld mobile staf (`evidence_url` / token snapshot).
+   - Pada tahap *Review & Complete Receiving*, Manager memeriksa foto bukti kerusakan melalui **dropdown kecil** (`📷 Bukti Foto Kerusakan (n) ▾` di panel *Issue Resolution* dan pill `📷 Bukti ▾` di tabel) yang dapat diklik untuk memunculkan modal foto besar (Lightbox fullscreen) sebelum memberikan persetujuan ACC.
+   - Barang rusak/tolak dialokasikan ke area karantina atau retur dan tidak menambah stok aktif.
 5. **Penyelesaian Penerimaan (`completeReceiving` & `backend/models/inboundModel.js`):**
    - Menambah stok produk di master `products` (`stock_quantity`).
    - Mencatat mutasi ke `stock_transactions` (tipe `in`).

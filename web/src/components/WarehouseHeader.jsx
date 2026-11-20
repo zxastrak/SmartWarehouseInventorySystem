@@ -16,8 +16,32 @@ export default function WarehouseHeader({
 }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [time, setTime] = useState(() => {
+    return new Intl.DateTimeFormat("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+      timeZone: "Asia/Jakarta"
+    }).format(new Date());
+  });
   const localSearchRef = useRef(null);
   const inputRef = searchRef || localSearchRef;
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTime(
+        new Intl.DateTimeFormat("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+          timeZone: "Asia/Jakarta"
+        }).format(new Date())
+      );
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const inspected = shipments.filter((s) => ['Review', 'Inspected'].includes(s.status));
   const arrived = shipments.filter((s) => s.status === 'Arrived');
@@ -57,6 +81,15 @@ export default function WarehouseHeader({
         <label className="sr-only" htmlFor="warehouse-search">{searchLabel}</label>
         <input ref={inputRef} id="warehouse-search" placeholder={searchPlaceholder} value={search} onChange={(event) => onSearch(event.target.value)} />
         <kbd>/</kbd>
+      </div>
+
+      <div className="dashboard-live-clock" title="Waktu Operasional Gudang (WIB)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="live-clock-icon">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+        <span className="live-clock-time">{time}</span>
+        <span className="live-clock-badge">WIB</span>
       </div>
 
       <div style={{ position: 'relative' }}>

@@ -60,6 +60,8 @@ export class PointerController {
 
     this.dragTarget = null;
     this.dragGhost = null;
+    this.resizeTarget = null;
+    this.resizeHandle = null;
     this.isColliding = false;
     this.rubberBandRect = null;
 
@@ -135,6 +137,14 @@ export class PointerController {
 
   setActiveTool(tool) {
     this.activeTool = tool || 'select';
+    if (this.activeTool === 'select') {
+      this.isFillDockMode = false;
+      this.isFillAisleMode = false;
+      this.isFillSlotMode = false;
+      if (this.mode === 'placement') {
+        this.cancelPlacement();
+      }
+    }
     this._updateCursor();
   }
 
@@ -270,7 +280,7 @@ export class PointerController {
    * - Jika lebar/kedalaman jalan melebihi celah aktual antar rak, otomatis auto-fit selebar celah
    * - Menempelkan sisi luar jalan ke sisi luar rak secara presisi (zero collision)
    */
-  _snapAisleToRackClearance(rect, excludeAisleId = null, forcedOrientation = null) {
+  _snapAisleToRackClearance(rect, excludeAisleId = null, forcedOrientation = null, isForklift = false) {
     let { x, y, width, depth } = rect;
     let isAutoFitted = false;
     const rackBoxes = this._getRackBoxes(excludeAisleId);
@@ -300,8 +310,8 @@ export class PointerController {
         if (maxLeftEdge !== null && minRightEdge !== null && minRightEdge > maxLeftEdge) {
           const availableGap = minRightEdge - maxLeftEdge;
           if (availableGap < width) {
-            // Celah lebih sempit dari lebar jalan -> persempit jalan sesuai celah (zero-collision)
-            if (availableGap >= 150) {
+            // Celah lebih sempit dari lebar jalan -> jika bukan forklift, auto-fit. Jika forklift, lebar dikunci!
+            if (!isForklift && availableGap >= 150) {
               x = maxLeftEdge;
               width = availableGap;
               isAutoFitted = true;
@@ -324,7 +334,11 @@ export class PointerController {
         } else if (minRightEdge !== null) {
           if ((x + width) > minRightEdge || Math.abs((x + width) - minRightEdge) < 300) {
             if (x < minRightEdge) {
-              width = Math.min(width, Math.max(150, minRightEdge - x));
+              if (!isForklift) {
+                width = Math.min(width, Math.max(150, minRightEdge - x));
+              } else {
+                x = minRightEdge - width;
+              }
             } else {
               x = minRightEdge - width;
             }
@@ -349,8 +363,8 @@ export class PointerController {
         if (maxTopEdge !== null && minBottomEdge !== null && minBottomEdge > maxTopEdge) {
           const availableGap = minBottomEdge - maxTopEdge;
           if (availableGap < depth) {
-            // Celah lebih sempit dari kedalaman jalan -> persempit jalan sesuai celah (zero-collision)
-            if (availableGap >= 150) {
+            // Celah lebih sempit dari kedalaman jalan -> jika bukan forklift, auto-fit. Jika forklift, lebar dikunci!
+            if (!isForklift && availableGap >= 150) {
               y = maxTopEdge;
               depth = availableGap;
               isAutoFitted = true;
@@ -373,7 +387,11 @@ export class PointerController {
         } else if (minBottomEdge !== null) {
           if ((y + depth) > minBottomEdge || Math.abs((y + depth) - minBottomEdge) < 300) {
             if (y < minBottomEdge) {
-              depth = Math.min(depth, Math.max(150, minBottomEdge - y));
+              if (!isForklift) {
+                depth = Math.min(depth, Math.max(150, minBottomEdge - y));
+              } else {
+                y = minBottomEdge - depth;
+              }
             } else {
               y = minBottomEdge - depth;
             }
@@ -392,30 +410,32 @@ export class PointerController {
     }
 
     // 3. Fallback pemangkasan presisi jika masih ada tumpang-tindih fisik dengan rak manapun
-    for (const r of rackBoxes) {
-      if (overlaps({ x, y, width, depth }, r)) {
-        const overlapL = (x + width) - r.left;
-        const overlapR = r.right - x;
-        const overlapT = (y + depth) - r.top;
-        const overlapB = r.bottom - y;
-        const minOverlap = Math.min(overlapL, overlapR, overlapT, overlapB);
+    if (!isForklift) {
+      for (const r of rackBoxes) {
+        if (overlaps({ x, y, width, depth }, r)) {
+          const overlapL = (x + width) - r.left;
+          const overlapR = r.right - x;
+          const overlapT = (y + depth) - r.top;
+          const overlapB = r.bottom - y;
+          const minOverlap = Math.min(overlapL, overlapR, overlapT, overlapB);
 
-        if (minOverlap === overlapT && r.top > y) {
-          depth = Math.max(150, r.top - y);
-          isAutoFitted = true;
-        } else if (minOverlap === overlapB && r.bottom < y + depth) {
-          const shift = r.bottom - y;
-          y = r.bottom;
-          depth = Math.max(150, depth - shift);
-          isAutoFitted = true;
-        } else if (minOverlap === overlapL && r.left > x) {
-          width = Math.max(150, r.left - x);
-          isAutoFitted = true;
-        } else if (minOverlap === overlapR && r.right < x + width) {
-          const shift = r.right - x;
-          x = r.right;
-          width = Math.max(150, width - shift);
-          isAutoFitted = true;
+          if (minOverlap === overlapT && r.top > y) {
+            depth = Math.max(150, r.top - y);
+            isAutoFitted = true;
+          } else if (minOverlap === overlapB && r.bottom < y + depth) {
+            const shift = r.bottom - y;
+            y = r.bottom;
+            depth = Math.max(150, depth - shift);
+            isAutoFitted = true;
+          } else if (minOverlap === overlapL && r.left > x) {
+            width = Math.max(150, r.left - x);
+            isAutoFitted = true;
+          } else if (minOverlap === overlapR && r.right < x + width) {
+            const shift = r.right - x;
+            x = r.right;
+            width = Math.max(150, width - shift);
+            isAutoFitted = true;
+          }
         }
       }
     }
@@ -466,14 +486,91 @@ export class PointerController {
     if (Array.isArray(this.snapshot.layout_objects)) {
       for (let i = this.snapshot.layout_objects.length - 1; i >= 0; i--) {
         const o = this.snapshot.layout_objects[i];
-        const w = o.width_mm || 2000;
-        const l = o.length_mm || 1000;
+        const w = o.width_mm || o.length_mm || 2000;
+        const l = o.length_mm || o.depth_mm || 1000;
         if (wx >= o.x_mm && wx <= o.x_mm + w && wy >= o.y_mm && wy <= o.y_mm + l) {
           return { type: 'layout_object', item: o };
         }
       }
     }
 
+    return null;
+  }
+
+  /**
+   * Hit-testing resize handles on currently selected objects (dok, lorong, dsb.)
+   */
+  _getHandleUnderPointer(wx, wy) {
+    if (!this.selectedIds || this.selectedIds.size === 0 || !this.snapshot) return null;
+    const scale = this.viewport?.scale || 0.015;
+    const hitRadius = Math.max(12 / scale, 250);
+
+    for (const rawId of this.selectedIds) {
+      let type = 'layout_object';
+      let entity = (this.snapshot.layout_objects || []).find((o) => String(o.id) === String(rawId));
+      if (!entity) {
+        type = 'aisle';
+        entity = (this.snapshot.aisles || []).find((a) => String(a.id) === String(rawId));
+      }
+      if (!entity) continue; // Untuk rak atau zona tidak menggunakan free-handle resize
+
+      const x = entity.x_mm;
+      const y = entity.y_mm;
+      const width = entity.width_mm || 2000;
+      const depth = entity.length_mm || 2000;
+
+      const isForklift = type === 'aisle' && (
+        entity.type === 'forklift' ||
+        String(entity.name || '').toLowerCase().includes('forklift') ||
+        entity.direction === 'forklift'
+      );
+      const isHoriz = width >= depth;
+
+      let handles;
+      if (isForklift) {
+        // "kunci lebar forklift sesuai dengan yang diinput oleh user, jadi khusus forklift tidak bisa membesar atau mengecil"
+        // Hanya sediakan handle di sepanjang koridor jalan untuk memperpanjang/memperpendek; lebar penampang terkunci
+        if (isHoriz) {
+          handles = [
+            { id: 'w', x: x, y: y + depth / 2, cursor: 'ew-resize' },
+            { id: 'e', x: x + width, y: y + depth / 2, cursor: 'ew-resize' },
+          ];
+        } else {
+          handles = [
+            { id: 'n', x: x + width / 2, y: y, cursor: 'ns-resize' },
+            { id: 's', x: x + width / 2, y: y + depth, cursor: 'ns-resize' },
+          ];
+        }
+      } else {
+        handles = [
+          // 4 titik tengah sisi
+          { id: 'n', x: x + width / 2, y: y, cursor: 'ns-resize' },
+          { id: 's', x: x + width / 2, y: y + depth, cursor: 'ns-resize' },
+          { id: 'w', x: x, y: y + depth / 2, cursor: 'ew-resize' },
+          { id: 'e', x: x + width, y: y + depth / 2, cursor: 'ew-resize' },
+          // 4 sudut
+          { id: 'nw', x: x, y: y, cursor: 'nwse-resize' },
+          { id: 'se', x: x + width, y: y + depth, cursor: 'nwse-resize' },
+          { id: 'ne', x: x + width, y: y, cursor: 'nesw-resize' },
+          { id: 'sw', x: x, y: y + depth, cursor: 'nesw-resize' },
+        ];
+      }
+
+      for (const h of handles) {
+        if (Math.abs(wx - h.x) <= hitRadius && Math.abs(wy - h.y) <= hitRadius) {
+          return {
+            handle: h.id,
+            cursor: h.cursor,
+            entity,
+            type,
+            x,
+            y,
+            width,
+            depth,
+          };
+        }
+      }
+    }
     return null;
   }
 
@@ -532,7 +629,76 @@ export class PointerController {
       return;
     }
 
-    // 1. Mode Drag & Fill Dok (Prioritas utama bila aktif)
+    // Cek apakah kursor mengklik salah satu handle pada objek yang sedang diseleksi (melebarkan salah satu sisi)
+    const handleHit = this._getHandleUnderPointer(wx, wy);
+    if (handleHit && e.button === 0) {
+      this.mode = 'resizing';
+      this.resizeHandle = handleHit.handle;
+      this.resizeTarget = {
+        type: handleHit.type,
+        id: handleHit.entity.id,
+        item: handleHit.entity,
+        origX: handleHit.x,
+        origY: handleHit.y,
+        origW: handleHit.width,
+        origD: handleHit.depth,
+      };
+      this.dragGhost = {
+        x_mm: handleHit.x,
+        y_mm: handleHit.y,
+        width: handleHit.width,
+        depth: handleHit.depth,
+      };
+      this.isColliding = false;
+      this._requestRender(true);
+      return;
+    }
+
+    // Hit-testing objek di bawah kursor (prioritaskan seleksi & pergeseran setiap objek)
+    const hit = this.hitTest(wx, wy);
+
+    // Jika alat aktif adalah Move ('select') atau kursor persis mengklik objek yang sudah ada:
+    // Masuk langsung ke mode seleksi & pergeseran (dragging)
+    if (hit) {
+      const entity = hit.item;
+      const isShift = e.shiftKey;
+
+      if (isShift) {
+        if (this.selectedIds.has(entity.id)) {
+          this.selectedIds.delete(entity.id);
+          this.selectedEntities.delete(entity.id);
+        } else {
+          this.selectedIds.add(entity.id);
+          this.selectedEntities.set(entity.id, { type: hit.type, id: entity.id });
+        }
+      } else if (!this.selectedIds.has(entity.id)) {
+        this.selectedIds.clear();
+        this.selectedEntities.clear();
+        this.selectedIds.add(entity.id);
+        this.selectedEntities.set(entity.id, { type: hit.type, id: entity.id });
+      }
+
+      this.mode = 'dragging';
+      this.dragTarget = { type: hit.type, id: entity.id, item: entity };
+      const box = hit.type === 'rack'
+        ? footprint(entity.length_mm, entity.depth_mm, entity.rotation || 0)
+        : { width: entity.width_mm || entity.length_mm || 2000, depth: entity.length_mm || entity.depth_mm || 2000 };
+      this.dragGhost = {
+        x_mm: entity.x_mm,
+        y_mm: entity.y_mm,
+        width: box.width,
+        depth: box.depth,
+      };
+      this.isColliding = false;
+
+      if (this.onSelectionChange) {
+        this.onSelectionChange(Array.from(this.selectedEntities.values()));
+      }
+      this._requestRender();
+      return;
+    }
+
+    // 1. Mode Drag & Fill Dok (Bila aktif pada area kosong)
     if (this.isFillDockMode && e.button === 0) {
       const wh = this.snapshot?.warehouse || { width_mm: 50000, length_mm: 80000 };
       const { slotW, slotD } = this.getSlotDimensions();
@@ -588,7 +754,7 @@ export class PointerController {
         width: defaultW,
         depth: defaultL,
       };
-      const fitted = this._snapAisleToRackClearance(rawGhost);
+      const fitted = this._snapAisleToRackClearance(rawGhost, null, null, isForklift);
       const clampedW = Math.min(wh.width_mm, fitted.width);
       const clampedL = Math.min(wh.length_mm, fitted.depth);
       const clampedX = Math.max(0, Math.min(wh.width_mm - clampedW, fitted.x));
@@ -620,9 +786,8 @@ export class PointerController {
         return true;
       });
 
-      const overlapsAisle = !isForklift && queryHits.some((cid) => String(cid).startsWith('aisle:'));
-      const isColliding = rackOrObjCollisions.length > 0 || overlapsAisle;
-      const collisionReason = rackOrObjCollisions.length > 0 ? 'rack' : overlapsAisle ? 'pedestrian_overlap' : null;
+      const isColliding = rackOrObjCollisions.length > 0;
+      const collisionReason = rackOrObjCollisions.length > 0 ? 'rack' : null;
 
       this.aisleFillGhost = {
         x_mm: clampedX,
@@ -675,64 +840,24 @@ export class PointerController {
       return;
     }
 
-    const hit = this.hitTest(wx, wy);
-
-    if (hit) {
-      const entity = hit.item;
-      const isShift = e.shiftKey;
-
-      if (isShift) {
-        if (this.selectedIds.has(entity.id)) {
-          this.selectedIds.delete(entity.id);
-          this.selectedEntities.delete(entity.id);
-        } else {
-          this.selectedIds.add(entity.id);
-          this.selectedEntities.set(entity.id, { type: hit.type, id: entity.id });
-        }
-      } else if (!this.selectedIds.has(entity.id)) {
-        this.selectedIds.clear();
-        this.selectedEntities.clear();
-        this.selectedIds.add(entity.id);
-        this.selectedEntities.set(entity.id, { type: hit.type, id: entity.id });
-      }
-
-      this.mode = 'dragging';
-      this.dragTarget = { type: hit.type, id: entity.id, item: entity };
-      const box = hit.type === 'rack'
-        ? footprint(entity.length_mm, entity.depth_mm, entity.rotation || 0)
-        : { width: entity.width_mm || 2000, depth: entity.length_mm || 2000 };
-      this.dragGhost = {
-        x_mm: entity.x_mm,
-        y_mm: entity.y_mm,
-        width: box.width,
-        depth: box.depth,
-      };
-      this.isColliding = false;
-
+    // Klik pada canvas kosong
+    if (!e.shiftKey) {
+      this.selectedIds.clear();
+      this.selectedEntities.clear();
       if (this.onSelectionChange) {
-        this.onSelectionChange(Array.from(this.selectedEntities.values()));
+        this.onSelectionChange([]);
       }
+    }
+
+    if (e.button === 0) {
+      // Klik kiri tahan di ruang kosong -> Mode Rubber-Band Marquee Selection Box
+      this.mode = 'rubberBand';
+      this.rubberBandRect = null;
       this._requestRender();
     } else {
-      // Klik pada canvas kosong
-      if (!e.shiftKey) {
-        this.selectedIds.clear();
-        this.selectedEntities.clear();
-        if (this.onSelectionChange) {
-          this.onSelectionChange([]);
-        }
-      }
-
-      if (e.button === 0) {
-        // Klik kiri tahan di ruang kosong -> Mode Rubber-Band Marquee Selection Box
-        this.mode = 'rubberBand';
-        this.rubberBandRect = null;
-        this._requestRender();
-      } else {
-        // Klik selain tombol kiri (misal tengah/kanan) -> Pan kanvas
-        this.mode = 'panning';
-        this._requestRender();
-      }
+      // Klik selain tombol kiri (misal tengah/kanan) -> Pan kanvas
+      this.mode = 'panning';
+      this._requestRender();
     }
   }
 
@@ -784,7 +909,86 @@ export class PointerController {
         if (this.canvas && this.canvas.style.cursor !== 'grab') {
           this.canvas.style.cursor = 'grab';
         }
+      } else if (this.activeTool === 'select' && !this.isFillDockMode && !this.isFillAisleMode && !this.isFillSlotMode && this.mode !== 'placement') {
+        const handleHit = this._getHandleUnderPointer(wx, wy);
+        if (handleHit) {
+          if (this.canvas && this.canvas.style.cursor !== handleHit.cursor) {
+            this.canvas.style.cursor = handleHit.cursor;
+          }
+          return;
+        }
+
+        const hit = this.hitTest(wx, wy);
+        if (hit) {
+          if (this.canvas && this.canvas.style.cursor !== 'move') {
+            this.canvas.style.cursor = 'move';
+          }
+        } else {
+          if (this.canvas && this.canvas.style.cursor !== 'default') {
+            this.canvas.style.cursor = 'default';
+          }
+        }
       }
+      return;
+    }
+
+    if (this.mode === 'resizing' && this.resizeTarget && this.dragGhost) {
+      const wh = this.snapshot?.warehouse || { width_mm: 50000, length_mm: 80000 };
+      const { origX, origY, origW, origD } = this.resizeTarget;
+      const handle = this.resizeHandle;
+
+      // Snap ke grid 500mm
+      const SNAP = 500;
+      const snappedWx = Math.round(wx / SNAP) * SNAP;
+      const snappedWy = Math.round(wy / SNAP) * SNAP;
+
+      let newX = origX;
+      let newY = origY;
+      let newW = origW;
+      let newD = origD;
+
+      const MIN_SIZE = 500;
+
+      if (handle === 'w' || handle === 'nw' || handle === 'sw') {
+        const rightEdge = origX + origW;
+        newX = Math.max(0, Math.min(rightEdge - MIN_SIZE, snappedWx));
+        newW = rightEdge - newX;
+      }
+      if (handle === 'e' || handle === 'ne' || handle === 'se') {
+        newW = Math.max(MIN_SIZE, Math.min(wh.width_mm - origX, snappedWx - origX));
+      }
+      if (handle === 'n' || handle === 'nw' || handle === 'ne') {
+        const bottomEdge = origY + origD;
+        newY = Math.max(0, Math.min(bottomEdge - MIN_SIZE, snappedWy));
+        newD = bottomEdge - newY;
+      }
+      if (handle === 's' || handle === 'sw' || handle === 'se') {
+        newD = Math.max(MIN_SIZE, Math.min(wh.length_mm - origY, snappedWy - origY));
+      }
+
+      // Khusus Forklift: KUNCI LEBAR penampang sesuai input user (tidak boleh membesar atau mengecil)
+      const isForklift = this.resizeTarget?.type === 'aisle' && (
+        this.resizeTarget?.item?.type === 'forklift' ||
+        String(this.resizeTarget?.item?.name || '').toLowerCase().includes('forklift') ||
+        this.resizeTarget?.item?.direction === 'forklift'
+      );
+      if (isForklift) {
+        const isHoriz = origW >= origD;
+        if (isHoriz) {
+          newD = origD;
+          newY = origY;
+        } else {
+          newW = origW;
+          newX = origX;
+        }
+      }
+
+      this.dragGhost.x_mm = newX;
+      this.dragGhost.y_mm = newY;
+      this.dragGhost.width = newW;
+      this.dragGhost.depth = newD;
+
+      this._requestRender(true);
       return;
     }
 
@@ -865,13 +1069,17 @@ export class PointerController {
         const rawX = Math.max(0, Math.min(whW - targetW, origX + dwx));
         const rawY = Math.max(0, Math.min(whL - targetL, origY + dwy));
 
+        const isForklift = this.dragTarget.item?.type === 'forklift' ||
+          String(this.dragTarget.item?.name || '').toLowerCase().includes('forklift') ||
+          this.dragTarget.item?.direction === 'forklift';
+
         // Fitur 2: Snap to Clearance & Auto-Fit ke Celah Rak
         const fitted = this._snapAisleToRackClearance({
           x: rawX,
           y: rawY,
           width: targetW,
           depth: targetL,
-        }, this.dragTarget.id);
+        }, this.dragTarget.id, null, isForklift);
 
         const clampedW = Math.min(whW, fitted.width);
         const clampedL = Math.min(whL, fitted.depth);
@@ -902,7 +1110,7 @@ export class PointerController {
       if (this.spatialHash && !isDoor) {
         const collisions = this.spatialHash.query(
           { x: this.dragGhost.x_mm, y: this.dragGhost.y_mm, width: this.dragGhost.width, depth: this.dragGhost.depth },
-          this.dragTarget.id
+          `${this.dragTarget.type}:${this.dragTarget.id}`
         );
         const effectiveCollisions = this.dragTarget.type === 'aisle'
           ? collisions.filter((cid) => !String(cid).startsWith('aisle:'))
@@ -1048,10 +1256,19 @@ export class PointerController {
           Math.round((Number(this.aisleConfig?.widthM) || (isForklift ? 3 : isPedestrian ? 1 : 1.5)) * 1000)
         );
 
-        if (colsDragged === 1 && rowsDragged > 1) {
-          width_mm = configuredW;
-        } else if (rowsDragged === 1 && colsDragged > 1) {
-          length_mm = configuredW;
+        if (isForklift) {
+          // Khusus forklift: kunci lebar penampang persis sesuai input user
+          if (colsDragged >= rowsDragged) {
+            length_mm = configuredW;
+          } else {
+            width_mm = configuredW;
+          }
+        } else {
+          if (colsDragged === 1 && rowsDragged > 1) {
+            width_mm = configuredW;
+          } else if (rowsDragged === 1 && colsDragged > 1) {
+            length_mm = configuredW;
+          }
         }
 
         const dragOrientation = colsDragged > rowsDragged ? 'horizontal' : rowsDragged > colsDragged ? 'vertical' : null;
@@ -1062,7 +1279,15 @@ export class PointerController {
           y: y_mm,
           width: width_mm,
           depth: length_mm,
-        }, null, dragOrientation);
+        }, null, dragOrientation, isForklift);
+
+        if (isForklift) {
+          if (dragOrientation === 'horizontal' || (!dragOrientation && colsDragged >= rowsDragged)) {
+            fitted.depth = configuredW;
+          } else {
+            fitted.width = configuredW;
+          }
+        }
 
         const clampedW = Math.min(wh.width_mm, fitted.width);
         const clampedL = Math.min(wh.length_mm, fitted.depth);
@@ -1091,9 +1316,8 @@ export class PointerController {
           return true;
         });
 
-        const overlapsAisle = !isForklift && queryHits.some((cid) => String(cid).startsWith('aisle:'));
-        const isColliding = rackOrObjCollisions.length > 0 || overlapsAisle;
-        const collisionReason = rackOrObjCollisions.length > 0 ? 'rack' : overlapsAisle ? 'pedestrian_overlap' : null;
+        const isColliding = rackOrObjCollisions.length > 0;
+        const collisionReason = rackOrObjCollisions.length > 0 ? 'rack' : null;
 
         this.aisleFillGhost = {
           x_mm: clampedX,
@@ -1118,6 +1342,32 @@ export class PointerController {
     if (this.activePointerId === e.pointerId) {
       this.canvas.releasePointerCapture(e.pointerId);
       this.activePointerId = null;
+    }
+
+    if (this.mode === 'resizing' && this.resizeTarget && this.dragGhost) {
+      const finalPosition = {
+        type: this.resizeTarget.type || 'layout_object',
+        id: this.resizeTarget.id,
+        x_mm: this.dragGhost.x_mm,
+        y_mm: this.dragGhost.y_mm,
+        width: this.dragGhost.width,
+        width_mm: this.dragGhost.width,
+        depth: this.dragGhost.depth,
+        length_mm: this.dragGhost.depth,
+        isColliding: false,
+        isResize: true,
+      };
+
+      if (this.onDragCommit) {
+        this.onDragCommit(finalPosition);
+      }
+
+      this.dragGhost = null;
+      this.resizeTarget = null;
+      this.resizeHandle = null;
+      this.mode = 'idle';
+      this._requestRender();
+      return;
     }
 
     if (this.mode === 'dragging' && this.dragTarget && this.dragGhost) {

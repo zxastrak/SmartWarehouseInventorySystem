@@ -10,11 +10,22 @@ import 'stock_screen.dart';
 import 'scanner_screen.dart';
 import 'profile_screen.dart';
 import 'activity_screen.dart';
+import 'warehouse_map_screen.dart';
 
 int _parseInt(dynamic val) {
   if (val == null) return 0;
   if (val is num) return val.toInt();
   return int.tryParse(val.toString()) ?? 0;
+}
+
+enum _Page2Mode {
+  map('Peta'),
+  singleScan('Single Scan'),
+  dispatch('Dispatching'),
+  putaway('Putaway');
+
+  final String label;
+  const _Page2Mode(this.label);
 }
 
 class AppShell extends StatefulWidget {
@@ -29,10 +40,43 @@ class _AppShellState extends State<AppShell> {
   int _lastPage = 0;
   int _lastRenderedPage = -1;
   bool _isStalledOffline = false;
+  _Page2Mode _page2Mode = _Page2Mode.singleScan;
+
+  void _onPage2ModeChanged(_Page2Mode newMode, WarehouseState s) {
+    HapticFeedback.selectionClick().ignore();
+    setState(() {
+      _page2Mode = newMode;
+      switch (newMode) {
+        case _Page2Mode.map:
+          break;
+        case _Page2Mode.singleScan:
+          s.setScanMode(ScanMode.single);
+          break;
+        case _Page2Mode.dispatch:
+          s.setScanMode(ScanMode.dispatch);
+          break;
+        case _Page2Mode.putaway:
+          s.setScanMode(ScanMode.putaway);
+          break;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final s = context.watch<WarehouseState>();
+
+    // Sinkronisasi mode scanner aktif jika berubah dari dalam form scanner
+    if (s.page == 2 && _page2Mode != _Page2Mode.map) {
+      final expectedMode = switch (s.scanMode) {
+        ScanMode.single => _Page2Mode.singleScan,
+        ScanMode.dispatch => _Page2Mode.dispatch,
+        ScanMode.putaway => _Page2Mode.putaway,
+      };
+      if (_page2Mode != expectedMode) {
+        _page2Mode = expectedMode;
+      }
+    }
 
     // Reset status scroll ketika berpindah tab halaman
     if (_lastPage != s.page) {
@@ -40,7 +84,8 @@ class _AppShellState extends State<AppShell> {
       _isScrolled = false;
     }
 
-    final isOnline = s.connectionStatus == ConnectionStatus.online;
+    final isOnline = s.connectionStatus == ConnectionStatus.online ||
+        s.connectionStatus == ConnectionStatus.localOnly;
     if (isOnline) {
       _isStalledOffline = false;
       _lastRenderedPage = s.page;
@@ -50,30 +95,49 @@ class _AppShellState extends State<AppShell> {
       _lastRenderedPage = -1;
     }
 
-    // Route selector untuk 5 tab utama operasional
-    final body = switch (s.page) {
-      0 => const ShiftHubScreen(),
-      1 => const StockScreen(),
-      2 => const ScannerScreen(),
-      3 => const ActivityScreen(),
-      4 => const ProfileScreen(),
-      _ => const ShiftHubScreen(),
-    };
-
     final activeBottomTab = (s.page >= 0 && s.page <= 4) ? s.page : 0;
     final topPadding = MediaQuery.paddingOf(context).top + 72;
 
-    final Widget activeContent = _isStalledOffline
-        ? Padding(
-            padding: EdgeInsets.only(top: topPadding, bottom: 100),
-            child: const _ConnectionLoadingView(),
-          )
-        : (s.page == 0 || s.page == 1
-            ? body
-            : SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(16, topPadding, 16, 100),
-                child: body,
-              ));
+    final Widget tabBody = IndexedStack(
+      index: (s.page >= 0 && s.page <= 4) ? s.page : 0,
+      children: [
+        const ShiftHubScreen(),
+        const StockScreen(),
+        s.page != 2
+            ? const SizedBox.shrink()
+            : (_page2Mode == _Page2Mode.map
+                ? SizedBox.expand(
+                    child: WarehouseMapScreen(
+                      isEmbeddedInShell: true,
+                      onSwitchToScanner: () {
+                        setState(() {
+                          _page2Mode = _Page2Mode.singleScan;
+                        });
+                      },
+                    ),
+                  )
+                : SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(16, topPadding, 16, 140),
+                    child: const ScannerScreen(),
+                  )),
+        SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(16, topPadding, 16, 140),
+          child: const ActivityScreen(),
+        ),
+        SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(16, topPadding, 16, 140),
+          child: const ProfileScreen(),
+        ),
+      ],
+    );
+
+    final Widget activeContent =
+        _isStalledOffline
+            ? Padding(
+                padding: EdgeInsets.only(top: topPadding, bottom: 100),
+                child: const _ConnectionLoadingView(),
+              )
+            : tabBody;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark.copyWith(
@@ -103,15 +167,7 @@ class _AppShellState extends State<AppShell> {
                   alignment: Alignment.topCenter,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 500),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
-                      switchInCurve: Curves.easeOut,
-                      switchOutCurve: Curves.easeIn,
-                      child: KeyedSubtree(
-                        key: ValueKey<String>('${s.page}_$_isStalledOffline'),
-                        child: activeContent,
-                      ),
-                    ),
+                    child: activeContent,
                   ),
                 ),
               ),
@@ -135,7 +191,8 @@ class _AppShellState extends State<AppShell> {
                         isScrolled: _isScrolled,
                         unreadCount: s.unreadNotificationCount,
                         connectionStatus: s.connectionStatus,
-                        onConnectionTap: () => _showConnectionDetailSheet(context, s),
+                        onConnectionTap:
+                            () => _showConnectionDetailSheet(context, s),
                         onNotificationTap: () {
                           if (s.unreadNotificationCount > 0) {
                             s.markNotificationsRead();
@@ -148,6 +205,23 @@ class _AppShellState extends State<AppShell> {
                 ),
               ),
             ),
+
+            // 3. Floating Bottom Mode Slider Bar (4 Mode: Peta, Single Scan, Dispatching, Putaway)
+            if (s.page == 2)
+              Positioned(
+                left: 14,
+                right: 14,
+                bottom: 84,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: _BottomModeSliderBar(
+                      currentMode: _page2Mode,
+                      onModeChanged: (mode) => _onPage2ModeChanged(mode, s),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
 
@@ -180,14 +254,9 @@ class _AppShellState extends State<AppShell> {
                             borderRadius: BorderRadius.circular(32),
                             boxShadow: const [
                               BoxShadow(
-                                color: Color(0x1f000000),
-                                blurRadius: 20,
-                                offset: Offset(0, 4),
-                              ),
-                              BoxShadow(
-                                color: Color(0x0a000000),
+                                color: Color(0x12000000),
                                 blurRadius: 6,
-                                offset: Offset(0, 1),
+                                offset: Offset(0, 2),
                               ),
                             ],
                           ),
@@ -201,37 +270,42 @@ class _AppShellState extends State<AppShell> {
                                 badgeCount: s.pendingCount,
                                 onTap: () => s.navigate(0),
                               ),
-                                  _InteractiveNavTabItem(
-                                    label: 'Stok & Rak',
-                                    icon: Icons.inventory_2_outlined,
-                                    activeIcon: Icons.inventory_2,
-                                    isSelected: activeBottomTab == 1,
-                                    onTap: () => s.navigate(1),
-                                  ),
-                                  const Expanded(child: SizedBox()),
-                                  _InteractiveNavTabItem(
-                                    label: 'Aktivitas',
-                                    icon: Icons.history,
-                                    activeIcon: Icons.history_toggle_off,
-                                    isSelected: activeBottomTab == 3,
-                                    onTap: () => s.navigate(3),
-                                  ),
-                                  _InteractiveNavTabItem(
-                                    label: 'Profil',
-                                    icon: Icons.person_outline,
-                                    activeIcon: Icons.person,
-                                    isSelected: activeBottomTab == 4,
-                                    onTap: () => s.navigate(4),
-                                  ),
-                                ],
+                              _InteractiveNavTabItem(
+                                label: 'Stok & Rak',
+                                icon: Icons.inventory_2_outlined,
+                                activeIcon: Icons.inventory_2,
+                                isSelected: activeBottomTab == 1,
+                                onTap: () => s.navigate(1),
                               ),
-                            ),
+                              const Expanded(child: SizedBox()),
+                              _InteractiveNavTabItem(
+                                label: 'Aktivitas',
+                                icon: Icons.history,
+                                activeIcon: Icons.history_toggle_off,
+                                isSelected: activeBottomTab == 3,
+                                onTap: () => s.navigate(3),
+                              ),
+                              _InteractiveNavTabItem(
+                                label: 'Profil',
+                                icon: Icons.person_outline,
+                                activeIcon: Icons.person,
+                                isSelected: activeBottomTab == 4,
+                                onTap: () => s.navigate(4),
+                              ),
+                            ],
                           ),
+                        ),
+                      ),
                       // Bulatan Hijau Besar di Tengah (Scanner Cepat Otomatis Alur Tugas)
                       Positioned(
                         top: 0,
                         child: GestureDetector(
-                          onTap: () => s.launchActiveTaskScanner(),
+                          onTap: () {
+                            setState(() {
+                              _page2Mode = _Page2Mode.singleScan;
+                            });
+                            s.launchActiveTaskScanner();
+                          },
                           behavior: HitTestBehavior.opaque,
                           child: Container(
                             width: 56,
@@ -276,33 +350,41 @@ class _AppShellState extends State<AppShell> {
             final isLocalOnly = st == ConnectionStatus.localOnly;
 
             // Warna & Aset Icon Semantik 4-State
-            final Color iconColor = isOnline
-                ? const Color(0xff16a34a)
-                : (isServerOffline
-                    ? const Color(0xffd97706)
-                    : (isLocalOnly ? const Color(0xff0284c7) : const Color(0xffdc2626)));
+            final Color iconColor =
+                isOnline
+                    ? const Color(0xff16a34a)
+                    : (isServerOffline
+                        ? const Color(0xffd97706)
+                        : (isLocalOnly
+                            ? const Color(0xff0284c7)
+                            : const Color(0xffdc2626)));
 
-            final IconData statusIcon = isOnline
-                ? Icons.cloud_done_rounded
-                : (isServerOffline
-                    ? Icons.cloud_queue_rounded
-                    : (isLocalOnly ? Icons.lan_rounded : Icons.wifi_off_rounded));
+            final IconData statusIcon =
+                isOnline
+                    ? Icons.cloud_done_rounded
+                    : (isServerOffline
+                        ? Icons.cloud_queue_rounded
+                        : (isLocalOnly
+                            ? Icons.lan_rounded
+                            : Icons.wifi_off_rounded));
 
-            final String title = isOnline
-                ? 'Terhubung Dalam Jaringan'
-                : (isServerOffline
-                    ? 'Server SUSUNO Down / Off Sementara'
-                    : (isLocalOnly
-                        ? 'Menunggu Jaringan...'
-                        : 'Terputus Dalam Jaringan'));
+            final String title =
+                isOnline
+                    ? 'Terhubung Dalam Jaringan'
+                    : (isServerOffline
+                        ? 'Server SUSUNO Down / Off Sementara'
+                        : (isLocalOnly
+                            ? 'Menunggu Jaringan...'
+                            : 'Terputus Dalam Jaringan'));
 
-            final String description = isOnline
-                ? 'Aplikasi terhubung lancar ke internet dan server SUSUNO. Seluruh transaksi pemindaian, absensi, dan sinkronisasi berjalan normal.'
-                : (isServerOffline
-                    ? 'Perangkat Anda terhubung ke internet, namun server SUSUNO (${ApiConfig.baseUrl}) sedang down atau tidak aktif sementara. Hubungi tim IT.'
-                    : (isLocalOnly
-                        ? 'Perangkat terhubung ke server lokal (${ApiConfig.baseUrl}), namun sedang menunggu koneksi internet luar stabil.'
-                        : 'Perangkat tidak mendeteksi koneksi jaringan internet maupun server. Seluruh transaksi inventaris dikunci sementara.'));
+            final String description =
+                isOnline
+                    ? 'Aplikasi terhubung lancar ke internet dan server SUSUNO. Seluruh transaksi pemindaian, absensi, dan sinkronisasi berjalan normal.'
+                    : (isServerOffline
+                        ? 'Perangkat Anda terhubung ke internet, namun server SUSUNO (${ApiConfig.baseUrl}) sedang down atau tidak aktif sementara. Hubungi tim IT.'
+                        : (isLocalOnly
+                            ? 'Perangkat terhubung ke server lokal (${ApiConfig.baseUrl}), namun sedang menunggu koneksi internet luar stabil.'
+                            : 'Perangkat tidak mendeteksi koneksi jaringan internet maupun server. Seluruh transaksi inventaris dikunci sementara.'));
 
             return ConstrainedBox(
               constraints: BoxConstraints(
@@ -335,11 +417,7 @@ class _AppShellState extends State<AppShell> {
                         // Status Icon (Hanya ikon tanpa lingkaran latar belakang)
                         Padding(
                           padding: const EdgeInsets.only(top: 2, bottom: 6),
-                          child: Icon(
-                            statusIcon,
-                            color: iconColor,
-                            size: 40,
-                          ),
+                          child: Icon(statusIcon, color: iconColor, size: 40),
                         ),
                         const SizedBox(height: 6),
 
@@ -369,7 +447,10 @@ class _AppShellState extends State<AppShell> {
                         Container(
                           width: double.infinity,
                           margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 9,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xfff8fafc),
                             borderRadius: BorderRadius.circular(12),
@@ -378,9 +459,14 @@ class _AppShellState extends State<AppShell> {
                           child: Row(
                             children: [
                               Icon(
-                                s.hasInternetConnection ? Icons.wifi_rounded : Icons.wifi_off_rounded,
+                                s.hasInternetConnection
+                                    ? Icons.wifi_rounded
+                                    : Icons.wifi_off_rounded,
                                 size: 16,
-                                color: s.hasInternetConnection ? const Color(0xff16a34a) : const Color(0xffdc2626),
+                                color:
+                                    s.hasInternetConnection
+                                        ? const Color(0xff16a34a)
+                                        : const Color(0xffdc2626),
                               ),
                               const SizedBox(width: 8),
                               const Expanded(
@@ -397,11 +483,16 @@ class _AppShellState extends State<AppShell> {
                                 width: 24,
                                 height: 24,
                                 decoration: BoxDecoration(
-                                  color: s.hasInternetConnection ? const Color(0xff16a34a) : const Color(0xffdc2626),
+                                  color:
+                                      s.hasInternetConnection
+                                          ? const Color(0xff16a34a)
+                                          : const Color(0xffdc2626),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
-                                  s.hasInternetConnection ? Icons.check_rounded : Icons.close_rounded,
+                                  s.hasInternetConnection
+                                      ? Icons.check_rounded
+                                      : Icons.close_rounded,
                                   size: 15,
                                   color: Colors.white,
                                 ),
@@ -413,7 +504,10 @@ class _AppShellState extends State<AppShell> {
                         // Kotak Status Rinci: Server SUSUNO
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 9,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xfff8fafc),
                             borderRadius: BorderRadius.circular(12),
@@ -421,7 +515,11 @@ class _AppShellState extends State<AppShell> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.dns_rounded, size: 16, color: brandSlate),
+                              const Icon(
+                                Icons.dns_rounded,
+                                size: 16,
+                                color: brandSlate,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -439,11 +537,12 @@ class _AppShellState extends State<AppShell> {
                                 width: 24,
                                 height: 24,
                                 decoration: BoxDecoration(
-                                  color: s.isBackendConnected
-                                      ? const Color(0xff16a34a)
-                                      : (s.hasInternetConnection
-                                          ? const Color(0xffeab308)
-                                          : const Color(0xffdc2626)),
+                                  color:
+                                      s.isBackendConnected
+                                          ? const Color(0xff16a34a)
+                                          : (s.hasInternetConnection
+                                              ? const Color(0xffeab308)
+                                              : const Color(0xffdc2626)),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
@@ -481,10 +580,12 @@ class _AppShellState extends State<AppShell> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
-            final activeNotifications = s.notifications.where((n) {
-              final st = (n['status'] ?? 'pending').toString().toLowerCase();
-              return st != 'done' && st != 'completed' && st != 'cancelled';
-            }).toList();
+            final activeNotifications =
+                s.notifications.where((n) {
+                  final st =
+                      (n['status'] ?? 'pending').toString().toLowerCase();
+                  return st != 'done' && st != 'completed' && st != 'cancelled';
+                }).toList();
 
             return Container(
               constraints: BoxConstraints(
@@ -512,7 +613,10 @@ class _AppShellState extends State<AppShell> {
 
                     // Header Sheet
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
                       child: Row(
                         children: [
                           const Expanded(
@@ -555,291 +659,376 @@ class _AppShellState extends State<AppShell> {
                               ),
                             ),
                           IconButton(
-                            icon: const Icon(Icons.close_rounded, color: muted, size: 22),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: muted,
+                              size: 22,
+                            ),
                             onPressed: () => Navigator.pop(ctx),
                           ),
                         ],
                       ),
                     ),
 
-                    const Divider(height: 1, thickness: 1, color: Color(0xfff1f5f9)),
+                    const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Color(0xfff1f5f9),
+                    ),
 
                     // Daftar Tugas Notifikasi (hanya tugas aktif yang belum selesai)
                     Flexible(
-                      child: activeNotifications.isEmpty
-                          ? Container(
-                              padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
-                              alignment: Alignment.center,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
+                      child:
+                          activeNotifications.isEmpty
+                              ? Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 48,
+                                  horizontal: 24,
+                                ),
+                                alignment: Alignment.center,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: const BoxDecoration(
+                                        color: brandSoft,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.check_circle_outline_rounded,
+                                        size: 40,
+                                        color: brand,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    const Text(
+                                      'Semua Tugas Selesai',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                        color: brandInk,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    const Text(
+                                      'Tidak ada tugas operasional yang menunggu dikerjakan saat ini.',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: muted,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                              : ListView.separated(
+                                shrinkWrap: true,
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  14,
+                                  16,
+                                  24,
+                                ),
+                                itemCount: activeNotifications.length,
+                                separatorBuilder:
+                                    (_, __) => const SizedBox(height: 12),
+                                itemBuilder: (context, index) {
+                                  final n = activeNotifications[index];
+                                  final id = _parseInt(n['id']);
+                                  final isUnread =
+                                      !s.readNotificationIds.contains(id);
+                                  final status =
+                                      (n['status'] ?? 'pending')
+                                          .toString()
+                                          .toLowerCase();
+                                  final isCompleted =
+                                      status == 'done' || status == 'completed';
+                                  final isInProgress = status == 'in_progress';
+                                  final sku = (n['sku'] ?? '').toString();
+                                  final location =
+                                      (n['location_code'] ?? '').toString();
+                                  final priority =
+                                      (n['priority'] ?? '')
+                                          .toString()
+                                          .toUpperCase();
+
+                                  final statusText =
+                                      isCompleted
+                                          ? 'Selesai'
+                                          : isInProgress
+                                          ? 'Sedang Dikerjakan'
+                                          : 'Belum Dikerjakan';
+                                  final statusColor =
+                                      isCompleted
+                                          ? mintLogo
+                                          : isInProgress
+                                          ? brand
+                                          : const Color(0xffd97706);
+
+                                  return Container(
                                     padding: const EdgeInsets.all(16),
-                                    decoration: const BoxDecoration(
-                                      color: brandSoft,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.check_circle_outline_rounded,
-                                      size: 40,
-                                      color: brand,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 14),
-                                  const Text(
-                                    'Semua Tugas Selesai',
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w800,
-                                      color: brandInk,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  const Text(
-                                    'Tidak ada tugas operasional yang menunggu dikerjakan saat ini.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                      color: muted,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : ListView.separated(
-                              shrinkWrap: true,
-                              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-                              itemCount: activeNotifications.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 12),
-                              itemBuilder: (context, index) {
-                                final n = activeNotifications[index];
-                                final id = _parseInt(n['id']);
-                                final isUnread = !s.readNotificationIds.contains(id);
-                                final status = (n['status'] ?? 'pending').toString().toLowerCase();
-                                final isCompleted = status == 'done' || status == 'completed';
-                                final isInProgress = status == 'in_progress';
-                                final sku = (n['sku'] ?? '').toString();
-                                final location = (n['location_code'] ?? '').toString();
-                                final priority = (n['priority'] ?? '').toString().toUpperCase();
-
-                                final statusText = isCompleted
-                                    ? 'Selesai'
-                                    : isInProgress
-                                        ? 'Sedang Dikerjakan'
-                                        : 'Belum Dikerjakan';
-                                final statusColor = isCompleted
-                                    ? mintLogo
-                                    : isInProgress
-                                        ? brand
-                                        : const Color(0xffd97706);
-
-                                return Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: isUnread ? const Color(0xfffde68a) : const Color(0xffe2e8f0),
-                                      width: isUnread ? 1.5 : 1,
-                                    ),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: Color(0x06000000),
-                                        blurRadius: 10,
-                                        offset: Offset(0, 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color:
+                                            isUnread
+                                                ? const Color(0xfffde68a)
+                                                : const Color(0xffe2e8f0),
+                                        width: isUnread ? 1.5 : 1,
                                       ),
-                                    ],
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      // Baris Status & Badge Tugas Anda
-                                      Row(
-                                        children: [
-                                          Container(
-                                            width: 7,
-                                            height: 7,
-                                            decoration: BoxDecoration(
-                                              color: statusColor,
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            'TUGAS ANDA • $statusText',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w800,
-                                              letterSpacing: 0.2,
-                                              color: statusColor,
-                                            ),
-                                          ),
-                                          if (priority.isNotEmpty && priority != 'NORMAL') ...[
-                                            const SizedBox(width: 8),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Color(0x06000000),
+                                          blurRadius: 10,
+                                          offset: Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        // Baris Status & Badge Tugas Anda
+                                        Row(
+                                          children: [
                                             Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              width: 7,
+                                              height: 7,
                                               decoration: BoxDecoration(
-                                                color: priority == 'URGENT' || priority == 'HIGH'
-                                                    ? const Color(0xfffee2e2)
-                                                    : const Color(0xfffef3c7),
-                                                borderRadius: BorderRadius.circular(6),
+                                                color: statusColor,
+                                                shape: BoxShape.circle,
                                               ),
-                                              child: Text(
-                                                priority,
-                                                style: TextStyle(
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: priority == 'URGENT' || priority == 'HIGH'
-                                                      ? danger
-                                                      : const Color(0xffd97706),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              'TUGAS ANDA • $statusText',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w800,
+                                                letterSpacing: 0.2,
+                                                color: statusColor,
+                                              ),
+                                            ),
+                                            if (priority.isNotEmpty &&
+                                                priority != 'NORMAL') ...[
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      priority == 'URGENT' ||
+                                                              priority == 'HIGH'
+                                                          ? const Color(
+                                                            0xfffee2e2,
+                                                          )
+                                                          : const Color(
+                                                            0xfffef3c7,
+                                                          ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  priority,
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.w800,
+                                                    color:
+                                                        priority == 'URGENT' ||
+                                                                priority ==
+                                                                    'HIGH'
+                                                            ? danger
+                                                            : const Color(
+                                                              0xffd97706,
+                                                            ),
+                                                  ),
                                                 ),
                                               ),
-                                            ),
+                                            ],
+                                            const Spacer(),
+                                            if (isUnread)
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xfff59e0b,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: const Text(
+                                                  'BARU',
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.w900,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ),
                                           ],
-                                          const Spacer(),
-                                          if (isUnread)
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xfff59e0b),
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: const Text(
-                                                'BARU',
-                                                style: TextStyle(
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w900,
-                                                  color: Colors.white,
+                                        ),
+
+                                        const SizedBox(height: 8),
+
+                                        // Judul Tugas
+                                        Text(
+                                          (n['title'] ?? 'Tugas Gudang')
+                                              .toString(),
+                                          style: const TextStyle(
+                                            fontSize: 14.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: brandInk,
+                                            height: 1.3,
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 6),
+
+                                        // Deskripsi Instruksi
+                                        Text(
+                                          (n['description'] ?? '').toString(),
+                                          style: const TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w500,
+                                            color: brandSlate,
+                                            height: 1.4,
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 10),
+
+                                        // Informasi Item Terkait / Lokasi Rak
+                                        Wrap(
+                                          spacing: 12,
+                                          runSpacing: 4,
+                                          children: [
+                                            if (sku.isNotEmpty)
+                                              Text(
+                                                'Item Terkait: $sku',
+                                                style: const TextStyle(
+                                                  fontSize: 11.5,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: brand,
                                                 ),
                                               ),
-                                            ),
-                                        ],
-                                      ),
-
-                                      const SizedBox(height: 8),
-
-                                      // Judul Tugas
-                                      Text(
-                                        (n['title'] ?? 'Tugas Gudang').toString(),
-                                        style: const TextStyle(
-                                          fontSize: 14.5,
-                                          fontWeight: FontWeight.w800,
-                                          color: brandInk,
-                                          height: 1.3,
-                                        ),
-                                      ),
-
-                                      const SizedBox(height: 6),
-
-                                      // Deskripsi Instruksi
-                                      Text(
-                                        (n['description'] ?? '').toString(),
-                                        style: const TextStyle(
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w500,
-                                          color: brandSlate,
-                                          height: 1.4,
-                                        ),
-                                      ),
-
-                                      const SizedBox(height: 10),
-
-                                      // Informasi Item Terkait / Lokasi Rak
-                                      Wrap(
-                                        spacing: 12,
-                                        runSpacing: 4,
-                                        children: [
-                                          if (sku.isNotEmpty)
-                                            Text(
-                                              'Item Terkait: $sku',
-                                              style: const TextStyle(
-                                                fontSize: 11.5,
-                                                fontWeight: FontWeight.w700,
-                                                color: brand,
-                                              ),
-                                            ),
-                                          if (location.isNotEmpty)
-                                            Text(
-                                              'Lokasi: $location',
-                                              style: const TextStyle(
-                                                fontSize: 11.5,
-                                                fontWeight: FontWeight.w600,
-                                                color: brandSlate,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-
-                                      const SizedBox(height: 14),
-
-                                      // Tombol Aksi Mulai Kerjakan / Selesaikan
-                                      if (!isCompleted)
-                                        FilledButton.icon(
-                                          style: FilledButton.styleFrom(
-                                            backgroundColor: isInProgress ? const Color(0xff0f766e) : brand,
-                                            foregroundColor: Colors.white,
-                                            minimumSize: const Size.fromHeight(42),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(21),
-                                            ),
-                                            elevation: 0,
-                                          ),
-                                          icon: Icon(
-                                            isInProgress
-                                                ? Icons.check_circle_outline_rounded
-                                                : Icons.play_arrow_rounded,
-                                            size: 20,
-                                          ),
-                                          label: Text(
-                                            isInProgress ? 'Selesaikan Tugas' : 'Kerjakan',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                          onPressed: () async {
-                                            s.markNotificationRead(id);
-                                            Navigator.pop(ctx);
-
-                                            if (!isInProgress) {
-                                              await s.updateTaskStatus(id, 'in_progress');
-                                              final taskTitle = (n['title'] ?? 'Tugas Lapangan').toString();
-                                              s.openScanner(
-                                                sku,
-                                                mode: ScanMode.single,
-                                                taskTitle: taskTitle,
-                                                taskId: id,
-                                                rack: location.isNotEmpty ? location : null,
-                                              );
-                                            } else {
-                                              await s.updateTaskStatus(id, 'done');
-                                            }
-
-                                            if (context.mounted) {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    isInProgress
-                                                        ? 'Tugas #${n['id']} telah diselesaikan!'
-                                                        : 'Mulai mengerjakan tugas #${n['id']}${sku.isNotEmpty ? ' ($sku)' : ''}',
-                                                  ),
-                                                  backgroundColor: brand,
-                                                  behavior: SnackBarBehavior.floating,
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(12),
-                                                  ),
+                                            if (location.isNotEmpty)
+                                              Text(
+                                                'Lokasi: $location',
+                                                style: const TextStyle(
+                                                  fontSize: 11.5,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: brandSlate,
                                                 ),
-                                              );
-                                            }
-                                          },
+                                              ),
+                                          ],
                                         ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
+
+                                        const SizedBox(height: 14),
+
+                                        // Tombol Aksi Mulai Kerjakan / Selesaikan
+                                        if (!isCompleted)
+                                          FilledButton.icon(
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor:
+                                                  isInProgress
+                                                      ? const Color(0xff0f766e)
+                                                      : brand,
+                                              foregroundColor: Colors.white,
+                                              minimumSize:
+                                                  const Size.fromHeight(42),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(21),
+                                              ),
+                                              elevation: 0,
+                                            ),
+                                            icon: Icon(
+                                              isInProgress
+                                                  ? Icons
+                                                      .check_circle_outline_rounded
+                                                  : Icons.play_arrow_rounded,
+                                              size: 20,
+                                            ),
+                                            label: Text(
+                                              isInProgress
+                                                  ? 'Selesaikan Tugas'
+                                                  : 'Kerjakan',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            onPressed: () async {
+                                              s.markNotificationRead(id);
+                                              Navigator.pop(ctx);
+
+                                              if (!isInProgress) {
+                                                await s.updateTaskStatus(
+                                                  id,
+                                                  'in_progress',
+                                                );
+                                                final taskTitle =
+                                                    (n['title'] ??
+                                                            'Tugas Lapangan')
+                                                        .toString();
+                                                s.openScanner(
+                                                  sku,
+                                                  mode: ScanMode.single,
+                                                  taskTitle: taskTitle,
+                                                  taskId: id,
+                                                  rack:
+                                                      location.isNotEmpty
+                                                          ? location
+                                                          : null,
+                                                );
+                                              } else {
+                                                await s.updateTaskStatus(
+                                                  id,
+                                                  'done',
+                                                );
+                                              }
+
+                                              if (context.mounted) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      isInProgress
+                                                          ? 'Tugas #${n['id']} telah diselesaikan!'
+                                                          : 'Mulai mengerjakan tugas #${n['id']}${sku.isNotEmpty ? ' ($sku)' : ''}',
+                                                    ),
+                                                    backgroundColor: brand,
+                                                    behavior:
+                                                        SnackBarBehavior
+                                                            .floating,
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            },
+                                          ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
                     ),
                   ],
                 ),
@@ -883,20 +1072,16 @@ class _TopNavbar extends StatelessWidget {
       decoration: BoxDecoration(
         color: isScrolled ? Colors.white : Colors.transparent,
         borderRadius: BorderRadius.circular(32),
-        boxShadow: isScrolled
-            ? const [
-                BoxShadow(
-                  color: Color(0x1a000000),
-                  blurRadius: 18,
-                  offset: Offset(0, 4),
-                ),
-                BoxShadow(
-                  color: Color(0x08000000),
-                  blurRadius: 6,
-                  offset: Offset(0, 1),
-                ),
-              ]
-            : null,
+        boxShadow:
+            isScrolled
+                ? const [
+                  BoxShadow(
+                    color: Color(0x0f000000),
+                    blurRadius: 6,
+                    offset: Offset(0, 2),
+                  ),
+                ]
+                : null,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -906,6 +1091,7 @@ class _TopNavbar extends StatelessWidget {
             'assets/images/susuno_logo.png',
             width: 34,
             height: 34,
+            cacheWidth: 102,
             fit: BoxFit.contain,
           ),
           const SizedBox(width: 9),
@@ -982,31 +1168,40 @@ class _ConnectionStatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isOnline = connectionStatus == ConnectionStatus.online;
-    final bool isServerOffline = connectionStatus == ConnectionStatus.serverOffline;
+    final bool isServerOffline =
+        connectionStatus == ConnectionStatus.serverOffline;
     final bool isLocalOnly = connectionStatus == ConnectionStatus.localOnly;
 
-    final Color badgeColor = isOnline
-        ? const Color(0xff16a34a)
-        : (isServerOffline
-            ? const Color(0xffd97706)
-            : (isLocalOnly ? const Color(0xff0284c7) : const Color(0xffdc2626)));
+    final Color badgeColor =
+        isOnline
+            ? const Color(0xff16a34a)
+            : (isServerOffline
+                ? const Color(0xffd97706)
+                : (isLocalOnly
+                    ? const Color(0xff0284c7)
+                    : const Color(0xffdc2626)));
 
-    final Color glowColor = isOnline
-        ? const Color(0xff22c55e)
-        : (isServerOffline
-            ? const Color(0xfff59e0b)
-            : (isLocalOnly ? const Color(0xff38bdf8) : const Color(0xffef4444)));
+    final Color glowColor =
+        isOnline
+            ? const Color(0xff22c55e)
+            : (isServerOffline
+                ? const Color(0xfff59e0b)
+                : (isLocalOnly
+                    ? const Color(0xff38bdf8)
+                    : const Color(0xffef4444)));
 
     final bool isOffline = connectionStatus == ConnectionStatus.offline;
-    final IconData badgeIcon = isOffline ? Icons.wifi_off_rounded : Icons.wifi_rounded;
+    final IconData badgeIcon =
+        isOffline ? Icons.wifi_off_rounded : Icons.wifi_rounded;
 
-    final String tooltipMessage = isOnline
-        ? 'Semua Aman (Terhubung Penuh)'
-        : (isServerOffline
-            ? 'Server SUSUNO Down / Off Sementara'
-            : (isLocalOnly
-                ? 'Menunggu Jaringan...'
-                : 'Tidak Ada Jaringan'));
+    final String tooltipMessage =
+        isOnline
+            ? 'Semua Aman (Terhubung Penuh)'
+            : (isServerOffline
+                ? 'Server SUSUNO Down / Off Sementara'
+                : (isLocalOnly
+                    ? 'Menunggu Jaringan...'
+                    : 'Tidak Ada Jaringan'));
 
     return Material(
       color: Colors.transparent,
@@ -1031,11 +1226,7 @@ class _ConnectionStatusBadge extends StatelessWidget {
               ],
             ),
             child: Center(
-              child: Icon(
-                badgeIcon,
-                color: Colors.white,
-                size: 17,
-              ),
+              child: Icon(badgeIcon, color: Colors.white, size: 17),
             ),
           ),
         ),
@@ -1062,7 +1253,8 @@ class _NotificationBellButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: Tooltip(
-        message: unreadCount > 0 ? '$unreadCount notifikasi baru' : 'Notifikasi',
+        message:
+            unreadCount > 0 ? '$unreadCount notifikasi baru' : 'Notifikasi',
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(10),
@@ -1092,7 +1284,10 @@ class _NotificationBellButton extends StatelessWidget {
                     top: -4,
                     right: -4,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
                         color: danger,
                         borderRadius: BorderRadius.circular(8),
@@ -1204,9 +1399,10 @@ class _InteractiveNavTabItem extends StatelessWidget {
                 firstCurve: Curves.easeOut,
                 secondCurve: Curves.easeIn,
                 sizeCurve: Curves.fastOutSlowIn,
-                crossFadeState: isSelected
-                    ? CrossFadeState.showFirst
-                    : CrossFadeState.showSecond,
+                crossFadeState:
+                    isSelected
+                        ? CrossFadeState.showFirst
+                        : CrossFadeState.showSecond,
                 firstChild: Text(
                   label,
                   maxLines: 1,
@@ -1263,3 +1459,204 @@ class _ConnectionLoadingView extends StatelessWidget {
   }
 }
 
+/// Slider Bar Navigasi 4 Mode di Atas Bottom Bar:
+/// 1. Peta (Google Maps Spasial)
+/// 2. Single Scan (Audit/Cek Barcode SKU)
+/// 3. Dispatching (Pengeluaran Barang)
+/// 4. Putaway (Penyimpanan Barang Masuk)
+class _BottomModeSliderBar extends StatefulWidget {
+  final _Page2Mode currentMode;
+  final ValueChanged<_Page2Mode> onModeChanged;
+
+  const _BottomModeSliderBar({
+    required this.currentMode,
+    required this.onModeChanged,
+  });
+
+  @override
+  State<_BottomModeSliderBar> createState() => _BottomModeSliderBarState();
+}
+
+class _BottomModeSliderBarState extends State<_BottomModeSliderBar>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+  late Animation<double> _curveAnimation;
+  int _prevIndex = 0;
+  int _targetIndex = 0;
+  double _dragAccumulator = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _targetIndex = _Page2Mode.values.indexOf(widget.currentMode);
+    _prevIndex = _targetIndex;
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    );
+    _curveAnimation = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.fastOutSlowIn,
+    );
+    _animController.value = 1.0;
+  }
+
+  @override
+  void didUpdateWidget(covariant _BottomModeSliderBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final newIndex = _Page2Mode.values.indexOf(widget.currentMode);
+    if (newIndex != _targetIndex) {
+      setState(() {
+        _prevIndex = _targetIndex;
+        _targetIndex = newIndex;
+        _animController.forward(from: 0.0);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  void _selectMode(int index) {
+    if (index < 0 || index >= _Page2Mode.values.length) return;
+    if (index == _targetIndex) return;
+    HapticFeedback.selectionClick().ignore();
+    setState(() {
+      _prevIndex = _targetIndex;
+      _targetIndex = index;
+      _animController.forward(from: 0.0);
+    });
+    widget.onModeChanged(_Page2Mode.values[index]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xffe2e8f0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1e000000),
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragStart: (_) {
+          _dragAccumulator = 0;
+        },
+        onHorizontalDragUpdate: (details) {
+          _dragAccumulator += details.delta.dx;
+        },
+        onHorizontalDragEnd: (details) {
+          final velocity = details.primaryVelocity ?? 0;
+          if (velocity < -80 || _dragAccumulator < -36) {
+            // Drag ke kiri -> maju ke mode berikutnya
+            if (_targetIndex < _Page2Mode.values.length - 1) {
+              _selectMode(_targetIndex + 1);
+            }
+          } else if (velocity > 80 || _dragAccumulator > 36) {
+            // Drag ke kanan -> mundur ke mode sebelumnya
+            if (_targetIndex > 0) {
+              _selectMode(_targetIndex - 1);
+            }
+          }
+          _dragAccumulator = 0;
+        },
+        child: Stack(
+          children: [
+            // Animated sliding thumb hijau independen dengan kurva pegas super halus
+            AnimatedBuilder(
+              animation: _curveAnimation,
+              builder: (context, _) {
+                final t = _curveAnimation.value;
+                final currentPos = _prevIndex + (_targetIndex - _prevIndex) * t;
+                // Alignment X: -1.0 s/d +1.0
+                final alignX = -1.0 + (currentPos * (2.0 / 3.0));
+
+                // Dynamic subtle stretch effect saat bergerak
+                final stretchDelta = (_targetIndex - _prevIndex).abs();
+                final stretch =
+                    stretchDelta > 0
+                        ? 1.0 +
+                            (0.10 *
+                                (1.0 - (2 * (t - 0.5)).abs().clamp(0.0, 1.0)))
+                        : 1.0;
+
+                return Align(
+                  alignment: Alignment(alignX.clamp(-1.0, 1.0), 0),
+                  child: FractionallySizedBox(
+                    widthFactor: (0.25 * stretch).clamp(0.25, 0.30),
+                    heightFactor: 1.0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: brand,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x32000000),
+                            blurRadius: 6,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            // 4 Segmen Tombol Murni Teks (Tanpa Logo)
+            Row(
+              children:
+                  _Page2Mode.values.map((mode) {
+                    final index = _Page2Mode.values.indexOf(mode);
+                    final isSelected = mode == widget.currentMode;
+                    return Expanded(
+                      child: InkWell(
+                        onTap: () => _selectMode(index),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Center(
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 260),
+                            curve: Curves.fastOutSlowIn,
+                            style: TextStyle(
+                              fontSize: isSelected ? 12.0 : 11.0,
+                              fontWeight:
+                                  isSelected
+                                      ? FontWeight.w900
+                                      : FontWeight.w700,
+                              color:
+                                  isSelected
+                                      ? Colors.white
+                                      : const Color(0xff475569),
+                              fontFamily: 'Roboto',
+                              letterSpacing: -0.2,
+                            ),
+                            child: Text(
+                              mode.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

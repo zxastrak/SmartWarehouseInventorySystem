@@ -77,6 +77,48 @@
 .dashboard-search input { min-width: 0; flex: 1; border: 0; background: transparent; font-size: 13px; color: #191d17; }
 .dashboard-search input::placeholder { color: #737b6c; }
 .dashboard-search kbd { background: #f3f5ef; border-radius: 7px; padding: 6px 16px; color: #191d17; }
+.dashboard-live-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #ffffff;
+  border: 1px solid #dfe4d9;
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  user-select: none;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(25, 29, 23, 0.04);
+}
+.live-clock-icon {
+  color: #5c732b;
+  flex-shrink: 0;
+}
+.live-clock-time {
+  font-size: 13px;
+  font-weight: 700;
+  color: #191d17;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3px;
+}
+.live-clock-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #3e5510;
+  background: #dcebd9;
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.4px;
+}
+@media (max-width: 768px) {
+  .dashboard-live-clock {
+    padding: 5px 8px;
+    gap: 4px;
+  }
+  .live-clock-badge {
+    display: none;
+  }
+}
 .notification-button { position: relative; border: 0; background: transparent; padding: 5px; color: #333c2c; cursor: pointer; }
 .notification-button i { position: absolute; width: 9px; height: 9px; background: #8a5a5b; border-radius: 50%; top: 1px; right: 3px; }
 .notification-counter {

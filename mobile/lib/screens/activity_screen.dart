@@ -106,27 +106,25 @@ class _ActivityScreenState extends State<ActivityScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Kartu Metrik Ringkasan Hari Ini
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Metric(
-                  'Inbound Hari Ini',
-                  '${s.inflow} Unit',
-                  '${s.inboundTxCount} transaksi masuk',
-                ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Metric(
+                'Inbound Hari Ini',
+                '${s.inflow} Unit',
+                '${s.inboundTxCount} transaksi masuk',
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Metric(
-                  'Outbound Hari Ini',
-                  '${s.outflow} Unit',
-                  '${s.outboundTxCount} transaksi keluar',
-                ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Metric(
+                'Outbound Hari Ini',
+                '${s.outflow} Unit',
+                '${s.outboundTxCount} transaksi keluar',
               ),
-            ],
-          ),
+            ),
+          ],
         ),
 
         // Grafik Tren Aktivitas Gudang
@@ -234,14 +232,16 @@ class _ActivityScreenState extends State<ActivityScreen> {
               if (filtered.isEmpty)
                 _EmptyActivities(filter: _filter, onRefresh: _refreshData)
               else
-                Column(
-                  children: [
-                    for (int i = 0; i < filtered.length; i++)
-                      _ActivityCard(
-                        activity: filtered[i],
-                        isLast: i == filtered.length - 1,
-                      ),
-                  ],
+                RepaintBoundary(
+                  child: Column(
+                    children: [
+                      for (int i = 0; i < filtered.length; i++)
+                        _ActivityCard(
+                          activity: filtered[i],
+                          isLast: i == filtered.length - 1,
+                        ),
+                    ],
+                  ),
                 ),
             ],
           ),

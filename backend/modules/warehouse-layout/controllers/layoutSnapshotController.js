@@ -18,6 +18,7 @@ const layoutSnapshotController = {
       if (whRows.length === 0) {
         return res.status(404).json({
           error: 'RESOURCE_NOT_FOUND',
+          code: 'RESOURCE_NOT_FOUND',
           message: 'Warehouse tidak ditemukan.',
           requestId: req.requestId,
         });
@@ -102,7 +103,7 @@ const layoutSnapshotController = {
         requestId: req.requestId,
       });
     } catch (err) {
-      res.status(500).json({ error: 'INTERNAL_ERROR', message: err.message, requestId: req.requestId });
+      res.status(500).json({ error: 'INTERNAL_ERROR', code: 'INTERNAL_ERROR', message: err.message, requestId: req.requestId });
     }
   },
 

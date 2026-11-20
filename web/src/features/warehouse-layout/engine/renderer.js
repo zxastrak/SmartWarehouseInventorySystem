@@ -257,32 +257,25 @@ export class LayoutRenderer {
       }
     }
 
-    // 4. Aisles & Forklift Lanes
+    // 4. Aisles & Forklift Lanes (Two-pass rendering: Pass 1 fills for seamless intersections, Pass 2 borders & annotations)
     if (Array.isArray(snapshot.aisles)) {
-      for (const a of snapshot.aisles) {
-        if (this.hiddenLayers.has('aisle') || this.hiddenEntityIds.has(a.id)) continue;
+      const visibleAisles = snapshot.aisles.filter((a) => !this.hiddenLayers.has('aisle') && !this.hiddenEntityIds.has(a.id));
 
+      // Pass 1: Floor Bed Fills (Menyatukan persimpangan / L-corners secara mulus)
+      for (const a of visibleAisles) {
         const isBoth = a.type === 'both' || a.direction === 'both' || Boolean(a.is_both) || String(a.name || '').toLowerCase().includes('bersama');
         const isForklift = !isBoth && (
           String(a.name || '').toLowerCase().includes('forklift') ||
           String(a.aisle_code || '').toLowerCase().includes('forklift') ||
           a.direction === 'forklift'
         );
-        const isPedestrian = !isBoth && (
-          String(a.type || '').toLowerCase().includes('pedestrian') ||
-          String(a.name || '').toLowerCase().includes('penghubung') ||
-          String(a.name || '').toLowerCase().includes('orang') ||
-          String(a.aisle_code || '').startsWith('P-')
-        );
 
         ctx.save();
         if (isBoth) {
-          // Kuning bergaris hijau (Jalur Bersama: Forklift menimpa jalan pejalan)
-          // 1. Base fill kuning
+          // Base fill kuning + garis diagonal hijau
           ctx.fillStyle = '#fef08a';
           ctx.fillRect(a.x_mm, a.y_mm, a.width_mm, a.length_mm);
 
-          // 2. Garis-garis diagonal hijau
           ctx.save();
           ctx.beginPath();
           ctx.rect(a.x_mm, a.y_mm, a.width_mm, a.length_mm);
@@ -299,28 +292,40 @@ export class LayoutRenderer {
             ctx.stroke();
           }
           ctx.restore();
+        } else if (isForklift) {
+          ctx.fillStyle = '#fef08a';
+          ctx.fillRect(a.x_mm, a.y_mm, a.width_mm, a.length_mm);
+        } else {
+          ctx.fillStyle = '#86efac';
+          ctx.fillRect(a.x_mm, a.y_mm, a.width_mm, a.length_mm);
+        }
+        ctx.restore();
+      }
 
-          // 3. Stroke border kuning-hijau kuat
+      // Pass 2: Borders, Centerlines, Badges & Labels
+      for (const a of visibleAisles) {
+        const isBoth = a.type === 'both' || a.direction === 'both' || Boolean(a.is_both) || String(a.name || '').toLowerCase().includes('bersama');
+        const isForklift = !isBoth && (
+          String(a.name || '').toLowerCase().includes('forklift') ||
+          String(a.aisle_code || '').toLowerCase().includes('forklift') ||
+          a.direction === 'forklift'
+        );
+        const isHoriz = (a.width_mm || 2000) >= (a.length_mm || 5000);
+
+        ctx.save();
+        if (isBoth) {
           ctx.strokeStyle = '#ca8a04';
           ctx.lineWidth = Math.max(2.5 / viewport.scale, 35);
           ctx.strokeRect(a.x_mm, a.y_mm, a.width_mm, a.length_mm);
         } else if (isForklift) {
-          // Forklift jalan kuning
-          ctx.fillStyle = '#fef08a';
           ctx.strokeStyle = '#ca8a04';
           ctx.lineWidth = Math.max(2 / viewport.scale, 30);
-          ctx.fillRect(a.x_mm, a.y_mm, a.width_mm, a.length_mm);
           ctx.strokeRect(a.x_mm, a.y_mm, a.width_mm, a.length_mm);
         } else {
-          // Pejalan full hijau
-          ctx.fillStyle = '#86efac';
           ctx.strokeStyle = '#16a34a';
           ctx.lineWidth = Math.max(2 / viewport.scale, 30);
-          ctx.fillRect(a.x_mm, a.y_mm, a.width_mm, a.length_mm);
           ctx.strokeRect(a.x_mm, a.y_mm, a.width_mm, a.length_mm);
         }
-
-        const isHoriz = (a.width_mm || 2000) >= (a.length_mm || 5000);
 
         if (a.width_mm * viewport.scale > 18 || a.length_mm * viewport.scale > 18) {
           ctx.fillStyle = isBoth ? '#14532d' : (isForklift ? '#854d0e' : '#14532d');
@@ -1161,7 +1166,7 @@ export class LayoutRenderer {
           ctx.strokeRect(item.x_mm, item.y_mm, w, d);
 
           // Selection Handles
-          this._drawSelectionHandles(ctx, item.x_mm, item.y_mm, w, d, viewport.scale);
+          this._drawSelectionHandles(ctx, item.x_mm, item.y_mm, w, d, viewport.scale, item);
         }
       }
     }
@@ -1719,20 +1724,50 @@ export class LayoutRenderer {
     this.markDirty(true);
   }
 
-  _drawSelectionHandles(ctx, x, y, width, depth, scale) {
+  _drawSelectionHandles(ctx, x, y, width, depth, scale, item = null) {
     const handleSize = Math.max(8 / scale, 160);
     ctx.fillStyle = PALETTE.handleFill;
     ctx.strokeStyle = PALETTE.handleBorder;
     ctx.lineWidth = Math.max(1.5 / scale, 30);
 
-    const corners = [
-      [x, y],
-      [x + width, y],
-      [x, y + depth],
-      [x + width, y + depth],
-    ];
+    const isForklift = item && (
+      item.type === 'forklift' ||
+      String(item.name || '').toLowerCase().includes('forklift') ||
+      item.direction === 'forklift'
+    );
 
-    for (const [hx, hy] of corners) {
+    let handles;
+    if (isForklift) {
+      // "kunci lebar forklift sesuai dengan yang diinput oleh user, jadi khusus forklift tidak bisa membesar atau mengecil"
+      // Gambar hanya 2 handle di ujung jalan (sepanjang koridor), sembunyikan handle penampang lebar
+      const isHoriz = width >= depth;
+      if (isHoriz) {
+        handles = [
+          [x, y + depth / 2],              // Kiri (West)
+          [x + width, y + depth / 2],      // Kanan (East)
+        ];
+      } else {
+        handles = [
+          [x + width / 2, y],              // Atas (North)
+          [x + width / 2, y + depth],      // Bawah (South)
+        ];
+      }
+    } else {
+      handles = [
+        // 4 sudut (corners)
+        [x, y],
+        [x + width, y],
+        [x, y + depth],
+        [x + width, y + depth],
+        // 4 titik tengah sisi (edge midpoints untuk melebarkan salah satu sisi)
+        [x + width / 2, y],              // Atas
+        [x + width / 2, y + depth],      // Bawah
+        [x, y + depth / 2],              // Kiri
+        [x + width, y + depth / 2],      // Kanan
+      ];
+    }
+
+    for (const [hx, hy] of handles) {
       ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
       ctx.strokeRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
     }

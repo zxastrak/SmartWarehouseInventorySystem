@@ -65,4 +65,7 @@ class ApiConfig {
   static String outboundDetail(dynamic id) => '$baseUrl/outbound/$id';
   static String outboundInspect(dynamic id) => '$baseUrl/outbound/$id/inspect';
   static String get auditLogsMe => '$baseUrl/audit-logs/me';
+  static String get warehouseLayoutSnapshots => '$baseUrl/warehouse-layout/warehouses';
+  static String warehouseLayoutSnapshot(dynamic id) => '$baseUrl/warehouse-layout/warehouses/$id/layout';
+  static String warehousePath(dynamic id) => '$baseUrl/warehouse-layout/warehouses/$id/path';
 }

@@ -17,6 +17,19 @@ const descriptions = {
 
 const receivingDate = (date) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(`${date}T12:00:00`));
 
+const resolveEvidenceUrl = (url) => {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:image')) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('/uploads/')) {
+    const origin = typeof window !== 'undefined' ? (window.location.port === '5173' ? 'http://localhost:5000' : window.location.origin) : '';
+    return `${origin}${trimmed}`;
+  }
+  return null;
+};
+
 const normalizeStaff = (val) => {
   if (!val || ['staff', 'staf'].includes(String(val).trim().toLowerCase())) {
     return 'Semua Staf Lapangan';
@@ -29,6 +42,7 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
   const [isAssigned, setIsAssigned] = useState(false);
   const [isSubmittingAssign, setIsSubmittingAssign] = useState(false);
   const [selectedDetailItem, setSelectedDetailItem] = useState(null);
+  const [viewingPhoto, setViewingPhoto] = useState(null);
 
   useEffect(() => {
     if (shipment.staff || shipment.assigned_staff) {
@@ -107,6 +121,7 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
   const submitLock = useRef(false);
 
   const totals = inspectionSummary(draft.rows);
+  const damagedRows = draft.rows.filter((r) => Number(r.damaged) > 0);
   const isInspectedStage = ['Review', 'Inspected', 'Complete', 'Received'].includes(shipment.status) || draft.stage === 'review';
   const hasAnyInspection = isInspectedStage || draft.rows.some((row) =>
     Boolean(
@@ -426,8 +441,12 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                                   }}
                                 />
                               ) : null}
-                              <div className="inventory-thumb-fallback" style={{ display: rowImg ? 'none' : 'flex', fontSize: 12 }}>
-                                📦
+                              <div className="inventory-thumb-fallback" style={{ display: rowImg ? 'none' : 'flex' }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#737b6c' }}>
+                                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                                  <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                                  <line x1="12" y1="22.08" x2="12" y2="12" />
+                                </svg>
                               </div>
                             </div>
                             <div>
@@ -489,19 +508,19 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                               maxWidth: 160,
                             }}
                           >
-                            <option value="Semua Staf Lapangan">👥 Semua Staf</option>
+                            <option value="Semua Staf Lapangan">Semua Staf</option>
                             {staffAccounts
                               .filter((acc) => !['staff', 'staf'].includes(String(acc.fullName || acc.name || '').trim().toLowerCase()))
                               .map((acc) => {
                                 const name = acc.fullName || acc.name;
                                 return (
                                   <option key={acc.id || name} value={name}>
-                                    👤 {name}
+                                    {name}
                                   </option>
                                 );
                               })}
                             {rowStaff && rowStaff !== 'Semua Staf Lapangan' && !['staff', 'staf'].includes(rowStaff.toLowerCase()) && !staffAccounts.some((acc) => (acc.fullName || acc.name) === rowStaff) && (
-                              <option value={rowStaff}>👤 {rowStaff}</option>
+                              <option value={rowStaff}>{rowStaff}</option>
                             )}
                           </select>
                         </td>
@@ -649,8 +668,12 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                                     }}
                                   />
                                 ) : null}
-                                <div className="inventory-thumb-fallback" style={{ display: rowImg ? 'none' : 'flex', fontSize: 13 }}>
-                                  📦
+                                <div className="inventory-thumb-fallback" style={{ display: rowImg ? 'none' : 'flex' }}>
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#737b6c' }}>
+                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                                    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                                    <line x1="12" y1="22.08" x2="12" y2="12" />
+                                  </svg>
                                 </div>
                               </div>
                               <div>
@@ -677,11 +700,48 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                             </div>
                           </td>
                           <td>
-                            {rowIssues > 0 ? (
-                              <span className="critical-text">{rowIssues} damaged/rejected</span>
-                            ) : (
-                              <span className="positive-text">Good condition</span>
-                            )}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+                              {rowIssues > 0 ? (
+                                <span className="critical-text" style={{ fontWeight: 700 }}>
+                                  {rowIssues} damaged/rejected
+                                </span>
+                              ) : (
+                                <span className="positive-text">Good condition</span>
+                              )}
+                              {Number(row.damaged) > 0 && (row.damage_photo || row.evidence_url || shipment.evidence_url || draft.evidence?.length > 0) && (
+                                <button
+                                  type="button"
+                                  className="inbound-photo-pill"
+                                  onClick={() => setViewingPhoto({
+                                    url: row.damage_photo || row.evidence_url || shipment.evidence_url || draft.evidence?.[0]?.url,
+                                    item: row,
+                                    shipment,
+                                    notes: row.notes || draft.notes,
+                                    inspector: shipment.inspector || shipment.staff,
+                                  })}
+                                  title="Buka foto bukti kerusakan fisik"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 5,
+                                    padding: '3px 8px',
+                                    fontSize: '11px',
+                                    background: '#fdecec',
+                                    border: '1px solid #fca5a5',
+                                    color: '#8a5a5b',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                    <circle cx="12" cy="13" r="4" />
+                                  </svg>
+                                  <span>Foto Kerusakan ▾</span>
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="positive-text"><strong>{before} → {before + acceptedUnits(row)}</strong></td>
                           <td>
@@ -692,7 +752,7 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                               onClick={() => setSelectedDetailItem(row)}
                               title={`Buka detail barang ${row.sku}`}
                             >
-                              <span>🔍 Detail</span>
+                              Detail
                             </button>
                           </td>
                         </tr>
@@ -734,9 +794,107 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
                   <p>All delivered items passed physical inspection with verified barcodes.</p>
                 </article>
               )}
-              <div>
-                <strong>Evidence & notes</strong>
-                <p>{draft.notes.trim() ? draft.notes : "Inspection notes completed by dock staff."}</p>
+              <div className="receiving-evidence-box" style={{ background: '#f8f9f5', border: '1px solid #dfe4d9', borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <strong style={{ fontSize: 13, color: '#191d17' }}>Evidence & notes</strong>
+                  {(shipment.evidence_url || draft.evidence?.length > 0 || totals.damaged > 0) && (
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#8a5a5b', background: '#fdecec', border: '1px solid #fca5a5', padding: '1px 6px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                        <circle cx="12" cy="13" r="4" />
+                      </svg>
+                      <span>Foto Terlampir</span>
+                    </span>
+                  )}
+                </div>
+                <p style={{ margin: '0 0 8px', fontSize: 11, color: '#737b6c', lineHeight: 1.4 }}>
+                  {draft.notes.trim() ? draft.notes : "Catatan inspeksi fisik dari staf dok penerimaan."}
+                </p>
+
+                {/* Dropdown Bukti Foto Kerusakan */}
+                {(shipment.evidence_url || draft.evidence?.length > 0 || totals.damaged > 0) && (
+                  <details className="evidence-small-dropdown">
+                    <summary className="evidence-dropdown-summary">
+                      <span className="evidence-dropdown-title">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                          <circle cx="12" cy="13" r="4" />
+                        </svg>
+                        <span>Bukti Foto Kerusakan ({damagedRows.length > 0 ? damagedRows.length : 1})</span>
+                      </span>
+                      <span className="evidence-dropdown-arrow">▾</span>
+                    </summary>
+                    <div className="evidence-dropdown-content">
+                      {damagedRows.length > 0 ? (
+                        damagedRows.map((dRow, idx) => {
+                          const rowPhoto = dRow.damage_photo || dRow.evidence_url || shipment.evidence_url || draft.evidence?.[0]?.url;
+                          return (
+                            <div
+                              key={dRow.sku || idx}
+                              className="evidence-dropdown-item"
+                              onClick={() => setViewingPhoto({
+                                url: rowPhoto,
+                                item: dRow,
+                                shipment,
+                                notes: dRow.notes || draft.notes,
+                                inspector: shipment.inspector || shipment.staff,
+                              })}
+                              title="Buka foto besar"
+                            >
+                              <div className="evidence-dropdown-item-thumb">
+                                {resolveEvidenceUrl(rowPhoto) ? (
+                                  <img
+                                    src={resolveEvidenceUrl(rowPhoto)}
+                                    alt="Thumbnail"
+                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                  />
+                                ) : (
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                    <circle cx="12" cy="13" r="4" />
+                                  </svg>
+                                )}
+                              </div>
+                              <div className="evidence-dropdown-item-info">
+                                <strong>{dRow.name}</strong>
+                                <small>{dRow.sku} · {dRow.damaged} unit rusak</small>
+                              </div>
+                              <span className="evidence-dropdown-item-action">
+                                Lihat Foto ›
+                              </span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div
+                          className="evidence-dropdown-item"
+                          onClick={() => setViewingPhoto({
+                            url: shipment.evidence_url || draft.evidence?.[0]?.url || 'FOTO-DOK-INSPECTION',
+                            item: null,
+                            shipment,
+                            notes: draft.notes,
+                            inspector: shipment.inspector || shipment.staff,
+                          })}
+                          title="Buka foto besar"
+                        >
+                          <div className="evidence-dropdown-item-thumb">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                              <circle cx="12" cy="13" r="4" />
+                            </svg>
+                          </div>
+                          <div className="evidence-dropdown-item-info">
+                            <strong>Bukti Foto Dok (Mobile)</strong>
+                            <small>{shipment.evidence_url || 'Snapshot Handheld'}</small>
+                          </div>
+                          <span className="evidence-dropdown-item-action">
+                            Lihat Foto ›
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                )}
               </div>
             </section>
           </div>
@@ -935,8 +1093,8 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
             </div>
             {issueUnits > 0 && (
               <div style={{ gridColumn: "1 / -1", paddingTop: 6, borderTop: "1px dashed #e2e8f0" }}>
-                <span style={{ color: "#991b1b", fontSize: 11, fontWeight: 600 }}>
-                  ⚠️ {issueUnits} unit tercatat issue ({totals.damaged} rusak, {totals.rejected} ditolak) & tidak masuk stok.
+                <span style={{ color: "#8a5a5b", fontSize: 11, fontWeight: 600 }}>
+                  Perhatian: {issueUnits} unit tercatat issue ({totals.damaged} rusak, {totals.rejected} ditolak) & tidak masuk stok.
                 </span>
               </div>
             )}
@@ -960,7 +1118,7 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
               }}
               onClick={() => onNavigate("inventory")}
             >
-              📦 Cek Stok Baru di Master Inventory ›
+              Cek Stok Baru di Master Inventory ›
             </button>
             <button
               type="button"
@@ -992,6 +1150,123 @@ function InboundReceiving({ shipment, inventory, racks, initialDraft, staffAccou
           shipment={shipment}
           onClose={() => setSelectedDetailItem(null)}
         />
+      )}
+
+      {/* Modal Lightbox Bukti Foto Kerusakan Fisik */}
+      {viewingPhoto && (
+        <dialog
+          className="dashboard-dialog evidence-photo-modal-dialog"
+          open
+          onCancel={() => setViewingPhoto(null)}
+        >
+          <div className="evidence-photo-modal-header">
+            <div>
+              <span className="evidence-photo-modal-tag">
+                Bukti Foto Kerusakan Fisik
+              </span>
+              <h3 className="evidence-photo-modal-title">
+                {viewingPhoto.item?.name || shipment.id} {viewingPhoto.item?.sku ? `(${viewingPhoto.item.sku})` : ''}
+              </h3>
+            </div>
+            <button
+              type="button"
+              className="evidence-photo-modal-close"
+              onClick={() => setViewingPhoto(null)}
+              aria-label="Tutup bukti foto"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="evidence-photo-modal-body">
+            {/* Foto Container */}
+            <div className="evidence-photo-frame">
+              {resolveEvidenceUrl(viewingPhoto.url) ? (
+                <img
+                  src={resolveEvidenceUrl(viewingPhoto.url)}
+                  alt="Bukti foto kerusakan fisik"
+                  className="evidence-photo-img"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <div
+                className="evidence-photo-empty"
+                style={{ display: resolveEvidenceUrl(viewingPhoto.url) ? "none" : "flex" }}
+              >
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+                <strong>Belum Ada Berkas Foto Terunggah</strong>
+                <p>Dokumen fisik tersimpan pada sistem pencatatan dok {shipment.dock || 'D-01'}.</p>
+              </div>
+            </div>
+
+            {/* Metadata Kerusakan */}
+            <div className="evidence-meta-grid">
+              <div className="evidence-meta-card">
+                <span className="evidence-meta-label">Unit Rusak / Kendala:</span>
+                <strong className="evidence-meta-val val-issue">
+                  {viewingPhoto.item?.damaged ? `${viewingPhoto.item.damaged} ${viewingPhoto.item.unit || 'unit'}` : `${totals.damaged} unit`}
+                </strong>
+              </div>
+              <div className="evidence-meta-card">
+                <span className="evidence-meta-label">Pemeriksa Lapangan:</span>
+                <strong className="evidence-meta-val">
+                  {viewingPhoto.inspector || shipment.inspector || shipment.staff || 'Staf Dok'}
+                </strong>
+              </div>
+              <div className="evidence-meta-card">
+                <span className="evidence-meta-label">Dok / PO Terkait:</span>
+                <strong className="evidence-meta-val val-dock">
+                  Dok {shipment.dock || 'D-01'} · PO {shipment.po}
+                </strong>
+              </div>
+              <div className="evidence-meta-card">
+                <span className="evidence-meta-label">Disposisi Penanganan:</span>
+                <strong className="evidence-meta-val">
+                  Karantina Dok / Retur Supplier
+                </strong>
+              </div>
+            </div>
+
+            {/* Catatan Lapangan */}
+            {(viewingPhoto.notes || draft.notes) && (
+              <div className="evidence-notes-card">
+                <strong className="evidence-notes-title">
+                  Catatan Kerusakan dari Dok:
+                </strong>
+                <p className="evidence-notes-desc">
+                  {viewingPhoto.notes || draft.notes}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="evidence-photo-modal-footer">
+            {resolveEvidenceUrl(viewingPhoto.url) ? (
+              <a
+                href={resolveEvidenceUrl(viewingPhoto.url)}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontSize: 12, color: "#5c732b", fontWeight: 600, textDecoration: "underline" }}
+              >
+                Buka Resolusi Penuh di Tab Baru
+              </a>
+            ) : <span />}
+            <button
+              type="button"
+              className="inbound-secondary"
+              onClick={() => setViewingPhoto(null)}
+              style={{ padding: "7px 16px", fontSize: 12 }}
+            >
+              Tutup
+            </button>
+          </div>
+        </dialog>
       )}
     </div>
   );

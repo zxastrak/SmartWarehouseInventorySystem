@@ -146,27 +146,25 @@ class ProfileScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: _ShiftCard(
-                        'Jadwal Shift',
-                        s.currentShift,
-                        Icons.schedule,
-                      ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _ShiftCard(
+                      'Jadwal Shift',
+                      s.currentShift,
+                      Icons.schedule,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _ShiftCard(
-                        'ID Staf',
-                        staffId,
-                        Icons.badge_outlined,
-                      ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ShiftCard(
+                      'ID Staf',
+                      staffId,
+                      Icons.badge_outlined,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -515,6 +513,7 @@ class _LogoutConfirmSheet extends StatelessWidget {
                   height: 270,
                   child: Image.asset(
                     'assets/images/logout_staff.png',
+                    cacheWidth: 420,
                     fit: BoxFit.contain,
                   ),
                 ),

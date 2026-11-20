@@ -55,10 +55,10 @@ class _SplashScreenState extends State<SplashScreen>
     );
     _fadeController.forward();
 
-    // 3. Controller kemajuan loading bar (~2800ms)
+    // 3. Controller kemajuan loading bar (~1200ms)
     _progressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2800),
+      duration: const Duration(milliseconds: 1200),
     );
     _progressAnimation = CurvedAnimation(
       parent: _progressController,

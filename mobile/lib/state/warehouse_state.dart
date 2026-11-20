@@ -47,6 +47,8 @@ class WarehouseState extends ChangeNotifier {
   Timer? _notificationTimer;
   Timer? _connectivityTimer;
   StreamSubscription<bool>? _connectivitySub;
+  bool _isFetchingApi = false;
+  DateTime? _lastApiFetch;
 
   int get unreadNotificationCount {
     return notifications.where((n) {
@@ -77,9 +79,9 @@ class WarehouseState extends ChangeNotifier {
       checkConnectivity();
     });
 
-    // 2. Heartbeat berkala setiap 3 detik untuk memantau server SUSUNO & internet
+    // 2. Heartbeat berkala setiap 12 detik untuk memantau server SUSUNO & internet
     _connectivityTimer?.cancel();
-    _connectivityTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _connectivityTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       checkConnectivity();
     });
   }
@@ -88,61 +90,29 @@ class WarehouseState extends ChangeNotifier {
     bool internetOk = false;
     bool backendOk = false;
 
-    // 1. Cek Apakah Browser Melaporkan Offline Fisik (Wi-Fi mati / DevTools Offline)
     final bool browserReportsOnline = !kIsWeb || checkBrowserOnline();
 
     if (browserReportsOnline) {
-      // 2. Cek Koneksi Internet Global Riil (Simple Request bebas preflight CORS)
-      final int cacheBuster = DateTime.now().millisecondsSinceEpoch;
-      try {
-        final netRes = await http
-            .get(Uri.parse('https://dns.google/resolve?name=example.com&_t=$cacheBuster'))
-            .timeout(const Duration(milliseconds: 2500));
-        if (netRes.statusCode >= 200 && netRes.statusCode < 400) {
-          internetOk = true;
-        }
-      } catch (_) {
-        try {
-          final cfRes = await http
-              .get(
-                Uri.parse('https://1.1.1.1/dns-query?name=example.com&_t=$cacheBuster'),
-                headers: {'accept': 'application/dns-json'},
-              )
-              .timeout(const Duration(milliseconds: 2000));
-          if (cfRes.statusCode >= 200 && cfRes.statusCode < 400) {
-            internetOk = true;
-          }
-        } catch (_) {
-          try {
-            final ghRes = await http
-                .get(Uri.parse('https://api.github.com/zen?_t=$cacheBuster'))
-                .timeout(const Duration(milliseconds: 2000));
-            if (ghRes.statusCode >= 200 && ghRes.statusCode < 400) {
-              internetOk = true;
-            }
-          } catch (_) {
-            internetOk = false;
-          }
-        }
-      }
-    } else {
-      internetOk = false;
+      final int buster = DateTime.now().millisecondsSinceEpoch;
+      final results = await Future.wait([
+        // Cek backend lokal SUSUNO
+        http
+            .get(Uri.parse('${ApiConfig.baseUrl}/app/latest?_t=$buster'))
+            .timeout(const Duration(milliseconds: 2000))
+            .then((res) => res.statusCode < 500)
+            .catchError((_) => false),
+        // Cek internet publik
+        http
+            .get(Uri.parse('https://dns.google/resolve?name=example.com&_t=$buster'))
+            .timeout(const Duration(milliseconds: 2000))
+            .then((res) => res.statusCode >= 200 && res.statusCode < 400)
+            .catchError((_) => false),
+      ]);
+
+      backendOk = results[0];
+      internetOk = results[1];
     }
 
-    // 3. Cek Koneksi Server Backend SUSUNO (Simple GET murni tanpa custom headers)
-    final int serverBuster = DateTime.now().millisecondsSinceEpoch;
-    try {
-      final backendRes = await http
-          .get(Uri.parse('${ApiConfig.baseUrl}/app/latest?_t=$serverBuster'))
-          .timeout(const Duration(seconds: 3));
-      if (backendRes.statusCode < 500) {
-        backendOk = true;
-      }
-    } catch (_) {
-      backendOk = false;
-    }
-
-    // 4. Tentukan Status Koneksi Cerdas & Presisi
     final ConnectionStatus newStatus;
     if (backendOk && internetOk) {
       newStatus = ConnectionStatus.online;
@@ -162,7 +132,6 @@ class WarehouseState extends ChangeNotifier {
     isBackendConnected = backendOk;
     connectionStatus = newStatus;
 
-    // Hanya trigger rebuild jika terjadi perubahan status nyata (hemat performa & baterai)
     if (stateChanged || forceNotify) {
       notifyListeners();
     }
@@ -176,7 +145,7 @@ class WarehouseState extends ChangeNotifier {
 
   final Set<int> _notifiedTaskIds = <int>{};
 
-  Future<void> loadNotifications() async {
+  Future<void> loadNotifications({bool silent = false}) async {
     if (token == null) return;
     try {
       final list = await api.getTaskNotifications(token!);
@@ -207,7 +176,9 @@ class WarehouseState extends ChangeNotifier {
           }
         }
 
-        notifyListeners();
+        if (!silent) {
+          notifyListeners();
+        }
       }
     } catch (e) {
       debugPrint('loadNotifications error: $e');
@@ -263,6 +234,40 @@ class WarehouseState extends ChangeNotifier {
         kind: kind,
       );
     }
+    notifyListeners();
+  }
+
+  /// Beralih seketika ke mode Single Scan dan membersihkan konteks alur tugas/rak
+  void switchToSingleScan() {
+    scanSku = null;
+    scanRack = null;
+    scanQuantity = null;
+    scanTaskId = null;
+    scanInboundShipmentId = null;
+    scanOutboundShipmentId = null;
+    scanMode = ScanMode.single;
+    page = 2;
+    recordStaffActivity(
+      'Single Scan • Handheld',
+      'Membuka scanner mandiri untuk pengecekan barcode fisik barang atau rak gudang',
+    );
+    notifyListeners();
+  }
+
+  /// Memilih lokasi rak langsung dari denah peta gudang untuk dilihat di scanner
+  void selectRackFromMap(String rackCode) {
+    scanSku = null;
+    scanRack = normalizeRackCode(rackCode);
+    scanQuantity = null;
+    scanTaskId = null;
+    scanInboundShipmentId = null;
+    scanOutboundShipmentId = null;
+    scanMode = ScanMode.single;
+    page = 2;
+    recordStaffActivity(
+      'Peta Gudang • Navigasi Rak $rackCode',
+      'Melihat inventaris tersimpan di rak $rackCode melalui denah peta gudang',
+    );
     notifyListeners();
   }
 
@@ -448,6 +453,8 @@ class WarehouseState extends ChangeNotifier {
 
   // Master data and attendance lists from backend
   List<Map<String, dynamic>> locations = [];
+  Map<String, dynamic>? activeWarehouseLayout;
+  bool isLoadingLayout = false;
   List<Map<String, dynamic>> categories = [];
   List<Map<String, dynamic>> suppliers = [];
   List<Map<String, dynamic>> attendances = [];
@@ -855,9 +862,9 @@ class WarehouseState extends ChangeNotifier {
         loggedIn = true;
         page = 0;
         isLoading = false;
-        await loadFromApi();
-        _startNotificationTimer();
         notifyListeners();
+        unawaited(loadFromApi(force: true));
+        _startNotificationTimer();
         return null;
       }
 
@@ -918,17 +925,43 @@ class WarehouseState extends ChangeNotifier {
     }
   }
 
-  Future<void> loadFromApi() async {
+  Future<void> loadFromApi({bool force = false}) async {
     if (token == null) return;
+    if (_isFetchingApi) return;
+    if (!force &&
+        _lastApiFetch != null &&
+        DateTime.now().difference(_lastApiFetch!) < const Duration(seconds: 5)) {
+      return;
+    }
+
+    _isFetchingApi = true;
     try {
-      // Ambil master data lokasi, kategori, dan supplier untuk sinkronisasi
-      final locs = await api.getLocations(token!);
+      final results = await Future.wait([
+        api.getLocations(token!),
+        api.getWarehouseLayoutSnapshot(token!),
+        api.getCategories(token!),
+        api.getSuppliers(token!),
+        api.getProducts(token!),
+        api.getStockTransactions(token!),
+        api.getMyShifts(token!),
+        api.getTasks(token!),
+        api.getTaskNotifications(token!),
+        api.getAttendancesMe(token!),
+        api.getInboundShipments(token!),
+        api.getOutboundShipments(token!),
+        api.getAuditLogsMe(token!),
+      ]);
+
+      final locs = results[0] as List<Map<String, dynamic>>?;
       if (locs != null) locations = locs;
 
-      final cats = await api.getCategories(token!);
+      final layoutSnap = results[1] as Map<String, dynamic>?;
+      if (layoutSnap != null) activeWarehouseLayout = layoutSnap;
+
+      final cats = results[2] as List<Map<String, dynamic>>?;
       if (cats != null) categories = cats;
 
-      final sups = await api.getSuppliers(token!);
+      final sups = results[3] as List<Map<String, dynamic>>?;
       if (sups != null) suppliers = sups;
 
       final catMap = {
@@ -938,7 +971,7 @@ class WarehouseState extends ChangeNotifier {
         for (final s in suppliers) _parseInt(s['id']): s['name']?.toString(),
       };
 
-      final products = await api.getProducts(token!);
+      final products = results[4] as List<Map<String, dynamic>>?;
       if (products != null) {
         _items.clear();
         for (final p in products) {
@@ -999,7 +1032,7 @@ class WarehouseState extends ChangeNotifier {
         }
       }
 
-      final txs = await api.getStockTransactions(token!);
+      final txs = results[5] as List<Map<String, dynamic>>?;
       if (txs != null) {
         for (final t in txs) {
           final kind =
@@ -1034,14 +1067,12 @@ class WarehouseState extends ChangeNotifier {
         }
       }
 
-      // Ambil jadwal shift aktual milik staf
-      final shifts = await api.getMyShifts(token!);
+      final shifts = results[6] as List<Map<String, dynamic>>?;
       if (shifts != null && shifts.isNotEmpty) {
         final now = DateTime.now();
         final todayStr =
             '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-        // Prioritaskan jadwal shift hari ini
         Map<String, dynamic>? activeShift;
         for (final sh in shifts) {
           final sDate = (sh['shift_date'] ?? '').toString();
@@ -1057,7 +1088,6 @@ class WarehouseState extends ChangeNotifier {
         final sTime = start.length >= 5 ? start.substring(0, 5) : start;
         final eTime = end.length >= 5 ? end.substring(0, 5) : end;
 
-        // Cocokkan dengan master macam shift untuk mendapatkan nomor & label shift
         String shiftLabel;
         if (sTime == '07:00' && eTime == '15:00') {
           shiftLabel = 'Shift #1 (Pagi) • 07:00–15:00';
@@ -1076,8 +1106,7 @@ class WarehouseState extends ChangeNotifier {
         currentShift = 'Belum ada jadwal shift';
       }
 
-      // Ambil tasks aktual dari database
-      final taskList = await api.getTasks(token!);
+      final taskList = results[7] as List<Map<String, dynamic>>?;
       if (taskList != null) {
         tasks = taskList;
         alerts.clear();
@@ -1106,34 +1135,207 @@ class WarehouseState extends ChangeNotifier {
         }
       }
 
-      // Ambil notifikasi tugas aktual dari manager
-      await loadNotifications();
+      final rawNotifications = results[8] as List<Map<String, dynamic>>?;
+      if (rawNotifications != null) {
+        notifications = rawNotifications;
+        for (final n in rawNotifications) {
+          final taskId = _parseInt(n['id']);
+          final status = (n['status'] ?? '').toString().toUpperCase();
+          if (taskId > 0 && status != 'DONE' && status != 'COMPLETED' && status != 'CANCELLED') {
+            if (!_notifiedTaskIds.contains(taskId)) {
+              _notifiedTaskIds.add(taskId);
+              final title = (n['title'] ?? 'Tugas Baru dari Manajer').toString();
+              final desc = (n['description'] ?? 'Tugas baru telah ditugaskan ke Anda.').toString();
+              unawaited(
+                NotificationService().showTaskNotification(
+                  id: taskId,
+                  title: 'SUSUNO: $title',
+                  body: desc,
+                  payload: taskId.toString(),
+                ),
+              );
+            }
+          }
+        }
+      }
 
-      // Ambil riwayat absensi aktual milik staf
-      await loadAttendances();
+      final attendLogs = results[9] as List<Map<String, dynamic>>?;
+      if (attendLogs != null && attendLogs.isNotEmpty) {
+        final latest = attendLogs.first;
+        if (latest['type'] == 'check_in') {
+          isCheckedIn = true;
+          attendances = [latest];
+          if (latest['scan_time'] != null) {
+            lastAttendanceTime =
+                DateTime.tryParse(latest['scan_time'].toString())?.toLocal();
+          }
+        } else {
+          isCheckedIn = false;
+          lastAttendanceTime = null;
+          attendances = [];
+        }
+      } else {
+        isCheckedIn = false;
+        lastAttendanceTime = null;
+        attendances = [];
+      }
 
-      // Ambil data inbound shipments aktual dari database
-      await loadInboundShipments();
+      final rawInbound = results[10] as List<Map<String, dynamic>>?;
+      if (rawInbound != null) {
+        inboundShipments =
+            rawInbound.map((json) => InboundShipmentModel.fromJson(json)).toList();
+      }
 
-      // Ambil data outbound shipments aktual dari database
-      await loadOutboundShipments();
+      final rawOutbound = results[11] as List<Map<String, dynamic>>?;
+      if (rawOutbound != null) {
+        outboundShipments =
+            rawOutbound.map((json) => OutboundShipmentModel.fromJson(json)).toList();
+      }
 
-      // Ambil riwayat audit aktual milik staf dari database
-      await loadAuditLogs();
+      final rawAudit = results[12] as List<Map<String, dynamic>>?;
+      if (rawAudit != null && rawAudit.isNotEmpty) {
+        for (final log in rawAudit) {
+          final action = (log['action'] ?? '').toString();
+          final actionUpper = action.toUpperCase();
+
+          const ignoredManagerActions = {
+            'TASK_CREATED',
+            'TASK_REASSIGNED',
+            'INBOUND_ARRIVED',
+            'INBOUND_RECEIVED',
+          };
+          if (ignoredManagerActions.contains(actionUpper)) {
+            continue;
+          }
+
+          final tableAff = (log['table_affected'] ?? '').toString();
+          if (tableAff == 'tasks' || tableAff == 'attendance_logs') {
+            continue;
+          }
+
+          final actionTitle = _formatAuditAction(action);
+          final recordId = log['record_id'];
+          final createdAt =
+              log['created_at'] != null
+                  ? DateTime.tryParse(
+                        log['created_at'].toString(),
+                      )?.toLocal() ??
+                      DateTime.now()
+                  : DateTime.now();
+
+          List<String> parsedBarcodes = [];
+          if (log['scanned_barcodes'] != null) {
+            final rawBc = log['scanned_barcodes'];
+            if (rawBc is List) {
+              parsedBarcodes = List<String>.from(
+                rawBc.map((e) => e.toString()),
+              );
+            } else if (rawBc is String && rawBc.isNotEmpty) {
+              try {
+                final dec = jsonDecode(rawBc);
+                if (dec is List) {
+                  parsedBarcodes = List<String>.from(
+                    dec.map((e) => e.toString()),
+                  );
+                }
+              } catch (_) {
+                parsedBarcodes =
+                    rawBc
+                        .split(',')
+                        .map((s) => s.trim())
+                        .where((s) => s.isNotEmpty)
+                        .toList();
+              }
+            }
+          }
+
+          final inbNumber =
+              log['inbound_number'] ??
+              (recordId != null ? 'INB-#$recordId' : 'Dok');
+          final barcodeInfo =
+              parsedBarcodes.isNotEmpty
+                  ? ' • ${parsedBarcodes.length} unit barcode fisik discan'
+                  : '';
+          String desc;
+          if (tableAff == 'inbound_shipments') {
+            desc =
+                '$inbNumber$barcodeInfo • Oleh ${log['user_name'] ?? staff.name}';
+          } else if (tableAff == 'products') {
+            final pSku = log['product_sku'] ?? '';
+            final pName = log['product_name'] ?? 'Produk #$recordId';
+            desc = '$pName ($pSku) • Oleh ${log['user_name'] ?? staff.name}';
+          } else if (tableAff == 'attendance_logs') {
+            desc =
+                'Absensi ${log['user_name'] ?? staff.name} tercatat di sistem';
+          } else {
+            desc =
+                'Tabel ${log['table_affected'] ?? 'Sistem'} #${recordId ?? '-'} • Oleh ${log['user_name'] ?? staff.name}';
+          }
+
+          final exists = _activities.any(
+            (a) =>
+                a.title == actionTitle &&
+                a.time.difference(createdAt).inMinutes.abs() < 2,
+          );
+          if (!exists) {
+            _activities.add(
+              Activity(
+                actionTitle,
+                desc,
+                time: createdAt,
+                barcodes: parsedBarcodes,
+                kind:
+                    action.contains('INBOUND')
+                        ? MovementKind.stockIn
+                        : (action.contains('PUTAWAY')
+                            ? MovementKind.putaway
+                            : (action.contains('ADJUST') ||
+                                    action.contains('VERIFIED')
+                                ? MovementKind.rackCount
+                                : null)),
+              ),
+            );
+          }
+        }
+        _activities.sort((a, b) => b.time.compareTo(a.time));
+      }
+
+      _lastApiFetch = DateTime.now();
     } catch (e, st) {
       debugPrint('loadFromApi error: $e\n$st');
+    } finally {
+      _isFetchingApi = false;
+      notifyListeners();
     }
-    notifyListeners();
   }
 
-  Future<void> loadInboundShipments() async {
+  Future<void> refreshWarehouseLayout({int warehouseId = 1}) async {
+    if (token == null) return;
+    try {
+      isLoadingLayout = true;
+      notifyListeners();
+      final snap = await api.getWarehouseLayoutSnapshot(token!, warehouseId: warehouseId);
+      if (snap != null) {
+        activeWarehouseLayout = snap;
+      }
+    } catch (e) {
+      debugPrint('refreshWarehouseLayout error: $e');
+    } finally {
+      isLoadingLayout = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadInboundShipments({bool silent = false}) async {
     if (token == null) return;
     try {
       final raw = await api.getInboundShipments(token!);
       if (raw != null) {
         inboundShipments =
             raw.map((json) => InboundShipmentModel.fromJson(json)).toList();
-        notifyListeners();
+        if (!silent) {
+          notifyListeners();
+        }
       }
     } catch (e) {
       debugPrint('loadInboundShipments error: $e');
@@ -1200,9 +1402,7 @@ class WarehouseState extends ChangeNotifier {
           ),
         );
 
-        await loadInboundShipments();
-        await loadAuditLogs();
-        await loadFromApi();
+        await loadFromApi(force: true);
         notifyListeners();
         return {
           'success': true,
@@ -1220,14 +1420,16 @@ class WarehouseState extends ChangeNotifier {
     }
   }
 
-  Future<void> loadOutboundShipments() async {
+  Future<void> loadOutboundShipments({bool silent = false}) async {
     if (token == null) return;
     try {
       final raw = await api.getOutboundShipments(token!);
       if (raw != null) {
         outboundShipments =
             raw.map((json) => OutboundShipmentModel.fromJson(json)).toList();
-        notifyListeners();
+        if (!silent) {
+          notifyListeners();
+        }
       }
     } catch (e) {
       debugPrint('loadOutboundShipments error: $e');
@@ -1294,9 +1496,7 @@ class WarehouseState extends ChangeNotifier {
           ),
         );
 
-        await loadOutboundShipments();
-        await loadAuditLogs();
-        await loadFromApi();
+        await loadFromApi(force: true);
         notifyListeners();
         return {
           'success': true,
@@ -1522,6 +1722,13 @@ class WarehouseState extends ChangeNotifier {
     }
   }
 
+  void setScanMode(ScanMode mode) {
+    if (scanMode != mode) {
+      scanMode = mode;
+      notifyListeners();
+    }
+  }
+
   void clearScanContext() {
     scanSku = null;
     scanRack = null;
@@ -1533,7 +1740,7 @@ class WarehouseState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loadAuditLogs() async {
+  Future<void> loadAuditLogs({bool silent = false}) async {
     if (token == null) return;
     try {
       final raw = await api.getAuditLogsMe(token!);
@@ -1644,7 +1851,9 @@ class WarehouseState extends ChangeNotifier {
           }
         }
         _activities.sort((a, b) => b.time.compareTo(a.time));
-        notifyListeners();
+        if (!silent) {
+          notifyListeners();
+        }
       }
     } catch (e) {
       debugPrint('loadAuditLogs error: $e');

@@ -387,6 +387,29 @@ class ApiService {
     const qs = query.toString() ? `?${query.toString()}` : '';
     return this.request(`/audit-logs${qs}`);
   }
+
+  // ================= 2.13 Warehouse Layout (/warehouse-layout) =================
+  async getWarehouseLayout(warehouseId) {
+    return this.request(`/warehouse-layout/warehouses/${warehouseId}/layout?_t=${Date.now()}`);
+  }
+
+  async patchWarehouseLayout(warehouseId, patchData) {
+    return this.request(`/warehouse-layout/warehouses/${warehouseId}/layout`, {
+      method: 'PATCH',
+      body: patchData,
+    });
+  }
+
+  async calculateWarehousePath(warehouseId, payload) {
+    return this.request(`/warehouse-layout/warehouses/${warehouseId}/path`, {
+      method: 'POST',
+      body: payload,
+    });
+  }
+
+  async getWarehouseLocationOverview(warehouseId) {
+    return this.request(`/warehouse-layout/warehouses/${warehouseId}/locations/overview`);
+  }
 }
 
 export const api = new ApiService();

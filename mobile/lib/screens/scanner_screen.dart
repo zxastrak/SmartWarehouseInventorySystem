@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../widgets/ui.dart';
 import '../widgets/barcode_input.dart';
 import '../widgets/qr_scanner.dart';
+import '../widgets/staggered_slide_card.dart';
 import '../core/app_theme.dart';
 
 int _parseInt(dynamic val) {
@@ -78,11 +79,20 @@ class _ScannerScreenState extends State<ScannerScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final s = context.read<WarehouseState>();
-    if (s.scanSku != null && s.scanSku!.isNotEmpty && s.scanSku != sku) {
+    final bool modeChanged = s.scanMode != mode;
+    final bool skuChanged =
+        (s.scanSku != null && s.scanSku!.isNotEmpty && s.scanSku != sku) ||
+        (s.scanSku == null && sku != null && modeChanged);
+    final bool rackChanged =
+        (s.scanRack != null && s.scanRack!.isNotEmpty && s.scanRack != rack) ||
+        (s.scanRack == null && rack != null && modeChanged);
+
+    if (modeChanged || skuChanged || rackChanged) {
       setState(() {
-        sku = s.scanSku;
         mode = s.scanMode;
-        if (s.scanRack != null && s.scanRack!.isNotEmpty) rack = s.scanRack;
+        sku = (s.scanSku != null && s.scanSku!.isNotEmpty) ? s.scanSku : null;
+        rack =
+            (s.scanRack != null && s.scanRack!.isNotEmpty) ? s.scanRack : null;
         targetQuantity =
             (s.scanQuantity != null && s.scanQuantity! > 0)
                 ? s.scanQuantity!
@@ -463,24 +473,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
     );
   }
 
-  Widget modeChip(String label, bool selected, VoidCallback onTap) =>
-      ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        showCheckmark: false,
-        selectedColor: brandSoft,
-        side: BorderSide(
-          color: selected ? brand : line,
-          width: selected ? 1.5 : 1,
-        ),
-        labelStyle: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          color: selected ? brand : brandSlate,
-        ),
-        onSelected: (_) => onTap(),
-      );
-
   @override
   Widget build(BuildContext context) {
     final s = context.watch<WarehouseState>();
@@ -525,54 +517,21 @@ class _ScannerScreenState extends State<ScannerScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 8, bottom: 16),
-          child: Text(
-            'SUSUNO Floor Scan',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.3,
-              color: brandInk,
+        const StaggeredSlideCard(
+          index: 0,
+          child: Padding(
+            padding: EdgeInsets.only(top: 8, bottom: 8),
+            child: Text(
+              'SUSUNO Floor Scan',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.3,
+                color: brandInk,
+              ),
             ),
           ),
         ),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children:
-              ScanMode.values
-                  .map(
-                    (m) => modeChip(
-                      switch (m) {
-                        ScanMode.single => 'Single Scan',
-                        ScanMode.putaway => 'Putaway',
-                        ScanMode.dispatch => 'Dispatching',
-                      },
-                      mode == m,
-                      () => setState(() {
-                        mode = m;
-                        rack = null;
-                        sku = null;
-                        quantity = 0;
-                        targetQuantity = 0;
-                        checked = false;
-                        taskId = null;
-                        inboundShipmentId = null;
-                        outboundShipmentId = null;
-                        isMultiScan = false;
-                        multiBarcodes.clear();
-                        itemConfirmed = false;
-                        hasDamage = false;
-                        damagedQuantity = 0;
-                        damagePhoto = null;
-                        _damageNotesController.clear();
-                      }),
-                    ),
-                  )
-                  .toList(),
-        ),
-        const SizedBox(height: 14),
         if (!multi) ...[
           BarcodeInput(
             title: 'Scan item or rack barcode',
@@ -717,28 +676,34 @@ class _ScannerScreenState extends State<ScannerScreen> {
               ),
             ),
           // Toggle Single Scan vs Multi Scan
-          _ScanTypeToggle(
-            isMulti: isMultiScan,
-            onChanged: (val) {
-              if (val != isMultiScan) {
-                setState(() {
-                  isMultiScan = val;
-                  if (!val) {
-                    multiBarcodes.clear();
-                  } else {
-                    if (sku != null && multiBarcodes.isEmpty) {
-                      multiBarcodes.add(sku!);
-                      quantity = multiBarcodes.length;
+          StaggeredSlideCard(
+            index: 1,
+            child: _ScanTypeToggle(
+              isMulti: isMultiScan,
+              onChanged: (val) {
+                if (val != isMultiScan) {
+                  setState(() {
+                    isMultiScan = val;
+                    if (!val) {
+                      multiBarcodes.clear();
+                    } else {
+                      if (sku != null && multiBarcodes.isEmpty) {
+                        multiBarcodes.add(sku!);
+                        quantity = multiBarcodes.length;
+                      }
                     }
-                  }
-                });
-              }
-            },
+                  });
+                }
+              },
+            ),
           ),
-          _StepHeader(
-            current: step,
-            labels: const ['Rak', 'Barang', 'Konfirmasi'],
-            onStepTapped: goToStep,
+          StaggeredSlideCard(
+            index: 2,
+            child: _StepHeader(
+              current: step,
+              labels: const ['Rak', 'Barang', 'Konfirmasi'],
+              onStepTapped: goToStep,
+            ),
           ),
           // Tombol Kembali ke Langkah Sebelumnya
           if (step > 1)
@@ -806,14 +771,17 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   }),
             ),
           if (step == 1)
-            BarcodeInput(
-              key: const ValueKey('rack-step'),
-              title:
-                  putaway
-                      ? 'Pindai barcode rak tujuan'
-                      : 'Pindai barcode rak asal',
-              demoCode: 'RACK-A4-02-B',
-              onResult: rackScanned,
+            StaggeredSlideCard(
+              index: 3,
+              child: BarcodeInput(
+                key: const ValueKey('rack-step'),
+                title:
+                    putaway
+                        ? 'Pindai barcode rak tujuan'
+                        : 'Pindai barcode rak asal',
+                demoCode: 'RACK-A4-02-B',
+                onResult: rackScanned,
+              ),
             ),
           if (step == 2) ...[
             if (item != null)

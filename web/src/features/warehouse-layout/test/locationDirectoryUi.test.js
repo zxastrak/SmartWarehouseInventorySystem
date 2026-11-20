@@ -71,24 +71,33 @@ test('Keyset Pagination Accumulator - Akumulasi daftar lokasi tanpa reset data l
   assert.equal(accumulated[3].id, 4);
 });
 
-test('AC-20 Invariant - Status Inventori harus terputus dan tidak menampilkan data palsu', () => {
+test('AC-20 Invariant - Status Inventori terhubung menampilkan data okupansi dan daftar item', () => {
   const mockLocationInspectorPayload = {
     id: 1,
     location_code: 'A-01-RACK-001-01-01-01',
     inventory: {
-      connected: false,
-      message: 'Belum terhubung ke inventori (Phase 3)',
-      items: [],
-      current_weight_kg: '0.00',
+      connected: true,
+      message: '1 SKU tersimpan (20 unit)',
+      items: [
+        {
+          product_id: 4,
+          name: 'Mie Cyclops Goreng',
+          sku: 'MCYCGRG',
+          stock_quantity: 20,
+          unit: 'dus',
+          total_weight_kg: 60
+        }
+      ],
+      current_weight_kg: '60.00',
       current_volume_m3: '0.0000',
-      occupancy_status: 'UNKNOWN'
+      occupancy_status: 'OCCUPIED'
     }
   };
 
-  assert.equal(mockLocationInspectorPayload.inventory.connected, false);
-  assert.equal(mockLocationInspectorPayload.inventory.message, 'Belum terhubung ke inventori (Phase 3)');
-  assert.equal(mockLocationInspectorPayload.inventory.items.length, 0);
-  assert.equal(mockLocationInspectorPayload.inventory.occupancy_status, 'UNKNOWN');
+  assert.equal(mockLocationInspectorPayload.inventory.connected, true);
+  assert.equal(mockLocationInspectorPayload.inventory.items.length, 1);
+  assert.equal(mockLocationInspectorPayload.inventory.occupancy_status, 'OCCUPIED');
+  assert.equal(mockLocationInspectorPayload.inventory.items[0].sku, 'MCYCGRG');
 });
 
 test('Search Debounce - Validasi jendela penundaan 250ms sebelum memanggil API', async () => {

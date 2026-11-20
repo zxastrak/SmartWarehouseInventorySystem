@@ -192,36 +192,50 @@
   }
 }
 
-/* --- STEP 7: Ribbon Menu & Toolbar Controls (Office Style) --- */
+/* --- STEP 7: Ribbon Menu & Toolbar Controls (SUSUNO Forest Design System) --- */
 .layout-ribbon-container {
   display: flex;
   flex-direction: column;
-  background-color: #ffffff;
+  background-color: #f8f9f5;
   border-bottom: 1px solid #dfe4d9;
   z-index: 1000;
   position: relative;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 2px 6px rgba(25, 29, 23, 0.04);
 }
 
-.ribbon-tabs-strip {
+/* Tier 1: Top Header Bar (Warehouse Identity, Dimensions, 2D/3D, Zoom, Undo/Redo & Save) */
+.ribbon-top-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 14px;
-  height: 42px;
-  min-height: 42px;
+  height: 38px;
+  min-height: 38px;
   background-color: #f8f9f5;
+  border-bottom: 1px solid #dfe4d9;
+}
+
+/* Tier 2: Tabs Strip ("agak dibawah namun diatas hijau") */
+.ribbon-tabs-strip {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 14px;
+  height: 32px;
+  min-height: 32px;
+  background-color: #f1f4eb;
   border-bottom: 1px solid #dfe4d9;
 }
 
 .ribbon-tabs-list {
   display: flex;
   align-items: flex-end;
-  gap: 3px;
+  gap: 4px;
 }
 
 .ribbon-tab-btn {
-  padding: 5px 12px;
+  padding: 4px 14px;
+  height: 29px;
   font-size: 0.8rem;
   font-weight: 600;
   color: #525c48;
@@ -231,7 +245,7 @@
   border-top-left-radius: 6px;
   border-top-right-radius: 6px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -248,12 +262,12 @@
   color: #3e5510;
   font-weight: 700;
   border-color: #dfe4d9;
-  border-bottom-color: #ffffff;
+  border-bottom: 1px solid #ffffff;
   box-shadow: 0 -2px 0 #5c732b inset;
 }
 
 .ribbon-tab-icon {
-  font-size: 0.88rem;
+  font-size: 0.86rem;
 }
 
 .ribbon-quick-actions {
@@ -262,9 +276,10 @@
   gap: 8px;
 }
 
+/* Tier 3: Command Shelf ("hijau" - bottom toolbar shelf) */
 .ribbon-command-bar {
-  min-height: 40px;
-  height: 40px;
+  min-height: 42px;
+  height: 42px;
   background-color: #ffffff;
   padding: 0 14px;
   display: flex;
@@ -273,103 +288,41 @@
   position: relative;
   z-index: 1001;
   border-bottom: 1px solid #dfe4d9;
+  gap: 6px;
 }
 
 .ribbon-panel-tab {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 6px;
   width: 100%;
 }
 
 .ribbon-group {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
   align-items: center;
-  padding: 2px 8px;
-  min-width: max-content;
+  gap: 6px;
 }
 
 .ribbon-group-content {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 1;
-}
-
-.ribbon-group-title {
-  font-size: 0.67rem;
-  font-weight: 700;
-  color: #737b6c;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-top: 4px;
-  user-select: none;
 }
 
 .ribbon-divider {
   width: 1px;
-  background-color: #e2e5dc;
-  margin: 4px 6px;
-  height: 64px;
+  background-color: #d0d7c7;
+  margin: 0 4px;
+  height: 20px;
   align-self: center;
-}
-
-.ribbon-btn-large {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 6px 12px;
-  min-width: 64px;
-  height: 58px;
-  background-color: #ffffff;
-  border: 1px solid #e2e5dc;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease-in-out;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #191d17;
-}
-
-.ribbon-btn-large:hover:not(:disabled) {
-  background-color: #f1f4eb;
-  border-color: #5c732b;
-  color: #3e5510;
-}
-
-.ribbon-btn-large:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  border-color: #e2e5dc;
-  color: #a0a699;
-}
-
-.ribbon-icon-large {
-  font-size: 1.25rem;
-  line-height: 1;
-}
-
-.ribbon-label {
-  white-space: nowrap;
-  line-height: 1.1;
-}
-
-.ribbon-stacked-btns {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  justify-content: center;
 }
 
 .ribbon-btn-compact {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 3px 10px;
   font-size: 0.78rem;
   font-weight: 600;
   border-radius: 5px;
@@ -377,8 +330,8 @@
   background-color: #ffffff;
   color: #191d17;
   cursor: pointer;
-  transition: all 0.15s ease-in-out;
-  height: 27px;
+  transition: all 0.12s ease-in-out;
+  height: 28px;
   white-space: nowrap;
 }
 
@@ -388,35 +341,42 @@
   color: #3e5510;
 }
 
+.ribbon-btn-compact.ribbon-btn-active {
+  background-color: #eef3e2;
+  border-color: #5c732b;
+  color: #3e5510;
+  font-weight: 700;
+}
+
 .ribbon-btn-compact:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-  border-color: #e2e5dc;
+  border-color: #dfe4d9;
   color: #a0a699;
 }
 
 .ribbon-btn-add {
-  background-color: #f8fbf4;
-  border-color: #d2dfc4;
-  color: #2e5b32;
+  background-color: #ffffff;
+  border-color: #d0d7c7;
+  color: #191d17;
 }
 
 .ribbon-btn-add:hover:not(:disabled) {
-  background-color: #edf4e4;
+  background-color: #f1f4eb;
   border-color: #5c732b;
-}
-
-.ribbon-btn-generator {
-  background-color: #fcfbf4;
-  border-color: #e8e2bc;
-  color: #856404;
+  color: #3e5510;
 }
 
 .ribbon-highlight-slot {
-  background-color: #f4f7ee;
-  border-color: #c5cdbb;
-  color: #3e5510;
+  background-color: #faf5ff;
+  border-color: #ddd6fe;
+  color: #6d28d9;
   font-weight: 700;
+}
+
+.ribbon-highlight-slot:hover:not(:disabled) {
+  background-color: #f3e8ff;
+  border-color: #c084fc;
 }
 
 .ribbon-btn-active {

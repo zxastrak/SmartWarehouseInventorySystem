@@ -234,14 +234,108 @@ class LocationDirectoryService {
 
     const loc = rows[0];
 
-    // Status Inventori: Empty state eksplisit (AC-20) tanpa data dummy
+    // Status Inventori: Terhubung langsung ke data fisik stok SKU & transaksi riil (Phase 3 Live Integration)
+    const itemSql = `
+      SELECT 
+        p.id AS product_id,
+        p.name,
+        p.sku,
+        p.stock_quantity,
+        p.unit,
+        p.price,
+        p.weight,
+        p.weight_unit,
+        p.image_url,
+        c.name AS category_name,
+        s.name AS supplier_name,
+        (
+          SELECT st.created_at 
+          FROM stock_transactions st 
+          WHERE st.product_id = p.id 
+          ORDER BY st.id DESC 
+          LIMIT 1
+        ) AS last_activity_at,
+        (
+          SELECT st.type 
+          FROM stock_transactions st 
+          WHERE st.product_id = p.id 
+          ORDER BY st.id DESC 
+          LIMIT 1
+        ) AS last_activity_type
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN suppliers s ON p.supplier_id = s.id
+      LEFT JOIN locations l ON p.location_id = l.id
+      WHERE 
+        p.zone_location = ?
+        OR l.location_code = ?
+        OR p.location_id = ?
+      ORDER BY p.name ASC
+    `;
+
+    const [rawItems] = await db.query(itemSql, [loc.location_code, loc.location_code, loc.id]);
+
+    let totalWeightKg = 0;
+    let totalUnits = 0;
+
+    const formattedItems = (rawItems || []).map((item) => {
+      const qty = Number(item.stock_quantity) || 0;
+      totalUnits += qty;
+      let unitWeightKg = Number(item.weight) || 0;
+      if (item.weight_unit === 'g') unitWeightKg = unitWeightKg / 1000;
+      if (item.weight_unit === 'ton') unitWeightKg = unitWeightKg * 1000;
+      const itemTotalWeight = qty * unitWeightKg;
+      totalWeightKg += itemTotalWeight;
+
+      return {
+        product_id: item.product_id,
+        name: item.name,
+        sku: item.sku,
+        stock_quantity: qty,
+        unit: item.unit || 'pcs',
+        price: Number(item.price) || 0,
+        weight_per_unit_kg: Number(unitWeightKg.toFixed(2)),
+        total_weight_kg: Number(itemTotalWeight.toFixed(2)),
+        category_name: item.category_name || 'Umum',
+        supplier_name: item.supplier_name || '-',
+        image_url: item.image_url || null,
+        last_activity_at: item.last_activity_at || null,
+        last_activity_type: item.last_activity_type || null
+      };
+    });
+
+    const maxWeight = Number(loc.max_weight_kg) || 0;
+    let occupancyStatus = 'EMPTY';
+    let weightUtilizationPct = 0;
+
+    if (formattedItems.length > 0) {
+      if (maxWeight > 0) {
+        weightUtilizationPct = Math.round((totalWeightKg / maxWeight) * 100);
+        if (totalWeightKg > maxWeight) {
+          occupancyStatus = 'OVERLOAD';
+        } else if (weightUtilizationPct >= 90) {
+          occupancyStatus = 'FULL';
+        } else {
+          occupancyStatus = 'OCCUPIED';
+        }
+      } else {
+        occupancyStatus = 'OCCUPIED';
+      }
+    }
+
     const inventory = {
-      connected: false,
-      message: 'Belum terhubung ke inventori (Phase 3)',
-      items: [],
-      current_weight_kg: '0.00',
+      connected: true,
+      message: formattedItems.length > 0
+        ? `${formattedItems.length} SKU tersimpan (${totalUnits} unit)`
+        : 'Lokasi kosong / belum ada barang dialokasikan',
+      items: formattedItems,
+      total_items: formattedItems.length,
+      total_units: totalUnits,
+      current_weight_kg: totalWeightKg.toFixed(2),
       current_volume_m3: '0.0000',
-      occupancy_status: 'UNKNOWN'
+      max_weight_kg: maxWeight > 0 ? maxWeight.toFixed(2) : null,
+      weight_utilization_pct: weightUtilizationPct,
+      occupancy_status: occupancyStatus
     };
 
     return {

@@ -180,10 +180,10 @@ describe('STEP 12: Location Directory & Inspector (AC-13, AC-16, AC-17, AC-20, A
     assert.ok(loc.bay_number);
     assert.ok(loc.level_number);
 
-    // Kriteria AC-20: Empty state inventori jelas, tidak ada data dummy
-    assert.equal(loc.inventory.connected, false);
-    assert.equal(loc.inventory.message, 'Belum terhubung ke inventori (Phase 3)');
-    assert.deepEqual(loc.inventory.items, []);
+    // Kriteria AC-20: Status inventori terhubung langsung secara riil
+    assert.equal(loc.inventory.connected, true);
+    assert.ok(typeof loc.inventory.occupancy_status === 'string');
+    assert.ok(Array.isArray(loc.inventory.items));
   });
 
   test('7. PATCH /locations/:id/manual-status - Ditolak 403 untuk Peran Staf (AC-16)', async () => {

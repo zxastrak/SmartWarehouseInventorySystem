@@ -69,6 +69,84 @@ export class DocumentStore {
     }
   }
 
+  /**
+   * Incremental SpatialHash update for single entity (O(1) instead of O(N) full rebuild)
+   */
+  _updateEntitySpatialHash(type, entity) {
+    if (!this.spatialHash || !entity) return;
+    const key = `${type}:${entity.id}`;
+    if (type === 'rack') {
+      if (entity.retired_at) {
+        this.spatialHash.remove(key);
+      } else {
+        const box = footprint(entity.length_mm, entity.depth_mm, entity.rotation || 0);
+        this.spatialHash.insert(key, {
+          x: entity.x_mm,
+          y: entity.y_mm,
+          width: box.width,
+          depth: box.depth,
+        });
+      }
+    } else if (type === 'layout_object') {
+      if (entity.object_type === 'door_entry' || entity.object_type === 'door_exit') {
+        this.spatialHash.remove(key);
+      } else {
+        this.spatialHash.insert(key, {
+          x: entity.x_mm,
+          y: entity.y_mm,
+          width: entity.width_mm || 2000,
+          depth: entity.length_mm || 2000,
+        });
+      }
+    } else if (type === 'aisle') {
+      this.spatialHash.insert(key, {
+        x: entity.x_mm,
+        y: entity.y_mm,
+        width: entity.width_mm || 2000,
+        depth: entity.length_mm || 5000,
+      });
+    }
+  }
+
+  /**
+   * Incremental removal of single entity from SpatialHash
+   */
+  _removeEntitySpatialHash(type, id) {
+    if (!this.spatialHash) return;
+    const cleanId = String(id).includes(':') ? String(id).split(':')[1] : String(id);
+    this.spatialHash.remove(`${type}:${cleanId}`);
+    this.spatialHash.remove(String(id));
+  }
+
+  /**
+   * Filter collisions with warehouse layout domain rules (forklift vs dock exemptions, etc.)
+   */
+  _filterEffectiveCollisions(type, entity, collisions) {
+    if (!Array.isArray(collisions)) return collisions || [];
+    if (type === 'layout_object' && String(entity?.object_type || '').includes('door')) {
+      // Pintu menempel pada dinding perimeter gudang dan tidak boleh diblokir oleh collision
+      return [];
+    }
+    if (type !== 'aisle') return collisions;
+    const isForklift =
+      entity.type === 'forklift' ||
+      String(entity.name || '').toLowerCase().includes('forklift') ||
+      entity.direction === 'forklift';
+
+    const isDock = (cid) => {
+      if (!String(cid).startsWith('layout_object:')) return false;
+      const rawId = cid.replace('layout_object:', '');
+      const obj = this.snapshot?.layout_objects?.find((o) => String(o.id) === String(rawId));
+      return obj && String(obj.object_type || '').includes('dock');
+    };
+
+    return collisions.filter((cid) => {
+      if (String(cid).startsWith('aisle:')) return false;
+      if (isForklift && isDock(cid)) return false; // Forklift bisa menimpa dok!
+      return true;
+    });
+  }
+
   get warehouse() {
     return this.snapshot.warehouse;
   }
@@ -182,28 +260,14 @@ export class DocumentStore {
     const clampedToX = Math.max(0, Math.min(maxX, toX));
     const clampedToY = Math.max(0, Math.min(maxY, toY));
 
-    if (fromX === clampedToX && fromY === clampedToY) return false;
+    if (fromX === clampedToX && fromY === clampedToY) return true;
 
     if (validateCollision) {
       const collisions = this.spatialHash.query(
         { x: clampedToX, y: clampedToY, width: box.width, depth: box.depth },
         `${type}:${id}`
       );
-      const isForklift = type === 'aisle' && (entity.type === 'forklift' || String(entity.name || '').toLowerCase().includes('forklift') || entity.direction === 'forklift');
-      const isDock = (cid) => {
-        if (!String(cid).startsWith('layout_object:')) return false;
-        const rawId = cid.replace('layout_object:', '');
-        const obj = this.snapshot?.layout_objects?.find((o) => String(o.id) === String(rawId));
-        return obj && String(obj.object_type || '').includes('dock');
-      };
-
-      const effectiveCollisions = type === 'aisle'
-        ? collisions.filter((cid) => {
-            if (String(cid).startsWith('aisle:')) return false;
-            if (isForklift && isDock(cid)) return false; // Forklift bisa menimpa dok!
-            return true;
-          })
-        : collisions;
+      const effectiveCollisions = this._filterEffectiveCollisions(type, entity, collisions);
       if (effectiveCollisions.length > 0) {
         return false;
       }
@@ -212,7 +276,7 @@ export class DocumentStore {
     // Apply mutation
     entity.x_mm = Math.floor(clampedToX);
     entity.y_mm = Math.floor(clampedToY);
-    this._rebuildSpatialHash();
+    this._updateEntitySpatialHash(type, entity);
 
     // Record to history
     if (this.history) {
@@ -222,6 +286,15 @@ export class DocumentStore {
         `Geser ${type} #${id}`
       );
     }
+
+    // Bila jalan bertabrakan dengan jalan lain saat digeser, otomatis gabungkan
+    if (type === 'aisle') {
+      const mergeRes = this.mergeAisle(id);
+      if (mergeRes && mergeRes.isMerged) {
+        return mergeRes;
+      }
+    }
+
     return true;
   }
 
@@ -256,21 +329,7 @@ export class DocumentStore {
         depth: rotatedBox.depth,
       };
       const collisions = this.spatialHash.query(newRect, `${type}:${id}`);
-      const isForklift = type === 'aisle' && (entity.type === 'forklift' || String(entity.name || '').toLowerCase().includes('forklift') || entity.direction === 'forklift');
-      const isDock = (cid) => {
-        if (!String(cid).startsWith('layout_object:')) return false;
-        const rawId = cid.replace('layout_object:', '');
-        const obj = this.snapshot?.layout_objects?.find((o) => String(o.id) === String(rawId));
-        return obj && String(obj.object_type || '').includes('dock');
-      };
-
-      const effectiveCollisions = type === 'aisle'
-        ? collisions.filter((cid) => {
-            if (String(cid).startsWith('aisle:')) return false;
-            if (isForklift && isDock(cid)) return false; // Forklift bisa menimpa dok!
-            return true;
-          })
-        : collisions;
+      const effectiveCollisions = this._filterEffectiveCollisions(type, entity, collisions);
       if (effectiveCollisions.length > 0) {
         return false;
       }
@@ -279,7 +338,7 @@ export class DocumentStore {
     entity.x_mm = clampedX;
     entity.y_mm = clampedY;
     entity.rotation = rotated.rotation;
-    this._rebuildSpatialHash();
+    this._updateEntitySpatialHash(type, entity);
 
     if (this.history) {
       this.history.push(
@@ -314,8 +373,8 @@ export class DocumentStore {
     const maxY = Math.max(0, wh.length_mm - fp.depth);
     const rawX = customData.x_mm !== undefined ? Number(customData.x_mm) : 5000;
     const rawY = customData.y_mm !== undefined ? Number(customData.y_mm) : 5000;
-    const clampedX = Math.max(0, Math.min(maxX, rawX));
-    const clampedY = Math.max(0, Math.min(maxY, rawY));
+    let clampedX = Math.max(0, Math.min(maxX, rawX));
+    let clampedY = Math.max(0, Math.min(maxY, rawY));
 
     const clientRef = `c-rack-${clientCounter++}`;
     const newRack = {
@@ -341,7 +400,7 @@ export class DocumentStore {
     };
 
     this.snapshot.racks.push(newRack);
-    this._rebuildSpatialHash();
+    this._updateEntitySpatialHash('rack', newRack);
     this.select('rack', newRack.id);
 
     if (this.history) {
@@ -365,7 +424,7 @@ export class DocumentStore {
     const newIsForklift = customData.type === 'forklift' || String(customData.name || '').toLowerCase().includes('forklift') || customData.direction === 'forklift';
     let warnedLowForkliftWidth = false;
 
-    // "selain itu jalan forklifgt set lebar minimumnya 2,5 apabbila dibawah beri peingatan, kalau diata ygpp"
+    // "kunci lebar forklift sesuai dengan yang diinput oleh user, jadi khusus forklift tidak bisa membesar atau mengecil"
     if (newIsForklift) {
       if (customData.width_mm !== undefined && Number(customData.width_mm) < 2500) {
         warnedLowForkliftWidth = true;
@@ -374,16 +433,14 @@ export class DocumentStore {
         warnedLowForkliftWidth = true;
       }
 
-      // Pastikan ketebalan jalur forklift minimal 2.5m (2500 mm)
-      if (width_mm >= length_mm) {
-        if (length_mm < 2500) {
-          length_mm = Math.min(wh.length_mm, 2500);
-          warnedLowForkliftWidth = true;
-        }
-      } else {
-        if (width_mm < 2500) {
-          width_mm = Math.min(wh.width_mm, 2500);
-          warnedLowForkliftWidth = true;
+      // Kunci lebar forklift sesuai dengan yang diinput oleh user (tidak boleh membesar atau mengecil otomatis)
+      const userSpecifiedWidth = customData.user_width_mm || customData.userWidthMm || customData.configured_width_mm;
+      if (userSpecifiedWidth) {
+        const uWidth = Math.max(300, Number(userSpecifiedWidth));
+        if (width_mm >= length_mm) {
+          length_mm = uWidth; // Lebar penampang Y pada jalan horizontal
+        } else {
+          width_mm = uWidth; // Lebar penampang X pada jalan vertikal
         }
       }
     }
@@ -392,8 +449,8 @@ export class DocumentStore {
     const maxY = Math.max(0, wh.length_mm - length_mm);
     const rawX = customData.x_mm !== undefined ? Number(customData.x_mm) : 2000;
     const rawY = customData.y_mm !== undefined ? Number(customData.y_mm) : 2000;
-    const clampedX = Math.max(0, Math.min(maxX, rawX));
-    const clampedY = Math.max(0, Math.min(maxY, rawY));
+    let clampedX = Math.max(0, Math.min(maxX, rawX));
+    let clampedY = Math.max(0, Math.min(maxY, rawY));
 
     const clientRef = `c-aisle-${clientCounter++}`;
 
@@ -448,14 +505,16 @@ export class DocumentStore {
           // Ujung Y bertemu atau bersentuhan dalam jarak snap (<= 1000mm)
           const yTouches = Math.abs(clampedY - (a.y_mm + a.length_mm)) <= 1000 || Math.abs((clampedY + length_mm) - a.y_mm) <= 1000;
           touchesAtEnd = xOverlap && yTouches;
-        }
-
-        // ATURAN: Pejalan tidak bisa menimpa jalan lain, jalan forklift bisa
-        if (overlaps && !newIsForklift) {
-          return {
-            error: 'PEDESTRIAN_CANNOT_OVERLAP',
-            message: 'Jalan pejalan kaki tidak bisa menimpa jalan lain! Silakan pilih posisi yang tidak bertindihan.',
-          };
+        } else if (newIsHoriz && !aIsHoriz) {
+          // Horizontal bertemu Vertikal di ujung/persimpangan
+          const xIntersects = Math.max(clampedX, a.x_mm) <= Math.min(clampedX + width_mm, a.x_mm + a.width_mm) || Math.abs(clampedX - (a.x_mm + a.width_mm)) <= 1000 || Math.abs((clampedX + width_mm) - a.x_mm) <= 1000;
+          const yTouches = Math.abs(clampedY - (a.y_mm + a.length_mm)) <= 1000 || Math.abs((clampedY + length_mm) - a.y_mm) <= 1000;
+          touchesAtEnd = xIntersects && yTouches;
+        } else if (!newIsHoriz && aIsHoriz) {
+          // Vertikal bertemu Horizontal di ujung/persimpangan
+          const yIntersects = Math.max(clampedY, a.y_mm) <= Math.min(clampedY + length_mm, a.y_mm + a.length_mm) || Math.abs(clampedY - (a.y_mm + a.length_mm)) <= 1000 || Math.abs((clampedY + length_mm) - a.y_mm) <= 1000;
+          const xTouches = Math.abs(clampedX - (a.x_mm + a.width_mm)) <= 1000 || Math.abs((clampedX + width_mm) - a.x_mm) <= 1000;
+          touchesAtEnd = yIntersects && xTouches;
         }
 
         if (overlaps || touchesAtEnd) {
@@ -480,10 +539,23 @@ export class DocumentStore {
           const maxXPos = Math.max(candidate.x_mm + candidate.width_mm, clampedX + width_mm);
           const maxYPos = Math.max(candidate.y_mm + candidate.length_mm, clampedY + length_mm);
 
-          candidate.x_mm = minX;
-          candidate.y_mm = minY;
-          candidate.width_mm = maxXPos - minX;
-          candidate.length_mm = maxYPos - minY;
+          if (newIsForklift && existIsForklift && !willBeBoth) {
+            // Khusus Forklift: KUNCI LEBAR jalur forklift sesuai input user (tidak boleh membesar atau mengecil)
+            if (newIsHoriz) {
+              candidate.x_mm = minX;
+              candidate.width_mm = maxXPos - minX;
+              // candidate.y_mm dan candidate.length_mm tetap terkunci sesuai input
+            } else {
+              candidate.y_mm = minY;
+              candidate.length_mm = maxYPos - minY;
+              // candidate.x_mm dan candidate.width_mm tetap terkunci sesuai input
+            }
+          } else {
+            candidate.x_mm = minX;
+            candidate.y_mm = minY;
+            candidate.width_mm = maxXPos - minX;
+            candidate.length_mm = maxYPos - minY;
+          }
           candidate.client_ref = candidate.client_ref || clientRef;
 
           if (willBeBoth) {
@@ -497,8 +569,6 @@ export class DocumentStore {
           } else if (newIsForklift) {
             candidate.type = 'forklift';
             candidate.direction = 'forklift';
-            if (newIsHoriz && candidate.length_mm < 2500) candidate.length_mm = Math.min(wh.length_mm - minY, 2500);
-            if (!newIsHoriz && candidate.width_mm < 2500) candidate.width_mm = Math.min(wh.width_mm - minX, 2500);
           } else {
             // Jalur Manusia / Standar: Pastikan tidak tumpang tindih dan memenuhi batas minimal 0.8m
             candidate.type = candidate.type || 'standard';
@@ -523,10 +593,14 @@ export class DocumentStore {
           });
 
           for (const extra of otherTouching) {
-            candidate.x_mm = Math.min(candidate.x_mm, extra.x_mm);
-            candidate.y_mm = Math.min(candidate.y_mm, extra.y_mm);
-            candidate.width_mm = Math.max(candidate.x_mm + candidate.width_mm, extra.x_mm + extra.width_mm) - candidate.x_mm;
-            candidate.length_mm = Math.max(candidate.y_mm + candidate.length_mm, extra.y_mm + extra.length_mm) - candidate.y_mm;
+            const minX2 = Math.min(candidate.x_mm, extra.x_mm);
+            const minY2 = Math.min(candidate.y_mm, extra.y_mm);
+            const maxX2 = Math.max(candidate.x_mm + candidate.width_mm, extra.x_mm + extra.width_mm);
+            const maxY2 = Math.max(candidate.y_mm + candidate.length_mm, extra.y_mm + extra.length_mm);
+            candidate.x_mm = minX2;
+            candidate.y_mm = minY2;
+            candidate.width_mm = maxX2 - minX2;
+            candidate.length_mm = maxY2 - minY2;
             this.snapshot.aisles = this.snapshot.aisles.filter((a) => a.id !== extra.id);
           }
 
@@ -541,30 +615,34 @@ export class DocumentStore {
             );
           }
           return { ...candidate, isMerged: true, is_both: willBeBoth, warnMinimumForkliftWidth: warnedLowForkliftWidth };
-        } else if (isOverlapping) {
-          // Kasus 2: Tegak lurus (perpendicular T-junction/L-corner) yang bertindihan
-          // Potong (trim) penetrasi jalan baru agar menempel pas (flush) di tepi lorong eksisting (0 tumpang tindih)
+        } else if (isOverlapping || isCollinearMeeting) {
+          // Kasus 2: Tegak lurus (perpendicular T-junction/L-corner) yang bertindihan atau menyentuh ujung
+          // Forklift & Pejalan kaki DIIZINKAN tumpang tindih (overlap) untuk membentuk persimpangan jalan / tikungan L yang terhubung mulus
+          if (willBeBoth) {
+            candidate.type = 'both';
+            candidate.direction = 'both';
+            candidate.name = 'Jalur Bersama (Forklift & Pejalan)';
+            candidate.is_both = true;
+          }
+
+          // Sambung flush sudut pertemuan (L-turn / T-junction) agar tidak ada celah di sudut
           if (!newIsHoriz && aIsHoriz) {
             // Jalan baru vertikal bertemu lorong eksisting horizontal
-            if (clampedY < candidate.y_mm && clampedY + length_mm > candidate.y_mm) {
-              length_mm = Math.max(800, candidate.y_mm - clampedY);
-            } else if (clampedY < candidate.y_mm + candidate.length_mm && clampedY + length_mm > candidate.y_mm + candidate.length_mm) {
-              const newY = candidate.y_mm + candidate.length_mm;
-              length_mm = Math.max(800, (clampedY + length_mm) - newY);
-              clampedY = newY;
-            } else {
-              return { ...candidate, isMerged: true, is_both: willBeBoth, warnMinimumForkliftWidth: warnedLowForkliftWidth };
+            if (clampedY >= candidate.y_mm && clampedY <= candidate.y_mm + candidate.length_mm) {
+              const prevBottom = clampedY + length_mm;
+              clampedY = candidate.y_mm;
+              length_mm = Math.max(length_mm, prevBottom - clampedY);
+            } else if (clampedY + length_mm >= candidate.y_mm && clampedY + length_mm <= candidate.y_mm + candidate.length_mm) {
+              length_mm = (candidate.y_mm + candidate.length_mm) - clampedY;
             }
           } else if (newIsHoriz && !aIsHoriz) {
             // Jalan baru horizontal bertemu lorong eksisting vertikal
-            if (clampedX < candidate.x_mm && clampedX + width_mm > candidate.x_mm) {
-              width_mm = Math.max(800, candidate.x_mm - clampedX);
-            } else if (clampedX < candidate.x_mm + candidate.width_mm && clampedX + width_mm > candidate.x_mm + candidate.width_mm) {
-              const newX = candidate.x_mm + candidate.width_mm;
-              width_mm = Math.max(800, (clampedX + width_mm) - newX);
-              clampedX = newX;
-            } else {
-              return { ...candidate, isMerged: true, is_both: willBeBoth, warnMinimumForkliftWidth: warnedLowForkliftWidth };
+            if (clampedX >= candidate.x_mm && clampedX <= candidate.x_mm + candidate.width_mm) {
+              const prevRight = clampedX + width_mm;
+              clampedX = candidate.x_mm;
+              width_mm = Math.max(width_mm, prevRight - clampedX);
+            } else if (clampedX + width_mm >= candidate.x_mm && clampedX + width_mm <= candidate.x_mm + candidate.width_mm) {
+              width_mm = (candidate.x_mm + candidate.width_mm) - clampedX;
             }
           }
         }
@@ -601,6 +679,187 @@ export class DocumentStore {
   }
 
   /**
+   * Merges an existing aisle with any overlapping or collinear touching aisle
+   */
+  mergeAisle(id) {
+    const cleanId = String(id).includes(':') ? String(id).split(':')[1] : String(id);
+    const targetAisle = (this.snapshot?.aisles || []).find(
+      (a) => String(a.id) === cleanId || String(a.client_ref) === cleanId || String(a.id) === String(id)
+    );
+    if (!targetAisle) return null;
+
+    const wh = this.snapshot?.warehouse || { width_mm: 50000, length_mm: 80000 };
+    const targetIsHoriz = (targetAisle.width_mm || 2000) >= (targetAisle.length_mm || 5000);
+    const targetIsForklift = targetAisle.type === 'forklift' || String(targetAisle.name || '').toLowerCase().includes('forklift') || targetAisle.direction === 'forklift';
+    const targetIsBoth = targetAisle.type === 'both' || targetAisle.direction === 'both' || targetAisle.is_both;
+
+    let candidate = null;
+    let isOverlapping = false;
+    let isCollinearMeeting = false;
+
+    for (const a of (this.snapshot?.aisles || [])) {
+      if (a.id === targetAisle.id) continue;
+      const aIsHoriz = (a.width_mm || 2000) >= (a.length_mm || 5000);
+
+      // Check Overlap
+      const overlaps = !(
+        targetAisle.x_mm + targetAisle.width_mm <= a.x_mm ||
+        a.x_mm + a.width_mm <= targetAisle.x_mm ||
+        targetAisle.y_mm + targetAisle.length_mm <= a.y_mm ||
+        a.y_mm + a.length_mm <= targetAisle.y_mm
+      );
+
+      // Check Collinear Touching
+      let touchesAtEnd = false;
+      if (targetIsHoriz && aIsHoriz) {
+        const yOverlap = Math.max(targetAisle.y_mm, a.y_mm) < Math.min(targetAisle.y_mm + targetAisle.length_mm, a.y_mm + a.length_mm) || Math.abs(targetAisle.y_mm - a.y_mm) <= 500;
+        const xTouches = Math.abs(targetAisle.x_mm - (a.x_mm + a.width_mm)) <= 1000 || Math.abs((targetAisle.x_mm + targetAisle.width_mm) - a.x_mm) <= 1000;
+        touchesAtEnd = yOverlap && xTouches;
+      } else if (!targetIsHoriz && !aIsHoriz) {
+        const xOverlap = Math.max(targetAisle.x_mm, a.x_mm) < Math.min(targetAisle.x_mm + targetAisle.width_mm, a.x_mm + a.width_mm) || Math.abs(targetAisle.x_mm - a.x_mm) <= 500;
+        const yTouches = Math.abs(targetAisle.y_mm - (a.y_mm + a.length_mm)) <= 1000 || Math.abs((targetAisle.y_mm + targetAisle.length_mm) - a.y_mm) <= 1000;
+        touchesAtEnd = xOverlap && yTouches;
+      } else if (targetIsHoriz && !aIsHoriz) {
+        const xIntersects = Math.max(targetAisle.x_mm, a.x_mm) <= Math.min(targetAisle.x_mm + targetAisle.width_mm, a.x_mm + a.width_mm) || Math.abs(targetAisle.x_mm - (a.x_mm + a.width_mm)) <= 1000 || Math.abs((targetAisle.x_mm + targetAisle.width_mm) - a.x_mm) <= 1000;
+        const yTouches = Math.abs(targetAisle.y_mm - (a.y_mm + a.length_mm)) <= 1000 || Math.abs((targetAisle.y_mm + targetAisle.length_mm) - a.y_mm) <= 1000;
+        touchesAtEnd = xIntersects && yTouches;
+      } else if (!targetIsHoriz && aIsHoriz) {
+        const yIntersects = Math.max(targetAisle.y_mm, a.y_mm) <= Math.min(targetAisle.y_mm + targetAisle.length_mm, a.y_mm + a.length_mm) || Math.abs(targetAisle.y_mm - (a.y_mm + a.length_mm)) <= 1000 || Math.abs((targetAisle.y_mm + targetAisle.length_mm) - a.y_mm) <= 1000;
+        const xTouches = Math.abs(targetAisle.x_mm - (a.x_mm + a.width_mm)) <= 1000 || Math.abs((targetAisle.x_mm + targetAisle.width_mm) - a.x_mm) <= 1000;
+        touchesAtEnd = yIntersects && xTouches;
+      }
+
+      if (overlaps || touchesAtEnd) {
+        candidate = a;
+        isOverlapping = overlaps;
+        isCollinearMeeting = touchesAtEnd;
+        break;
+      }
+    }
+
+    if (!candidate) return null;
+
+    const aIsHoriz = (candidate.width_mm || 2000) >= (candidate.length_mm || 5000);
+    const existIsForklift = candidate.type === 'forklift' || String(candidate.name || '').toLowerCase().includes('forklift') || candidate.direction === 'forklift';
+    const existIsBoth = candidate.type === 'both' || candidate.direction === 'both' || candidate.is_both;
+    const willBeBoth = targetIsBoth || existIsBoth || (targetIsForklift && !existIsForklift) || (!targetIsForklift && existIsForklift);
+
+    if (targetIsHoriz === aIsHoriz) {
+      const prevCandidate = { ...candidate };
+      const minX = Math.min(candidate.x_mm, targetAisle.x_mm);
+      const minY = Math.min(candidate.y_mm, targetAisle.y_mm);
+      const maxX = Math.max(candidate.x_mm + candidate.width_mm, targetAisle.x_mm + targetAisle.width_mm);
+      const maxY = Math.max(candidate.y_mm + candidate.length_mm, targetAisle.y_mm + targetAisle.length_mm);
+
+      if ((targetIsForklift || existIsForklift) && !willBeBoth) {
+        // Khusus Forklift: KUNCI LEBAR jalur forklift sesuai input user (tidak boleh membesar atau mengecil)
+        if (targetIsHoriz) {
+          candidate.x_mm = minX;
+          candidate.width_mm = maxX - minX;
+          // candidate.y_mm & candidate.length_mm tetap terkunci
+        } else {
+          candidate.y_mm = minY;
+          candidate.length_mm = maxY - minY;
+          // candidate.x_mm & candidate.width_mm tetap terkunci
+        }
+      } else {
+        candidate.x_mm = minX;
+        candidate.y_mm = minY;
+        candidate.width_mm = maxX - minX;
+        candidate.length_mm = maxY - minY;
+      }
+
+      if (willBeBoth) {
+        candidate.type = 'both';
+        candidate.direction = 'both';
+        candidate.name = 'Jalur Bersama (Forklift & Pejalan)';
+        candidate.is_both = true;
+        if (targetIsHoriz && candidate.length_mm < 2500) candidate.length_mm = Math.min(wh.length_mm - minY, 2500);
+        if (!targetIsHoriz && candidate.width_mm < 2500) candidate.width_mm = Math.min(wh.width_mm - minX, 2500);
+      } else if (targetIsForklift || existIsForklift) {
+        candidate.type = 'forklift';
+        candidate.direction = 'forklift';
+      } else {
+        candidate.type = candidate.type || 'standard';
+        if (targetIsHoriz && candidate.length_mm < 800) candidate.length_mm = Math.min(wh.length_mm - minY, 800);
+        if (!targetIsHoriz && candidate.width_mm < 800) candidate.width_mm = Math.min(wh.width_mm - minX, 800);
+      }
+
+      // Hapus targetAisle yang telah digabung ke candidate
+      this.snapshot.aisles = this.snapshot.aisles.filter((a) => a.id !== targetAisle.id);
+      this.deselect('aisle', targetAisle.id);
+      this.select('aisle', candidate.id);
+      this._rebuildSpatialHash();
+
+      if (this.history) {
+        this.history.push(
+          { op: 'update', type: 'aisle', id: candidate.id, item: { ...candidate }, prevItem: prevCandidate },
+          { op: 'update', type: 'aisle', id: candidate.id, item: prevCandidate, prevItem: { ...candidate } },
+          `Gabung Jalan ${candidate.aisle_code}`
+        );
+      }
+
+      return { moved: true, isMerged: true, aisle: candidate, is_both: willBeBoth };
+    } else if (isOverlapping || isCollinearMeeting) {
+      // Kasus 2: Tegak lurus (perpendicular L-corner / T-junction)
+      // Hubungkan dan rapikan persimpangan agar flush dan seamless tanpa celah
+      const prevTarget = { ...targetAisle };
+      const prevCandidate = { ...candidate };
+
+      if (willBeBoth) {
+        targetAisle.type = 'both';
+        targetAisle.direction = 'both';
+        targetAisle.name = 'Jalur Bersama (Forklift & Pejalan)';
+        targetAisle.is_both = true;
+        candidate.type = 'both';
+        candidate.direction = 'both';
+        candidate.name = 'Jalur Bersama (Forklift & Pejalan)';
+        candidate.is_both = true;
+      }
+
+      let modifiedTarget = false;
+      if (targetIsHoriz && !aIsHoriz) {
+        // targetAisle horizontal, candidate vertikal
+        if (targetAisle.x_mm >= candidate.x_mm && targetAisle.x_mm <= candidate.x_mm + candidate.width_mm) {
+          const shift = targetAisle.x_mm - candidate.x_mm;
+          targetAisle.x_mm = candidate.x_mm;
+          targetAisle.width_mm = Math.max(targetAisle.width_mm, targetAisle.width_mm + shift);
+          modifiedTarget = true;
+        } else if (targetAisle.x_mm + targetAisle.width_mm >= candidate.x_mm && targetAisle.x_mm + targetAisle.width_mm <= candidate.x_mm + candidate.width_mm) {
+          targetAisle.width_mm = (candidate.x_mm + candidate.width_mm) - targetAisle.x_mm;
+          modifiedTarget = true;
+        }
+      } else if (!targetIsHoriz && aIsHoriz) {
+        // targetAisle vertikal, candidate horizontal
+        if (targetAisle.y_mm >= candidate.y_mm && targetAisle.y_mm <= candidate.y_mm + candidate.length_mm) {
+          const shift = targetAisle.y_mm - candidate.y_mm;
+          targetAisle.y_mm = candidate.y_mm;
+          targetAisle.length_mm = Math.max(targetAisle.length_mm, targetAisle.length_mm + shift);
+          modifiedTarget = true;
+        } else if (targetAisle.y_mm + targetAisle.length_mm >= candidate.y_mm && targetAisle.y_mm + targetAisle.length_mm <= candidate.y_mm + candidate.length_mm) {
+          targetAisle.length_mm = (candidate.y_mm + candidate.length_mm) - targetAisle.y_mm;
+          modifiedTarget = true;
+        }
+      }
+
+      this._updateEntitySpatialHash('aisle', targetAisle);
+      this._updateEntitySpatialHash('aisle', candidate);
+
+      if (this.history && (modifiedTarget || willBeBoth)) {
+        this.history.push(
+          { op: 'update', type: 'aisle', id: targetAisle.id, item: { ...targetAisle }, prevItem: prevTarget },
+          { op: 'update', type: 'aisle', id: targetAisle.id, item: prevTarget, prevItem: { ...targetAisle } },
+          `Hubungkan Persimpangan Jalan ${targetAisle.aisle_code}`
+        );
+      }
+
+      return { moved: true, isMerged: true, isConnected: true, aisle: targetAisle, connectedTo: candidate, is_both: willBeBoth };
+    }
+
+    return null;
+  }
+
+  /**
    * Adds a new zone to the layout
    */
   addZone(customData = {}) {
@@ -611,8 +870,8 @@ export class DocumentStore {
     const maxY = Math.max(0, wh.length_mm - length_mm);
     const rawX = customData.x_mm !== undefined ? Number(customData.x_mm) : 0;
     const rawY = customData.y_mm !== undefined ? Number(customData.y_mm) : 0;
-    const clampedX = Math.max(0, Math.min(maxX, rawX));
-    const clampedY = Math.max(0, Math.min(maxY, rawY));
+    let clampedX = Math.max(0, Math.min(maxX, rawX));
+    let clampedY = Math.max(0, Math.min(maxY, rawY));
 
     const clientRef = `c-zone-${clientCounter++}`;
     const newZone = {
@@ -655,8 +914,8 @@ export class DocumentStore {
     const maxY = Math.max(0, wh.length_mm - length_mm);
     const rawX = customData.x_mm !== undefined ? Number(customData.x_mm) : 0;
     const rawY = customData.y_mm !== undefined ? Number(customData.y_mm) : 0;
-    const clampedX = Math.max(0, Math.min(maxX, rawX));
-    const clampedY = Math.max(0, Math.min(maxY, rawY));
+    let clampedX = Math.max(0, Math.min(maxX, rawX));
+    let clampedY = Math.max(0, Math.min(maxY, rawY));
 
     const clientRef = `c-obj-${clientCounter++}`;
     const newObj = {
@@ -724,7 +983,7 @@ export class DocumentStore {
 
     const oldState = { ...entity };
     Object.assign(entity, updates);
-    this._rebuildSpatialHash();
+    this._updateEntitySpatialHash(actualType, entity);
 
     if (this.history) {
       this.history.push(
@@ -775,7 +1034,7 @@ export class DocumentStore {
     this.selectedKeys.delete(`${type}:${id}`);
     this.selectedKeys.delete(String(id));
     this.selectedKeys.delete(String(removedId));
-    this._rebuildSpatialHash();
+    this._removeEntitySpatialHash(actualType, removedId);
 
     if (this.history) {
       this.history.push(

@@ -21,6 +21,7 @@ const PALETTE_3D = {
   floor: '#e5e9df',
   floorGrid: '#cbd5be',
   floorBorder: '#64748b',
+  slotGridPurple: '#7c3aed', // Garis slot horizontal & vertikal ungu (violet)
 
   // Racking System
   rackUprightBlue: '#1d4ed8',     // Deep industrial blue
@@ -278,13 +279,22 @@ export default function Warehouse3DCanvas({
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
 
-  const [isGridActive, setIsGridActive] = useState(showGrid !== false);
+  const [isGridActive, setIsGridActive] = useState(Boolean(showGrid));
+  const [isMeterActive, setIsMeterActive] = useState(showMeterGrid !== false);
   const [isSlotGridActive, setIsSlotGridActive] = useState(Boolean(showSlotGrid));
 
-  // Sync internal state when props from toolbar change
+  // Sync internal state: independen untuk Matriks (50cm), Grid Meter (1m), dan Garis Slot
   useEffect(() => {
-    if (showGrid !== undefined) setIsGridActive(showGrid !== false);
+    if (showGrid !== undefined) {
+      setIsGridActive(Boolean(showGrid));
+    }
   }, [showGrid]);
+
+  useEffect(() => {
+    if (showMeterGrid !== undefined) {
+      setIsMeterActive(showMeterGrid !== false);
+    }
+  }, [showMeterGrid]);
 
   useEffect(() => {
     if (showSlotGrid !== undefined) setIsSlotGridActive(Boolean(showSlotGrid));
@@ -382,106 +392,16 @@ export default function Warehouse3DCanvas({
       ctx.fillStyle = PALETTE_3D.floor;
       ctx.fill();
 
-      // 2. Visible Grid Lines (Strictly adhering to user toolbar selection!)
-      const shouldDrawMeter = showMeterGrid !== false && (showGridHorizontal || showGridVertical);
-      const shouldDrawSlot = Boolean(showSlotGrid);
-
-      if (isGridActive && (shouldDrawMeter || shouldDrawSlot)) {
+      // 2. Visible Grid Lines & Floor Matrix (Terpisah: Matriks 50cm² vs Grid Meter 1m vs Garis Slot)
+      // A0. Matriks 50cm² (500mm x 500mm Pathfinding Mesh - Distinct Slate Tint)
+      if (isGridActive) {
         ctx.save();
+        const step50cm = 500;
+        ctx.strokeStyle = 'rgba(100, 116, 139, 0.40)'; // Cool slate fine mesh
+        ctx.lineWidth = 0.55;
 
-        // A. 1-Meter & 5-Meter Grid Lines
-        if (shouldDrawMeter) {
-          const step1m = 1000;
-          ctx.strokeStyle = '#aab6a2';
-          ctx.lineWidth = 0.9;
-
-          // Vertical meter grid lines (along X axis)
-          if (showGridVertical !== false) {
-            for (let x = step1m; x < whW; x += step1m) {
-              if (x % 5000 === 0) continue; // Skip 5m multiples (drawn below)
-              const p1 = projectPoint(x, 0, 0, camera, width, height);
-              const p2 = projectPoint(x, whL, 0, camera, width, height);
-              if (p1 && p2) {
-                ctx.beginPath();
-                ctx.moveTo(p1.x, p1.y);
-                ctx.lineTo(p2.x, p2.y);
-                ctx.stroke();
-              }
-            }
-          }
-
-          // Horizontal meter grid lines (along Y axis)
-          if (showGridHorizontal !== false) {
-            for (let y = step1m; y < whL; y += step1m) {
-              if (y % 5000 === 0) continue;
-              const p1 = projectPoint(0, y, 0, camera, width, height);
-              const p2 = projectPoint(whW, y, 0, camera, width, height);
-              if (p1 && p2) {
-                ctx.beginPath();
-                ctx.moveTo(p1.x, p1.y);
-                ctx.lineTo(p2.x, p2.y);
-                ctx.stroke();
-              }
-            }
-          }
-
-          // 5-Meter Major Grid Lines
-          const step5m = 5000;
-          ctx.strokeStyle = '#526049';
-          ctx.lineWidth = 1.7;
-
-          if (showGridVertical !== false) {
-            for (let x = 0; x <= whW; x += step5m) {
-              const p1 = projectPoint(x, 0, 0, camera, width, height);
-              const p2 = projectPoint(x, whL, 0, camera, width, height);
-              if (p1 && p2) {
-                ctx.beginPath();
-                ctx.moveTo(p1.x, p1.y);
-                ctx.lineTo(p2.x, p2.y);
-                ctx.stroke();
-              }
-            }
-          }
-
-          if (showGridHorizontal !== false) {
-            for (let y = 0; y <= whL; y += step5m) {
-              const p1 = projectPoint(0, y, 0, camera, width, height);
-              const p2 = projectPoint(whW, y, 0, camera, width, height);
-              if (p1 && p2) {
-                ctx.beginPath();
-                ctx.moveTo(p1.x, p1.y);
-                ctx.lineTo(p2.x, p2.y);
-                ctx.stroke();
-              }
-            }
-          }
-
-          // Coordinate Labels (0m, 5m, 10m...)
-          ctx.font = 'bold 9px sans-serif';
-          ctx.fillStyle = '#4b5563';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          for (let x = 0; x <= whW; x += step5m) {
-            const p = projectPoint(x, -250, 0, camera, width, height);
-            if (p) ctx.fillText(`${x / 1000}m`, p.x, p.y);
-          }
-          for (let y = 0; y <= whL; y += step5m) {
-            const p = projectPoint(-250, y, 0, camera, width, height);
-            if (p) ctx.fillText(`${y / 1000}m`, p.x, p.y);
-          }
-        }
-
-        // B. Slot Grid Lines (Adhering strictly to active slot orientation: Horizontal or Vertikal!)
-        if (shouldDrawSlot) {
-          const isSlotVerticalActive = Boolean(showSlotVertical || slotRotated);
-          const sW = isSlotVerticalActive ? (slotConfig?.depthMm || 500) : (slotConfig?.lengthMm || 1000);
-          const sD = isSlotVerticalActive ? (slotConfig?.lengthMm || 1000) : (slotConfig?.depthMm || 500);
-
-          ctx.strokeStyle = '#65a30d'; // Olive lime green slot grid
-          ctx.lineWidth = 1.1;
-          ctx.setLineDash([4, 3]);
-
-          for (let x = sW; x < whW; x += sW) {
+        if (showGridVertical !== false) {
+          for (let x = step50cm; x < whW; x += step50cm) {
             const p1 = projectPoint(x, 0, 0, camera, width, height);
             const p2 = projectPoint(x, whL, 0, camera, width, height);
             if (p1 && p2) {
@@ -491,7 +411,10 @@ export default function Warehouse3DCanvas({
               ctx.stroke();
             }
           }
-          for (let y = sD; y < whL; y += sD) {
+        }
+
+        if (showGridHorizontal !== false) {
+          for (let y = step50cm; y < whL; y += step50cm) {
             const p1 = projectPoint(0, y, 0, camera, width, height);
             const p2 = projectPoint(whW, y, 0, camera, width, height);
             if (p1 && p2) {
@@ -501,9 +424,126 @@ export default function Warehouse3DCanvas({
               ctx.stroke();
             }
           }
-          ctx.setLineDash([]);
+        }
+        ctx.restore();
+      }
+
+      // A1. Grid Meteran Lantai (1-Meter Minor & 5-Meter Major Lines - Architectural Warm Forest Palette)
+      if (isMeterActive) {
+        ctx.save();
+        const step1m = 1000;
+        ctx.strokeStyle = '#9ca894';
+        ctx.lineWidth = 0.9;
+
+        // Vertical meter grid lines (along X axis)
+        if (showGridVertical !== false) {
+          for (let x = step1m; x < whW; x += step1m) {
+            if (x % 5000 === 0) continue; // Skip 5m multiples (drawn below)
+            const p1 = projectPoint(x, 0, 0, camera, width, height);
+            const p2 = projectPoint(x, whL, 0, camera, width, height);
+            if (p1 && p2) {
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.stroke();
+            }
+          }
         }
 
+        // Horizontal meter grid lines (along Y axis)
+        if (showGridHorizontal !== false) {
+          for (let y = step1m; y < whL; y += step1m) {
+            if (y % 5000 === 0) continue;
+            const p1 = projectPoint(0, y, 0, camera, width, height);
+            const p2 = projectPoint(whW, y, 0, camera, width, height);
+            if (p1 && p2) {
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.stroke();
+            }
+          }
+        }
+
+        // 5-Meter Major Grid Lines
+        const step5m = 5000;
+        ctx.strokeStyle = '#526049';
+        ctx.lineWidth = 1.7;
+
+        if (showGridVertical !== false) {
+          for (let x = 0; x <= whW; x += step5m) {
+            const p1 = projectPoint(x, 0, 0, camera, width, height);
+            const p2 = projectPoint(x, whL, 0, camera, width, height);
+            if (p1 && p2) {
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.stroke();
+            }
+          }
+        }
+
+        if (showGridHorizontal !== false) {
+          for (let y = 0; y <= whL; y += step5m) {
+            const p1 = projectPoint(0, y, 0, camera, width, height);
+            const p2 = projectPoint(whW, y, 0, camera, width, height);
+            if (p1 && p2) {
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.stroke();
+            }
+          }
+        }
+
+        // Coordinate Labels (0m, 5m, 10m...)
+        ctx.font = 'bold 9px sans-serif';
+        ctx.fillStyle = '#4b5563';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        for (let x = 0; x <= whW; x += step5m) {
+          const p = projectPoint(x, -250, 0, camera, width, height);
+          if (p) ctx.fillText(`${x / 1000}m`, p.x, p.y);
+        }
+        for (let y = 0; y <= whL; y += step5m) {
+          const p = projectPoint(-250, y, 0, camera, width, height);
+          if (p) ctx.fillText(`${y / 1000}m`, p.x, p.y);
+        }
+        ctx.restore();
+      }
+
+      // B. Slot Grid Lines (Horizontal & Vertikal berwarna ungu!)
+      if (isSlotGridActive) {
+        ctx.save();
+        const isSlotVerticalActive = Boolean(showSlotVertical || slotRotated);
+        const sW = isSlotVerticalActive ? (slotConfig?.depthMm || 500) : (slotConfig?.lengthMm || 1000);
+        const sD = isSlotVerticalActive ? (slotConfig?.lengthMm || 1000) : (slotConfig?.depthMm || 500);
+
+        ctx.strokeStyle = PALETTE_3D.slotGridPurple || '#7c3aed'; // Ungu cerah (Purple / Violet)
+        ctx.lineWidth = 1.25;
+        ctx.setLineDash([4, 3]);
+
+        for (let x = sW; x < whW; x += sW) {
+          const p1 = projectPoint(x, 0, 0, camera, width, height);
+          const p2 = projectPoint(x, whL, 0, camera, width, height);
+          if (p1 && p2) {
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+          }
+        }
+        for (let y = sD; y < whL; y += sD) {
+          const p1 = projectPoint(0, y, 0, camera, width, height);
+          const p2 = projectPoint(whW, y, 0, camera, width, height);
+          if (p1 && p2) {
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+          }
+        }
+        ctx.setLineDash([]);
         ctx.restore();
       }
 
@@ -1590,6 +1630,7 @@ export default function Warehouse3DCanvas({
     whL,
     whH,
     isGridActive,
+    isMeterActive,
     isSlotGridActive,
     showGrid,
     showMeterGrid,
@@ -1770,19 +1811,27 @@ export default function Warehouse3DCanvas({
         <div className="view-mode-pill-toggle" style={{ marginLeft: 8 }}>
           <button
             type="button"
+            className={`btn-view-pill ${isMeterActive ? 'active' : ''}`}
+            onClick={() => setIsMeterActive((prev) => !prev)}
+            title="Tampilkan / Sembunyikan Grid Meteran Arsitektur (1m & 5m)"
+          >
+            <span>📏</span> Meter (1m): <strong>{isMeterActive ? 'ON' : 'OFF'}</strong>
+          </button>
+          <button
+            type="button"
             className={`btn-view-pill ${isGridActive ? 'active' : ''}`}
             onClick={() => setIsGridActive((prev) => !prev)}
-            title="Tampilkan / Sembunyikan Garis-Garis Grid Lantai 1 Meter"
+            title="Tampilkan / Sembunyikan Matriks Sel 50cm × 50cm (0.5m)"
           >
-            <span>📐</span> Garis Grid 1m: <strong>{isGridActive ? 'ON' : 'OFF'}</strong>
+            <span>📐</span> Matriks (50cm): <strong>{isGridActive ? 'ON' : 'OFF'}</strong>
           </button>
           <button
             type="button"
             className={`btn-view-pill ${isSlotGridActive ? 'active' : ''}`}
             onClick={() => setIsSlotGridActive((prev) => !prev)}
-            title="Tampilkan / Sembunyikan Garis Grid Ukuran Slot"
+            title="Tampilkan / Sembunyikan Garis Grid Ukuran Slot Ungu (Horizontal & Vertikal)"
           >
-            <span>🗂️</span> Garis Slot ({slotRotated || showSlotVertical ? 'Vertikal' : 'Horizontal'}): <strong>{isSlotGridActive ? 'ON' : 'OFF'}</strong>
+            <span>🟣</span> Garis Slot ({slotRotated || showSlotVertical ? 'Vertikal' : 'Horizontal'}): <strong>{isSlotGridActive ? 'ON' : 'OFF'}</strong>
           </button>
         </div>
 

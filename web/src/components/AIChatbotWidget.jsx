@@ -205,7 +205,7 @@ export default function AIChatbotWidget() {
         {
           id: `ai-err-${Date.now()}`,
           sender: 'ai',
-          text: '⚠️ Terjadi kendala teknis saat menghubungi server AI. Pastikan server backend SUSUNO aktif di port 5000.',
+          text: 'Terjadi kendala teknis saat menghubungi server AI. Pastikan server backend SUSUNO aktif di port 5000.',
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
@@ -267,7 +267,15 @@ export default function AIChatbotWidget() {
           {/* Header */}
           <div className="susuno-ai-header">
             <div className="susuno-ai-header-info">
-              <div className="susuno-ai-header-avatar">🤖</div>
+              <div className="susuno-ai-header-avatar">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="10" rx="2" />
+                  <circle cx="12" cy="5" r="2" />
+                  <path d="M12 7v4" />
+                  <line x1="8" y1="16" x2="8.01" y2="16" />
+                  <line x1="16" y1="16" x2="16.01" y2="16" />
+                </svg>
+              </div>
               <div className="susuno-ai-header-titles">
                 <h4>Asisten AI SUSUNO</h4>
                 <div className="susuno-ai-header-status">
@@ -308,7 +316,17 @@ export default function AIChatbotWidget() {
           <div className="susuno-ai-messages">
             {messages.map((m) => (
               <div key={m.id} className={`susuno-ai-bubble-row ${m.sender}`}>
-                {m.sender === 'ai' && <div className="susuno-ai-avatar-tiny">🤖</div>}
+                {m.sender === 'ai' && (
+                  <div className="susuno-ai-avatar-tiny">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="10" rx="2" />
+                      <circle cx="12" cy="5" r="2" />
+                      <path d="M12 7v4" />
+                      <line x1="8" y1="16" x2="8.01" y2="16" />
+                      <line x1="16" y1="16" x2="16.01" y2="16" />
+                    </svg>
+                  </div>
+                )}
                 <div className="susuno-ai-bubble">
                   {renderFormattedMessage(m.text)}
                   <div className="susuno-ai-bubble-time">{m.time}</div>
@@ -319,7 +337,15 @@ export default function AIChatbotWidget() {
             {/* Typing Indicator saat menunggu jawaban */}
             {isLoading && (
               <div className="susuno-ai-bubble-row ai">
-                <div className="susuno-ai-avatar-tiny">🤖</div>
+                <div className="susuno-ai-avatar-tiny">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="10" rx="2" />
+                    <circle cx="12" cy="5" r="2" />
+                    <path d="M12 7v4" />
+                    <line x1="8" y1="16" x2="8.01" y2="16" />
+                    <line x1="16" y1="16" x2="16.01" y2="16" />
+                  </svg>
+                </div>
                 <div className="susuno-ai-typing">
                   <span className="susuno-ai-typing-dot" />
                   <span className="susuno-ai-typing-dot" />

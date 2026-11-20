@@ -187,7 +187,7 @@ export default function LocationInspectorModal({
           {[
             { id: 'general', label: 'Umum & Koordinat' },
             { id: 'physical', label: 'Fisik & Kapasitas' },
-            { id: 'inventory', label: 'Inventori (AC-20)' },
+            { id: 'inventory', label: 'Inventori & Stok' },
             { id: 'status', label: 'Kontrol Status' }
           ].map((tab) => (
             <button
@@ -337,20 +337,226 @@ export default function LocationInspectorModal({
                 </div>
               )}
 
-              {/* TAB 3: INVENTORI (STRICT AC-20: BELUM TERHUBUNG) */}
+              {/* TAB 3: INVENTORI & STOK AKTUAL */}
               {activeTab === 'inventory' && (
-                <div className="inspector-section" style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
-                  <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📦</div>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#191d17', fontSize: '1.1rem' }}>
-                    Belum Terhubung ke Inventori
-                  </h4>
-                  <p style={{ margin: '0 auto 1.5rem auto', maxWidth: '440px', color: '#737b6c', fontSize: '0.85rem', lineHeight: 1.5 }}>
-                    Sesuai spesifikasi Fase 1 & 2 (AC-20), modul Warehouse Layout berfokus pada pemetaan spasial dan struktur fisik. Integrasi saldo stok produk, reservasi, dan rekomendasi putaway akan dihubungkan pada Fase 3.
-                  </p>
+                <div className="inspector-section">
+                  {loc.inventory?.connected ? (
+                    <div>
+                      {/* Status Header Banner */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '0.75rem 1rem',
+                          background: '#f8f9f5',
+                          borderRadius: '8px',
+                          border: '1px solid #e9ece4',
+                          marginBottom: '1rem',
+                          flexWrap: 'wrap',
+                          gap: '0.5rem'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontSize: '1.2rem' }}>📦</span>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#191d17' }}>
+                              Status Sinkronisasi Inventori
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#5c732b', fontWeight: 500 }}>
+                              ● Terhubung Langsung ke Basis Data Stok
+                            </div>
+                          </div>
+                        </div>
 
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: '6px', padding: '0.5rem 1rem', fontSize: '0.8rem', color: '#0e7490' }}>
-                    <span>ℹ️</span> Status okupansi fisik saat ini belum melacak kuantitas SKU.
-                  </div>
+                        {/* Occupancy Badge */}
+                        <div>
+                          {(() => {
+                            const occ = loc.inventory.occupancy_status;
+                            if (occ === 'OVERLOAD') {
+                              return (
+                                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', background: '#fdecec', border: '1px solid #fecaca', padding: '3px 10px', borderRadius: '12px' }}>
+                                  ⚠️ Overload ({loc.inventory.weight_utilization_pct}%)
+                                </span>
+                              );
+                            } else if (occ === 'FULL') {
+                              return (
+                                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#d97706', background: '#fef3c7', border: '1px solid #fde68a', padding: '3px 10px', borderRadius: '12px' }}>
+                                  🟡 Penuh ({loc.inventory.weight_utilization_pct}%)
+                                </span>
+                              );
+                            } else if (occ === 'OCCUPIED') {
+                              return (
+                                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0e7490', background: '#ecfeff', border: '1px solid #a5f3fc', padding: '3px 10px', borderRadius: '12px' }}>
+                                  🟢 Terisi ({loc.inventory.weight_utilization_pct || 0}%)
+                                </span>
+                              );
+                            }
+                            return (
+                              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '3px 10px', borderRadius: '12px' }}>
+                                ⚪ Kosong (0%)
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Metrik Cards */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+                        <div style={{ background: '#ffffff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Total SKU</div>
+                          <div style={{ fontWeight: 700, fontSize: '1.15rem', color: '#1e293b', marginTop: '2px' }}>
+                            {loc.inventory.total_items || 0}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: '#5c732b', fontWeight: 500 }}>
+                            {loc.inventory.total_units || 0} unit fisik
+                          </div>
+                        </div>
+
+                        <div style={{ background: '#ffffff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Beban Aktual</div>
+                          <div style={{ fontWeight: 700, fontSize: '1.15rem', color: '#1e293b', marginTop: '2px' }}>
+                            {loc.inventory.current_weight_kg || '0.00'} kg
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                            Maks: {loc.max_weight_kg ? `${loc.max_weight_kg} kg` : '∞'}
+                          </div>
+                        </div>
+
+                        <div style={{ background: '#ffffff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Utilisasi Beban</div>
+                          <div style={{ fontWeight: 700, fontSize: '1.15rem', color: loc.inventory.weight_utilization_pct > 100 ? '#dc2626' : '#5c732b', marginTop: '2px' }}>
+                            {loc.inventory.weight_utilization_pct || 0}%
+                          </div>
+                          {/* Mini Progress Bar */}
+                          <div style={{ width: '100%', background: '#e2e8f0', height: '4px', borderRadius: '2px', marginTop: '6px', overflow: 'hidden' }}>
+                            <div
+                              style={{
+                                width: `${Math.min(100, loc.inventory.weight_utilization_pct || 0)}%`,
+                                height: '100%',
+                                background: loc.inventory.weight_utilization_pct > 100 ? '#dc2626' : loc.inventory.weight_utilization_pct >= 90 ? '#d97706' : '#5c732b'
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Items List or Empty State */}
+                      {loc.inventory.items && loc.inventory.items.length > 0 ? (
+                        <div>
+                          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#3e5510', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>Daftar SKU Tersimpan:</span>
+                            <span style={{ fontSize: '0.75rem', color: '#737b6c', fontWeight: 'normal' }}>
+                              {loc.inventory.items.length} jenis produk
+                            </span>
+                          </div>
+
+                          <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
+                              <thead>
+                                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>
+                                  <th style={{ padding: '0.5rem 0.75rem' }}>SKU & Produk</th>
+                                  <th style={{ padding: '0.5rem 0.75rem' }}>Kategori</th>
+                                  <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>Stok</th>
+                                  <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>Beban</th>
+                                  <th style={{ padding: '0.5rem 0.75rem' }}>Aktivitas Terakhir</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {loc.inventory.items.map((item) => (
+                                  <tr key={item.product_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                    <td style={{ padding: '0.6rem 0.75rem' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        {item.image_url ? (
+                                          <img
+                                            src={item.image_url}
+                                            alt={item.name}
+                                            style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #e2e8f0' }}
+                                          />
+                                        ) : (
+                                          <div style={{ width: '28px', height: '28px', borderRadius: '4px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem' }}>
+                                            📦
+                                          </div>
+                                        )}
+                                        <div>
+                                          <div style={{ fontWeight: 600, color: '#1e293b' }}>{item.name}</div>
+                                          <div style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: '#5c732b' }}>
+                                            ║▌║ {item.sku}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </td>
+                                    <td style={{ padding: '0.6rem 0.75rem', color: '#64748b' }}>
+                                      {item.category_name}
+                                    </td>
+                                    <td style={{ padding: '0.6rem 0.75rem', textAlign: 'right' }}>
+                                      <span style={{ fontWeight: 700, color: '#0f766e' }}>
+                                        {item.stock_quantity}
+                                      </span>{' '}
+                                      <span style={{ fontSize: '0.7rem', color: '#64748b' }}>{item.unit}</span>
+                                    </td>
+                                    <td style={{ padding: '0.6rem 0.75rem', textAlign: 'right', fontWeight: 600, color: '#334155' }}>
+                                      {item.total_weight_kg} kg
+                                    </td>
+                                    <td style={{ padding: '0.6rem 0.75rem', fontSize: '0.75rem', color: '#64748b' }}>
+                                      {item.last_activity_at ? (
+                                        <div>
+                                          <span
+                                            style={{
+                                              padding: '1px 6px',
+                                              borderRadius: '4px',
+                                              fontSize: '0.65rem',
+                                              fontWeight: 600,
+                                              background: item.last_activity_type === 'in' ? '#f0fdf4' : '#fef2f2',
+                                              color: item.last_activity_type === 'in' ? '#15803d' : '#b91c1c',
+                                              marginRight: '4px'
+                                            }}
+                                          >
+                                            {item.last_activity_type === 'in' ? 'IN' : 'OUT'}
+                                          </span>
+                                          {new Date(item.last_activity_at).toLocaleDateString('id-ID', {
+                                            day: 'numeric',
+                                            month: 'short',
+                                            year: 'numeric'
+                                          })}
+                                        </div>
+                                      ) : (
+                                        '—'
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '1.75rem 1rem', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                          <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📭</div>
+                          <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.95rem', marginBottom: '0.25rem' }}>
+                            Lokasi Ini Masih Kosong
+                          </div>
+                          <p style={{ margin: '0 auto 0.75rem auto', maxWidth: '380px', color: '#64748b', fontSize: '0.8rem', lineHeight: 1.5 }}>
+                            Belum ada produk atau stok SKU yang dialokasikan pada kompartemen lokasi ini.
+                          </p>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '0.4rem 0.8rem', fontSize: '0.75rem', color: '#15803d' }}>
+                            <span>💡</span> Alokasikan barang melalui menu Putaway / Penerimaan Barang Inbound.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Fallback bila modul terputus */
+                    <div style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
+                      <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📦</div>
+                      <h4 style={{ margin: '0 0 0.5rem 0', color: '#191d17', fontSize: '1.1rem' }}>
+                        Belum Terhubung ke Inventori
+                      </h4>
+                      <p style={{ margin: '0 auto 1.5rem auto', maxWidth: '440px', color: '#737b6c', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                        {loc.inventory?.message || 'Modul sedang memuat koneksi ke sistem inventori.'}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 

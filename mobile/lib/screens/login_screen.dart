@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../state/warehouse_state.dart';
 import '../core/app_theme.dart';
@@ -28,19 +26,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _requestCameraPermissionEarly();
-    });
-  }
-
-  Future<void> _requestCameraPermissionEarly() async {
-    if (kIsWeb) return;
-    try {
-      final tempCtrl = MobileScannerController();
-      await tempCtrl.start();
-      await tempCtrl.stop();
-      await tempCtrl.dispose();
-    } catch (_) {}
   }
 
   @override
@@ -53,9 +38,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleSignIn() async {
-    if (!kIsWeb) {
-      unawaited(_requestCameraPermissionEarly());
-    }
     setState(() {
       _hasSubmitted = true;
       _errorMessage = null;
@@ -575,6 +557,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 opacity: keyboardOpen ? 0 : 1,
                 child: Image.asset(
                   'assets/images/warehouse_staff.png',
+                  cacheWidth: 480,
                   fit: BoxFit.contain,
                 ),
               ),
@@ -910,6 +893,7 @@ class _Branding extends StatelessWidget {
           'assets/images/susuno_logo.png',
           width: 36,
           height: 36,
+          cacheWidth: 108,
           fit: BoxFit.contain,
         ),
         const SizedBox(width: 8),

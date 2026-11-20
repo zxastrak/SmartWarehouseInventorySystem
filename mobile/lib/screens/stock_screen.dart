@@ -21,7 +21,10 @@ class _StockScreenState extends State<StockScreen> {
     search = TextEditingController(text: context.read<WarehouseState>().search);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        context.read<WarehouseState>().loadFromApi();
+        final state = context.read<WarehouseState>();
+        if (state.items.isEmpty) {
+          state.loadFromApi();
+        }
       }
     });
   }
@@ -64,35 +67,33 @@ class _StockScreenState extends State<StockScreen> {
                 ),
 
                 // Ringkasan stok hari ini
-                IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child: _StockMetric(
-                          'Safe Stock',
-                          '${s.safePercent.toStringAsFixed(1)}%',
-                          mint,
-                        ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _StockMetric(
+                        'Safe Stock',
+                        '${s.safePercent.toStringAsFixed(1)}%',
+                        mint,
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _StockMetric(
-                          'Putaway',
-                          '${s.inflow}',
-                          mint,
-                        ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _StockMetric(
+                        'Putaway',
+                        '${s.inflow}',
+                        mint,
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _StockMetric(
-                          'Dispatching',
-                          '${s.outflow}',
-                          danger,
-                        ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _StockMetric(
+                        'Dispatching',
+                        '${s.outflow}',
+                        danger,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 4),
 

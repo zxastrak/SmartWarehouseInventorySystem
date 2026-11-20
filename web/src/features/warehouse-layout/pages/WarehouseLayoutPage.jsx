@@ -22,6 +22,7 @@ import AddRackDrawer from '../components/AddRackDrawer.jsx';
 import ManageAssetsDrawer from '../components/ManageAssetsDrawer.jsx';
 import LayersDrawer from '../components/LayersDrawer.jsx';
 import Warehouse3DCanvas from '../components/Warehouse3DCanvas.jsx';
+import PathModePanel from '../components/PathModePanel.jsx';
 import DashboardSidebar from '../../../components/DashboardSidebar.jsx';
 import { buildLayoutRouting, astar } from '../../../../../shared/layout-core/src/index.js';
 import '../styles/warehouseLayout.css';
@@ -29,7 +30,7 @@ import '../styles/warehouseLayout.css';
 const API_BASE_URL = import.meta.env?.VITE_API_URL || '/api';
 
 function getAuthToken() {
-  return localStorage.getItem('susuno_auth_token') || localStorage.getItem('susuno_token') || 'demo_token';
+  return localStorage.getItem('susuno_token') || localStorage.getItem('susuno_auth_token') || 'demo_token';
 }
 
 const { footprint } = geometry;
@@ -38,22 +39,29 @@ const RULER_THICKNESS = 24;
 const WAREHOUSE_MARGIN = 60; // 60px margin on top and left so it's not crammed
 const ORIGIN_OFFSET = RULER_THICKNESS + WAREHOUSE_MARGIN; // 84px
 
+const DEFAULT_FALLBACK_WIDTH_MM = 50000;
+const DEFAULT_FALLBACK_LENGTH_MM = 80000;
+const MIN_VIEWPORT_DIMENSION_PX = 300;
+const BASE_VIEWPORT_SCALE = 0.015;
+const MIN_VIEWPORT_SCALE = 0.012;
+const MAX_VIEWPORT_SCALE = 0.08;
+
 /**
  * Calculates an Excel-model viewport: (0, 0) is anchored at the top-left with empty margin
  * Expands rightwards (X) and downwards (Y) comfortably.
  */
 function computeComfortableViewport(snapshot, clientW, clientH) {
   if (!snapshot || !snapshot.warehouse) {
-    return createViewport(0.015, ORIGIN_OFFSET, ORIGIN_OFFSET);
+    return createViewport(BASE_VIEWPORT_SCALE, ORIGIN_OFFSET, ORIGIN_OFFSET);
   }
 
   const wh = snapshot.warehouse;
-  const availW = Math.max(clientW - ORIGIN_OFFSET - 60, 300);
-  const availH = Math.max(clientH - ORIGIN_OFFSET - 60, 300);
+  const availW = Math.max(clientW - ORIGIN_OFFSET - 60, MIN_VIEWPORT_DIMENSION_PX);
+  const availH = Math.max(clientH - ORIGIN_OFFSET - 60, MIN_VIEWPORT_DIMENSION_PX);
 
-  const scaleW = availW / (wh.width_mm || 50000);
-  const scaleH = availH / (wh.length_mm || 80000);
-  const scale = Math.min(Math.max(Math.min(scaleW, scaleH) * 0.95, 0.012), 0.08);
+  const scaleW = availW / (wh.width_mm || DEFAULT_FALLBACK_WIDTH_MM);
+  const scaleH = availH / (wh.length_mm || DEFAULT_FALLBACK_LENGTH_MM);
+  const scale = Math.min(Math.max(Math.min(scaleW, scaleH) * 0.95, MIN_VIEWPORT_SCALE), MAX_VIEWPORT_SCALE);
 
   return {
     scale,
@@ -85,6 +93,7 @@ export default function WarehouseLayoutPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
+  const [layoutSessionKey, setLayoutSessionKey] = useState(0);
   const [fps, setFps] = useState(60);
   const [zoomPercent, setZoomPercent] = useState(100);
   const [selectedCount, setSelectedCount] = useState(0);
@@ -170,8 +179,8 @@ export default function WarehouseLayoutPage({
   const [inspectorModalOpen, setInspectorModalOpen] = useState(false);
   const [selectedLocationIdForInspection, setSelectedLocationIdForInspection] = useState(null);
 
-  // Phase 4: Pathfinding & Routing State
-  const [showGrid, setShowGrid] = useState(false);
+  // Phase 4: Pathfinding & Routing State (Matriks dasar selalu aktif secara default)
+  const [showGrid, setShowGrid] = useState(true);
   const [showMeterGrid, setShowMeterGrid] = useState(true);
   const [showGridHorizontal, setShowGridHorizontal] = useState(true);
   const [showGridVertical, setShowGridVertical] = useState(true);
@@ -199,6 +208,12 @@ export default function WarehouseLayoutPage({
   useEffect(() => {
     if (pointerControllerRef.current) {
       pointerControllerRef.current.setActiveTool(activeTool);
+    }
+    if (activeTool === 'select') {
+      setIsFillSlotMode(false);
+      setIsFillDockMode(false);
+      setIsFillAisleMode(false);
+      setIsPlacementActive(false);
     }
   }, [activeTool]);
 
@@ -261,12 +276,25 @@ export default function WarehouseLayoutPage({
   // FPS Tracking Variables (non-react state)
   const frameCountRef = useRef(0);
   const lastFpsTimeRef = useRef(performance.now());
+  const toastTimeoutRef = useRef(null);
 
   const showToast = useCallback((text, type = 'success') => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
     setToast({ text, type });
-    setTimeout(() => {
+    toastTimeoutRef.current = setTimeout(() => {
       setToast(null);
+      toastTimeoutRef.current = null;
     }, 4000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -346,11 +374,6 @@ export default function WarehouseLayoutPage({
       const json = await res.json();
       const layoutData = json.data;
 
-      // Filter Zone A out so it never renders from stale data
-      if (Array.isArray(layoutData.zones)) {
-        layoutData.zones = layoutData.zones.filter((z) => z.zone_code !== 'ZONE-A' && z.name !== 'Zone A');
-      }
-
       // Inisialisasi DocumentStore & History
       const history = new HistoryManager(100);
       historyRef.current = history;
@@ -366,6 +389,7 @@ export default function WarehouseLayoutPage({
       setSelectedCount(0);
       setConflictOpen(false);
       setLoading(false);
+      setLayoutSessionKey((k) => k + 1);
     } catch (err) {
       console.error('[LAYOUT FETCH ERROR]', err);
       setError(err.message);
@@ -377,9 +401,9 @@ export default function WarehouseLayoutPage({
     loadLayoutSnapshot(warehouseId);
   }, [warehouseId, loadLayoutSnapshot]);
 
-  // 2. Initialize Canvas Engine when snapshot is ready
+  // 2. Initialize Canvas Engine when layout snapshot is loaded
   useEffect(() => {
-    if (!snapshot || !baseCanvasRef.current || !overlayCanvasRef.current || !containerRef.current) {
+    if (!layoutSessionKey || !documentStoreRef.current || !baseCanvasRef.current || !overlayCanvasRef.current || !containerRef.current) {
       return;
     }
 
@@ -392,7 +416,7 @@ export default function WarehouseLayoutPage({
     rendererRef.current = renderer;
 
     const initVp = computeComfortableViewport(
-      snapshot,
+      store.snapshot,
       container.clientWidth || 800,
       container.clientHeight || 600
     );
@@ -411,6 +435,16 @@ export default function WarehouseLayoutPage({
       slotRotated,
     });
     renderer.resize(container.clientWidth || 800, container.clientHeight || 600);
+
+    // Initial 50cm matrix mesh grid jika showGrid aktif
+    if (showGrid) {
+      if (!routingDataRef.current && store.snapshot) {
+        routingDataRef.current = buildLayoutRouting(store.snapshot, 500, 500);
+      }
+      if (routingDataRef.current?.grid) {
+        renderer.setGridMatrix(routingDataRef.current.grid, true);
+      }
+    }
 
     // FPS loop counter
     renderer.onFrameRendered = () => {
@@ -486,6 +520,9 @@ export default function WarehouseLayoutPage({
           slot_rotated: isVertical,
           color_hex: ghost.color_hex || activeRackColor,
         });
+        store.select('rack', newRack.id);
+        setActiveTool('select');
+        setIsFillSlotMode(false);
         setIsDirty(true);
         syncStoreUI();
         rendererRef.current?.markDirty(false);
@@ -510,6 +547,8 @@ export default function WarehouseLayoutPage({
           y_mm: ghost.y_mm,
           clearance_mm: 500,
         });
+        setIsFillDockMode(false);
+        setActiveTool('select');
       },
       isFillAisleMode,
       aisleConfig: aisleFillConfig,
@@ -614,6 +653,8 @@ export default function WarehouseLayoutPage({
           type: finalGhost.type || 'standard',
           direction: finalGhost.direction || 'two_way',
         });
+        setIsFillAisleMode(false);
+        setActiveTool('select');
       },
       onViewportChange: (newVp) => {
         viewportRef.current = newVp;
@@ -646,6 +687,8 @@ export default function WarehouseLayoutPage({
       onDragCommit: (dragged) => {
         if (!dragged) return;
         const type = dragged.type || 'rack';
+        const isDoor = type === 'layout_object' && String(dragged.item?.object_type || store.findEntity('layout_object', dragged.id)?.object_type || '').includes('door');
+
         // Khusus aisle: sinkronisasi dimensi auto-fitted sebelum validasi move agar tidak bertabrakan dengan ukuran lama
         if (type === 'aisle' && (dragged.width || dragged.width_mm) && (dragged.depth || dragged.length_mm)) {
           const item = store.findEntity('aisle', dragged.id);
@@ -654,22 +697,84 @@ export default function WarehouseLayoutPage({
             item.length_mm = dragged.depth || dragged.length_mm;
           }
         }
-        if (dragged.isColliding) {
+        if (dragged.isColliding && !isDoor) {
           showToast(type === 'aisle' ? '⚠️ Jalan tidak dapat menimpa rak! Silakan geser posisi rak terlebih dahulu.' : '⚠️ Posisi tumpang tindih! Gerakan dibatalkan untuk menjaga jarak aman.', 'warning');
           rendererRef.current?.markDirty(false);
           return;
         }
-        const moved = store.moveEntity(type, dragged.id, dragged.x_mm, dragged.y_mm);
+        if (dragged.isResize) {
+          const item = store.findEntity(type, dragged.id);
+          if (item) {
+            let newW = dragged.width || dragged.width_mm || item.width_mm;
+            let newL = dragged.depth || dragged.length_mm || item.length_mm;
+
+            // Khusus Forklift: KUNCI LEBAR jalur forklift sesuai input user (tidak boleh membesar atau mengecil)
+            const isForklift = type === 'aisle' && (
+              item.type === 'forklift' ||
+              String(item.name || '').toLowerCase().includes('forklift') ||
+              item.direction === 'forklift'
+            );
+            if (isForklift) {
+              const isHoriz = item.width_mm >= item.length_mm;
+              if (isHoriz) {
+                // Lebar penampang jalan (sumbu Y) terkunci sesuai input
+                newL = item.length_mm;
+              } else {
+                // Lebar penampang jalan (sumbu X) terkunci sesuai input
+                newW = item.width_mm;
+              }
+            }
+
+            store.updateEntity(type, dragged.id, {
+              x_mm: dragged.x_mm,
+              y_mm: dragged.y_mm,
+              width_mm: newW,
+              length_mm: newL,
+            });
+            if (type === 'aisle') {
+              const mergeRes = store.mergeAisle(dragged.id);
+              if (mergeRes && mergeRes.isMerged) {
+                if (mergeRes.is_both) {
+                  showToast(`✓ Jalan forklift & pejalan kaki digabungkan menjadi Jalur Bersama '${mergeRes.aisle?.name || ''}' (Dual Indikator 🚜🚶)!`, 'success');
+                } else if (mergeRes.isConnected) {
+                  showToast(`✓ Persimpangan jalan forklift terhubung mulus di tikungan (L-Corner / T-Junction)!`, 'success');
+                } else {
+                  showToast(`✓ Jalan forklift berhasil digabungkan menjadi satu lorong!`, 'success');
+                }
+              } else {
+                showToast(`✓ Ukuran '${item.name || 'Jalan'}' berhasil diubah: ${(newW / 1000).toFixed(1)}m × ${(newL / 1000).toFixed(1)}m`, 'success');
+              }
+            } else {
+              showToast(`✓ Ukuran '${item.name || 'Dok'}' berhasil diubah: ${(newW / 1000).toFixed(1)}m × ${(newL / 1000).toFixed(1)}m`, 'success');
+            }
+            setIsDirty(true);
+            syncStoreUI();
+            rendererRef.current?.markDirty(false);
+            return;
+          }
+        }
+        const moved = store.moveEntity(type, dragged.id, dragged.x_mm, dragged.y_mm, !isDoor);
         if (!moved) {
           showToast(type === 'aisle' ? '⚠️ Jalan tidak dapat menimpa rak! Silakan geser posisi rak terlebih dahulu.' : '⚠️ Tidak dapat memindahkan ke posisi tersebut karena tumpang tindih.', 'warning');
           rendererRef.current?.markDirty(false);
           return;
         }
-        if (type === 'layout_object' && dragged.width_mm && dragged.length_mm) {
+        if (type === 'aisle' && moved && moved.isMerged) {
+          if (moved.is_both) {
+            showToast(`✓ Jalan forklift & pejalan kaki digabungkan menjadi Jalur Bersama '${moved.aisle?.name || ''}' (Dual Indikator 🚜🚶)!`, 'success');
+          } else if (moved.isConnected) {
+            showToast(`✓ Persimpangan jalan forklift terhubung mulus di tikungan (L-Corner / T-Junction)!`, 'success');
+          } else if (moved.aisle?.type === 'forklift') {
+            showToast(`✓ Jalan forklift bertabrakan & berhasil digabungkan menjadi satu lorong!`, 'success');
+          } else {
+            showToast(`✓ Jalan pejalan kaki bertabrakan & berhasil digabungkan menjadi satu lorong!`, 'success');
+          }
+        }
+        if (type === 'layout_object' && (dragged.width || dragged.width_mm) && (dragged.depth || dragged.length_mm)) {
           const item = store.findEntity('layout_object', dragged.id);
           if (item) {
-            item.width_mm = dragged.width_mm;
-            item.length_mm = dragged.length_mm;
+            item.width_mm = dragged.width || dragged.width_mm;
+            item.length_mm = dragged.depth || dragged.length_mm;
           }
         }
         setIsDirty(true);
@@ -717,6 +822,8 @@ export default function WarehouseLayoutPage({
           slot_depth_mm: placed.slotD || (slotConfig?.depthMm || 500),
           slot_rotated: isRot,
         });
+        store.select('rack', newRack.id);
+        setActiveTool('select');
         setIsPlacementActive(false);
         setIsDirty(true);
         syncStoreUI();
@@ -750,7 +857,7 @@ export default function WarehouseLayoutPage({
       pointer.destroy();
       renderer.stop();
     };
-  }, [snapshot, syncStoreUI]);
+  }, [layoutSessionKey, syncStoreUI]);
 
   // --- TOOLBAR & MANIPULATION HANDLERS ---
   const handleUndo = useCallback(() => {
@@ -869,12 +976,17 @@ export default function WarehouseLayoutPage({
       showToast('⚠️ Lebar jalan forklift minimal 2.5 meter. Lebar otomatis disesuaikan ke 2.5m.', 'warning');
     }
 
+    store.select('aisle', newAisle.id);
+    setActiveTool('select');
+    setIsFillAisleMode(false);
     syncStoreUI();
     if (newAisle && newAisle.isMerged) {
       if (newAisle.is_both) {
         showToast(`✓ Jalan forklift & jalan manusia digabungkan menjadi Jalur Bersama '${newAisle.name}' (Dual Indikator 🚜🚶)!`, 'success');
+      } else if (newAisle.type === 'forklift') {
+        showToast(`✓ Jalan forklift bertabrakan & berhasil digabungkan menjadi satu lorong forklift!`, 'success');
       } else {
-        showToast(`✓ Jalan saling bertemu di ujung & berhasil digabungkan menjadi satu '${newAisle.name || newAisle.aisle_code}'!`, 'success');
+        showToast(`✓ Jalan pejalan kaki bertabrakan & berhasil digabungkan menjadi satu lorong!`, 'success');
       }
     } else {
       showToast(`Lorong ${newAisle.aisle_code} berhasil ditambahkan (${(safeW / 1000).toFixed(1)}m${walkwayConfig.hasForklift ? ' - Akses Forklift' : ''})`);
@@ -956,6 +1068,8 @@ export default function WarehouseLayoutPage({
       height_mm,
       object_type: objType,
     });
+    store.select('layout_object', newDoor.id);
+    setActiveTool('select');
     setIsDirty(true);
     syncStoreUI();
     rendererRef.current?.markDirty(false);
@@ -1007,6 +1121,9 @@ export default function WarehouseLayoutPage({
       y_mm: safeY,
       object_type: 'dock',
     });
+    store.select('layout_object', newDock.id);
+    setActiveTool('select');
+    setIsFillDockMode(false);
     setIsDirty(true);
     syncStoreUI();
     rendererRef.current?.markDirty(false);
@@ -1033,6 +1150,9 @@ export default function WarehouseLayoutPage({
       showToast('⚠️ Lebar jalan forklift minimal 2.5 meter. Lebar otomatis disesuaikan ke 2.5m.', 'warning');
     }
 
+    store.select('aisle', newAisle.id);
+    setActiveTool('select');
+    setIsFillAisleMode(false);
     setIsDirty(true);
     syncStoreUI();
     rendererRef.current?.markDirty(false);
@@ -1040,8 +1160,10 @@ export default function WarehouseLayoutPage({
     if (newAisle && newAisle.isMerged) {
       if (newAisle.is_both) {
         showToast(`✓ Jalan forklift & jalan manusia digabungkan menjadi Jalur Bersama '${newAisle.name}' (Dual Indikator 🚜🚶)!`, 'success');
+      } else if (newAisle.type === 'forklift') {
+        showToast(`✓ Jalan forklift bertabrakan & berhasil digabungkan menjadi satu lorong forklift!`, 'success');
       } else {
-        showToast(`✓ Jalan saling bertemu di ujung & berhasil digabungkan menjadi satu '${newAisle.name || newAisle.aisle_code}'!`, 'success');
+        showToast(`✓ Jalan pejalan kaki bertabrakan & berhasil digabungkan menjadi satu lorong!`, 'success');
       }
       return;
     }
@@ -1402,6 +1524,8 @@ export default function WarehouseLayoutPage({
       length_mm: safeL,
     });
 
+    store.select('layout_object', newObj.id);
+    setActiveTool('select');
     syncStoreUI();
     showToast(`${newObj.name} berhasil ditambahkan ke kanvas`);
   }, [syncStoreUI, showToast]);
@@ -2001,6 +2125,9 @@ export default function WarehouseLayoutPage({
     const store = documentStoreRef.current;
     const updated = store.updateEntity(type, id, updates);
     if (updated) {
+      if (type === 'aisle') {
+        store.mergeAisle(id);
+      }
       syncStoreUI();
       rendererRef.current?.markDirty(false);
       setIsDirty(true);
@@ -2411,106 +2538,19 @@ export default function WarehouseLayoutPage({
         )}
 
         {/* Phase 4: Floating Pathfinding Panel */}
-        {isPathMode && (
-          <div className="layout-pathfinding-panel">
-            <div className="path-panel-header">
-              <span className="path-panel-title">
-                <span>📍</span> Mode Navigasi & Rute Spasial (A*)
-              </span>
-              <button
-                className="path-panel-close"
-                onClick={handleTogglePathMode}
-                title="Tutup Mode Rute"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="path-controls-row">
-              <div className="path-node-selector">
-                <label>Titik Asal (Start)</label>
-                <select
-                  value={pathStartNode}
-                  onChange={(e) => setPathStartNode(e.target.value)}
-                >
-                  <option value="">-- Pilih Asal --</option>
-                  <optgroup label="Dok & Pintu">
-                    {routingCandidates.docks.map((d) => (
-                      <option key={d.id} value={d.id}>{d.label}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Rak Penyimpanan">
-                    {routingCandidates.racks.map((r) => (
-                      <option key={r.id} value={r.id}>{r.label}</option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-
-              <div className="path-node-selector">
-                <label>Titik Tujuan (Goal)</label>
-                <select
-                  value={pathGoalNode}
-                  onChange={(e) => setPathGoalNode(e.target.value)}
-                >
-                  <option value="">-- Pilih Tujuan --</option>
-                  <optgroup label="Rak Penyimpanan">
-                    {routingCandidates.racks.map((r) => (
-                      <option key={r.id} value={r.id}>{r.label}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Dok & Pintu">
-                    {routingCandidates.docks.map((d) => (
-                      <option key={d.id} value={d.id}>{d.label}</option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-
-              <div className="path-node-selector" style={{ maxWidth: 140 }}>
-                <label>Profil Agen</label>
-                <select
-                  value={pathAgentProfile}
-                  onChange={(e) => setPathAgentProfile(e.target.value)}
-                >
-                  <option value="human">🚶 Manusia (60cm)</option>
-                  <option value="forklift">🚜 Forklift (≥3m)</option>
-                </select>
-              </div>
-
-              {activeRoute && (
-                <button
-                  className="btn-toolbar"
-                  onClick={handleResetRoute}
-                  style={{ marginTop: 16, height: 32, fontSize: '0.78rem' }}
-                >
-                  ↺ Reset
-                </button>
-              )}
-            </div>
-
-            {activeRoute ? (
-              <div className="path-metric-badge">
-                <span className="path-metric-item">
-                  📏 Jarak: <span className="path-metric-val">{(activeRoute.totalDistanceMm / 1000).toFixed(1)} m</span>
-                </span>
-                <span className="path-metric-item">
-                  ↪ Belokan: <span className="path-metric-val">{activeRoute.turns}</span>
-                </span>
-                <span className="path-metric-item">
-                  ⏱ Estimasi: <span className="path-metric-val">{Math.round(activeRoute.totalDistanceMm / (pathAgentProfile === 'forklift' ? 3000 : 1400))} dtk</span>
-                </span>
-                <span className="path-metric-item" style={{ color: '#047857' }}>
-                  ✓ Rute Optimal
-                </span>
-              </div>
-            ) : (
-              <span className="path-hint-text">
-                💡 Tip: Kamu juga bisa langsung klik rak atau dok di kanvas untuk menentukan titik asal dan tujuan rute.
-              </span>
-            )}
-          </div>
-        )}
+        <PathModePanel
+          isOpen={isPathMode}
+          onClose={handleTogglePathMode}
+          pathStartNode={pathStartNode}
+          setPathStartNode={setPathStartNode}
+          pathGoalNode={pathGoalNode}
+          setPathGoalNode={setPathGoalNode}
+          pathAgentProfile={pathAgentProfile}
+          setPathAgentProfile={setPathAgentProfile}
+          routingCandidates={routingCandidates}
+          activeRoute={activeRoute}
+          onResetRoute={handleResetRoute}
+        />
 
 
         {/* Modular Slot Config Drawer (Sidebar Kanan di Bawah Top Bar) */}

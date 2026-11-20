@@ -82,4 +82,15 @@ Apabila pengguna memberikan perintah **"audit"**:
 
 ---
 
+## 6. Perintah Khusus "skillai" (Multi-Skill Master Activation)
+
+> **TRIGGER:** Ketika pengguna mengetik `"skillai"` atau `"/skillai"`:  
+> **SEMUA SKILL BERIKUT WAJIB DIAKTIFKAN SECARA SIMULTAN:**  
+> 1. **Caveman Mode**: Jawaban super ringkas, tanpa basa-basi pembuka/penutup, langsung solusi & substansi teknis.  
+> 2. **Ponytail Mode**: Prinsip *Lazy Senior Dev* — perubahan kode seminimal mungkin (*minimal diff*), no overengineering, no unneeded dependencies, YAGNI.  
+> 3. **Anti-Slop Mode**: Standar visual desainer asli — no generic AI styling, hierarki rapi, kontras WCAG, mobile tap targets >= 44px, microcopy natural.  
+> *Mode ini tetap aktif hingga pengguna mengetik `"stop skillai"`, `"normal mode"`, atau mereset sesi.*
+
+---
+
 *Aturan ini mengikat dan wajib dipatuhi oleh setiap sesi agen AI saat berinteraksi dalam repositori ini.*

@@ -1298,7 +1298,7 @@ export default function Suppliers({
                 disabled={isSubmitting}
                 title="Hapus supplier ini dari database"
               >
-                🗑 Hapus Supplier
+                Hapus Supplier
               </button>
             )}
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -1423,7 +1423,7 @@ export default function Suppliers({
                   onClick={() => openEditModal(detailsSupplier)}
                   title="Edit data profil supplier ini"
                 >
-                  ✏ Edit Data Supplier
+                  Edit Data Supplier
                 </button>
                 <button
                   type="button"
@@ -1463,7 +1463,7 @@ export default function Suppliers({
                 <dd>
                   {detailsSupplier.bank_name || detailsSupplier.bank_account ? (
                     <div className="details-bank-compact">
-                      <span className="details-bank-pill">🏦 {detailsSupplier.bank_name || 'Bank'}</span>
+                      <span className="details-bank-pill">{detailsSupplier.bank_name || 'Bank'}</span>
                       <span className="details-bank-number">{detailsSupplier.bank_account || '—'}</span>
                       {detailsSupplier.bank_holder && (
                         <span className="details-bank-holder" title={`a.n ${detailsSupplier.bank_holder}`}>
@@ -1654,8 +1654,12 @@ export default function Suppliers({
                                       }}
                                     />
                                   ) : null}
-                                  <div className="inventory-thumb-fallback" style={{ display: item.image_url ? 'none' : 'flex', fontSize: 13 }}>
-                                    📦
+                                  <div className="inventory-thumb-fallback" style={{ display: item.image_url ? 'none' : 'flex' }}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#737b6c' }}>
+                                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                                      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                                      <line x1="12" y1="22.08" x2="12" y2="12" />
+                                    </svg>
                                   </div>
                                 </div>
                                 <strong style={{ display: 'block', color: '#1a220d' }}>{item.name}</strong>
@@ -1909,7 +1913,11 @@ export default function Suppliers({
                     />
                   ) : (
                     <div className="catalog-live-img-placeholder">
-                      <span style={{ fontSize: 36 }}>📦</span>
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#737b6c' }}>
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                        <line x1="12" y1="22.08" x2="12" y2="12" />
+                      </svg>
                       <span style={{ fontSize: 11, color: '#737b6c', fontWeight: 600 }}>Foto Produk</span>
                     </div>
                   )}
@@ -2170,7 +2178,11 @@ export default function Suppliers({
                         />
                       ) : (
                         <div className="catalog-photo-placeholder">
-                          <span style={{ fontSize: 24 }}>📦</span>
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#737b6c' }}>
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                            <line x1="12" y1="22.08" x2="12" y2="12" />
+                          </svg>
                           <span>Belum ada foto</span>
                         </div>
                       )}
@@ -2189,7 +2201,7 @@ export default function Suppliers({
                           className="btn-upload-photo"
                           onClick={() => catalogFileInputRef.current?.click()}
                         >
-                          📷 Upload Foto 
+                          Upload Foto
                         </button>
                         {catalogForm.image_url && (
                           <button
@@ -2299,7 +2311,7 @@ export default function Suppliers({
         {/* Form Create / Update */}
         <div className="category-crud-card">
           <div className="category-crud-card-title">
-            <span>{categoryForm.id ? '✏ Edit Kategori' : '+ Tambah Kategori Baru'}</span>
+            <span>{categoryForm.id ? 'Edit Kategori' : '+ Tambah Kategori Baru'}</span>
             {categoryForm.id && (
               <span style={{ fontSize: 11, fontWeight: 'normal', color: '#737b6c' }}>
                 (ID: {categoryForm.id})
@@ -2391,7 +2403,7 @@ export default function Suppliers({
                         onClick={() => handleStartEditCategory(c)}
                         title="Edit kategori ini"
                       >
-                        ✏ Edit
+                        Edit
                       </button>
                       <button
                         type="button"
@@ -2399,7 +2411,7 @@ export default function Suppliers({
                         onClick={() => handleDeleteCategory(c)}
                         title="Hapus kategori ini"
                       >
-                        🗑
+                        Hapus
                       </button>
                     </div>
                   </td>
@@ -2472,7 +2484,7 @@ export default function Suppliers({
           {/* Form Create / Update Unit */}
           <div className="category-crud-card">
             <div className="category-crud-card-title">
-              <span>{unitForm.id ? '✏ Edit Satuan' : '+ Tambah Satuan Baru'}</span>
+              <span>{unitForm.id ? 'Edit Satuan' : '+ Tambah Satuan Baru'}</span>
               {unitForm.id && (
                 <span style={{ fontSize: 11, fontWeight: 'normal', color: '#737b6c' }}>
                   (ID: {unitForm.id})
@@ -2550,7 +2562,7 @@ export default function Suppliers({
                           onClick={() => handleStartEditUnit(u)}
                           title="Edit satuan ini"
                         >
-                          ✏ Edit
+                          Edit
                         </button>
                         <button
                           type="button"
@@ -2558,7 +2570,7 @@ export default function Suppliers({
                           onClick={() => handleDeleteUnit(u)}
                           title="Hapus satuan ini"
                         >
-                          🗑
+                          Hapus
                         </button>
                       </div>
                     </td>
@@ -2615,7 +2627,7 @@ export default function Suppliers({
                   openEditProductModal(p);
                 }}
               >
-                ✏ Edit Info
+                Edit Info
               </button>
             </div>
 
@@ -2891,7 +2903,11 @@ export default function Suppliers({
                       />
                     ) : (
                       <div className="catalog-photo-placeholder">
-                        <span style={{ fontSize: 24 }}>📦</span>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#737b6c' }}>
+                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                          <line x1="12" y1="22.08" x2="12" y2="12" />
+                        </svg>
                         <span>Belum ada foto</span>
                       </div>
                     )}
@@ -2910,7 +2926,7 @@ export default function Suppliers({
                         className="btn-upload-photo"
                         onClick={() => editProductFileInputRef.current?.click()}
                       >
-                        📷 Upload Foto dari Perangkat
+                        Upload Foto dari Perangkat
                       </button>
                       {editProductForm.image_url && (
                         <button

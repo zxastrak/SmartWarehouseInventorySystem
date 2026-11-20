@@ -244,6 +244,54 @@ class ApiService {
     return null;
   }
 
+  Future<Map<String, dynamic>?> getWarehouseLayoutSnapshot(
+    String token, {
+    int warehouseId = 1,
+  }) async {
+    try {
+      final response = await _client
+          .get(
+            Uri.parse(ApiConfig.warehouseLayoutSnapshot(warehouseId)),
+            headers: _headers(token: token),
+          )
+          .timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          return decoded['data'] as Map<String, dynamic>?;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> getWarehousePath(
+    String token, {
+    required String from,
+    required String to,
+    int warehouseId = 1,
+    String agent = 'human',
+  }) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse(ApiConfig.warehousePath(warehouseId)),
+            headers: _headers(token: token),
+            body: jsonEncode({'from': from, 'to': to, 'agent': agent}),
+          )
+          .timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          return decoded['data'] as Map<String, dynamic>?;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<List<Map<String, dynamic>>?> getCategories(String token) async {
     try {
       final response = await _client

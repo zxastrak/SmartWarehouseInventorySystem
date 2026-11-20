@@ -3,14 +3,16 @@ import 'package:provider/provider.dart';
 import '../state/warehouse_state.dart';
 import '../models/models.dart';
 import '../core/app_theme.dart';
+import '../widgets/staggered_slide_card.dart';
 import 'stock_flows.dart';
 
 /// Helper untuk membuat kode sub-tugas berakhiran abjad unik jika terdapat > 1 barang
 String _getItemTaskCode(String baseCode, int index, int totalItems) {
   if (totalItems <= 1) return baseCode;
-  final suffix = index < 26
-      ? String.fromCharCode(65 + index)
-      : '${String.fromCharCode(65 + (index ~/ 26) - 1)}${String.fromCharCode(65 + (index % 26))}';
+  final suffix =
+      index < 26
+          ? String.fromCharCode(65 + index)
+          : '${String.fromCharCode(65 + (index ~/ 26) - 1)}${String.fromCharCode(65 + (index % 26))}';
   return '$baseCode$suffix';
 }
 
@@ -242,56 +244,67 @@ class ShiftHubScreen extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(16, topPadding, 16, 100),
         children: [
           // 1. Hero: operator + shift + check-in
-          _ShiftHeroCard(state: s),
+          StaggeredSlideCard(index: 0, child: _ShiftHeroCard(state: s)),
 
           const SizedBox(height: 20),
 
           // 2. Aksi Cepat (Posisi paling atas di bawah hero, ukuran lebih kecil & ringkas 4 kolom)
-          const _SectionTitle('Aksi Cepat'),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _QuickActionCard(
-                  title: 'Putaway',
-                  imageAsset: 'assets/images/action_putaway.png',
-                  onTap: () {
-                    final target = s.items.isNotEmpty ? s.items.first.sku : '';
-                    s.openScanner(target, mode: ScanMode.putaway);
-                  },
+          StaggeredSlideCard(
+            index: 1,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _SectionTitle('Aksi Cepat'),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _QuickActionCard(
+                        title: 'Putaway',
+                        imageAsset: 'assets/images/action_putaway.png',
+                        onTap: () {
+                          final target =
+                              s.items.isNotEmpty ? s.items.first.sku : '';
+                          s.openScanner(target, mode: ScanMode.putaway);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _QuickActionCard(
+                        title: 'Dispatch',
+                        imageAsset: 'assets/images/action_dispatch.png',
+                        onTap: () {
+                          final target =
+                              s.items.isNotEmpty ? s.items.first.sku : '';
+                          s.openScanner(target, mode: ScanMode.dispatch);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _QuickActionCard(
+                        title: 'Single Scan',
+                        imageAsset: 'assets/images/action_single_scan.png',
+                        onTap: () {
+                          final target =
+                              s.items.isNotEmpty ? s.items.first.sku : '';
+                          s.openScanner(target, mode: ScanMode.single);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _QuickActionCard(
+                        title: 'Rack Audit',
+                        imageAsset: 'assets/images/action_cycle_count.png',
+                        onTap: () => openRackAuditFlow(context),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _QuickActionCard(
-                  title: 'Dispatch',
-                  imageAsset: 'assets/images/action_dispatch.png',
-                  onTap: () {
-                    final target = s.items.isNotEmpty ? s.items.first.sku : '';
-                    s.openScanner(target, mode: ScanMode.dispatch);
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _QuickActionCard(
-                  title: 'Single Scan',
-                  imageAsset: 'assets/images/action_single_scan.png',
-                  onTap: () {
-                    final target = s.items.isNotEmpty ? s.items.first.sku : '';
-                    s.openScanner(target, mode: ScanMode.single);
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _QuickActionCard(
-                  title: 'Rack Audit',
-                  imageAsset: 'assets/images/action_cycle_count.png',
-                  onTap: () => openRackAuditFlow(context),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
 
           // Garis pemisah kecil antara Aksi Cepat dan Tugas Anda
@@ -815,6 +828,7 @@ class _QuickActionCard extends StatelessWidget {
                   imageAsset!,
                   width: 28,
                   height: 28,
+                  cacheWidth: 84,
                   fit: BoxFit.contain,
                 )
               else
@@ -1597,10 +1611,7 @@ class _InboundItemTaskCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 7,
-                  vertical: 3,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                 decoration: BoxDecoration(
                   color: const Color(0xfff8fafc),
                   borderRadius: BorderRadius.circular(6),
@@ -1627,7 +1638,8 @@ class _InboundItemTaskCard extends StatelessWidget {
                   color: brand,
                 ),
               ),
-              if (shipment.poNumber != null && shipment.poNumber!.isNotEmpty) ...[
+              if (shipment.poNumber != null &&
+                  shipment.poNumber!.isNotEmpty) ...[
                 const SizedBox(width: 10),
                 const Icon(Icons.description_outlined, size: 14, color: muted),
                 const SizedBox(width: 4),
@@ -1713,8 +1725,7 @@ class _InboundItemTaskCard extends StatelessWidget {
                     s.openScanner(
                       item.sku,
                       mode: ScanMode.putaway,
-                      taskTitle:
-                          'Putaway ${item.name} ($displayCode)',
+                      taskTitle: 'Putaway ${item.name} ($displayCode)',
                       inboundShipmentId: shipment.id,
                       rack: 'Dok ${shipment.dock}',
                       quantity: item.orderedQty > 0 ? item.orderedQty : 1,
@@ -2119,10 +2130,7 @@ class _OutboundItemTaskCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 7,
-                  vertical: 3,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                 decoration: BoxDecoration(
                   color: const Color(0xfff8fafc),
                   borderRadius: BorderRadius.circular(6),
@@ -2160,7 +2168,8 @@ class _OutboundItemTaskCard extends StatelessWidget {
                   color: Color(0xffb45309),
                 ),
               ),
-              if (shipment.reference != null && shipment.reference!.isNotEmpty) ...[
+              if (shipment.reference != null &&
+                  shipment.reference!.isNotEmpty) ...[
                 const SizedBox(width: 10),
                 const Icon(Icons.description_outlined, size: 14, color: muted),
                 const SizedBox(width: 4),

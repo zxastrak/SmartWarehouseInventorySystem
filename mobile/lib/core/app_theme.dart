@@ -29,7 +29,7 @@ const brandSlate = Color(0xff475569); // teks isi
 const brandHeroInk = Color(0xff18181b); // teks di atas gradien
 const brandHeroSub = Color(0xff3f3f46);
 const brandCardShadow = [
-  BoxShadow(color: Color(0x14000000), blurRadius: 16, offset: Offset(0, 4)),
+  BoxShadow(color: Color(0x0a000000), blurRadius: 4, offset: Offset(0, 1)),
 ];
 
 // -----------------------------------------------------------------------------
